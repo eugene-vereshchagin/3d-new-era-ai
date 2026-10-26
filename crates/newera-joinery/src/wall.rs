@@ -38,7 +38,7 @@ pub struct CabinetRunParams {
     pub wall: Option<String>,
     /// Or a piece against the wall (`f12`, the fridge): its nearest wall, on its side.
     pub near: Option<String>,
-    /// Room the fronts face (default: the side toward the middle of the house).
+    /// Room the fronts face, by id or name (default: toward the house middle).
     pub room: Option<String>,
     /// Flat choices, all optional: row base|wall|tall, h, d, elev, t (mm), front,
     /// color [r,g,b], handle bar|profile|knob|cava|none (bar), `handle_color` [r,g,b] or
@@ -281,13 +281,28 @@ fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
     );
     let facing = match (&p.room, near) {
         (Some(room), _) => {
-            let id: newera_core::RoomId = room.parse().map_err(|e| format!("{e}"))?;
-            let room = home
+            // By id or by name, as the user calls it: `r2` or `Cozinha`.
+            let level = home.resolve_level(wall.level);
+            let found = home
                 .rooms
                 .iter()
-                .find(|r| r.id == id)
-                .ok_or_else(|| format!("{room} not found"))?;
-            newera_core::polygon_centroid(&room.points).unwrap_or(mid)
+                .find(|r| r.id.to_string() == *room)
+                .or_else(|| {
+                    // A name repeated on several storeys means the wall's one.
+                    let name = plain(room.trim());
+                    let named: Vec<_> = home
+                        .rooms
+                        .iter()
+                        .filter(|r| plain(r.name.trim()) == name)
+                        .collect();
+                    named
+                        .iter()
+                        .find(|r| home.resolve_level(r.level) == level)
+                        .or(named.first())
+                        .copied()
+                })
+                .ok_or_else(|| format!("no room `{room}`: give its id or its name"))?;
+            newera_core::polygon_centroid(&found.points).unwrap_or(mid)
         }
         (None, Some(at)) => at,
         (None, None) => home.bounds().map_or(mid, |(a, b)| {

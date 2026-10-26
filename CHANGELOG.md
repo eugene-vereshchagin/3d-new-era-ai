@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `cabinet_run room=` takes the room's name as well as its id (`room=Cozinha`), in any case and
+  with or without accents. A name was refused as an invalid id.
+
 ## [3.1.0] - 2026-10-01
 
 ### Added
