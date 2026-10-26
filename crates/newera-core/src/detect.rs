@@ -165,6 +165,41 @@ mod tests {
     }
 
     #[test]
+    fn a_room_closed_by_walls_ending_on_their_neighbours_faces() {
+        let wall = |id: u64, a: (f64, f64), b: (f64, f64), t: f64| Wall {
+            thickness: t,
+            ..Wall::new(WallId(id), Point2::new(a.0, a.1), Point2::new(b.0, b.1))
+        };
+        let walls = [
+            wall(23, (916.0, 165.5), (1223.0, 165.5), 29.0),
+            wall(24, (937.5, 180.0), (937.5, 510.0), 43.0),
+            wall(26, (1218.0, 180.0), (1218.0, 510.0), 10.0),
+            wall(25, (959.0, 505.0), (1213.0, 505.0), 10.0),
+        ];
+        let room = detect_room(&walls, Point2::new(1098.0, 405.0));
+        let outlines: Vec<Vec<(f64, f64)>> = wall_outlines(&walls)
+            .iter()
+            .map(|o| o.iter().map(|p| (p.x, p.y)).collect())
+            .collect();
+        let union = geo::unary_union(
+            &wall_outlines(&walls)
+                .into_iter()
+                .filter(|o| o.len() >= 3)
+                .map(|o| Polygon::new(ring(&o), vec![]))
+                .collect::<Vec<_>>(),
+        );
+        let union: Vec<_> = union
+            .iter()
+            .map(|p| (p.exterior().0.clone(), p.interiors().len()))
+            .collect();
+        let room = room.unwrap_or_else(|| panic!("no room\n{outlines:?}\nUNION {union:?}"));
+        assert!(
+            (polygon_area(&room) - 254.0 * 320.0).abs() < 1.0,
+            "{room:?}"
+        );
+    }
+
+    #[test]
     fn detects_inner_faces_of_a_closed_square() {
         let walls = walls_from(
             &[(0.0, 0.0), (400.0, 0.0), (400.0, 300.0), (0.0, 300.0)],
