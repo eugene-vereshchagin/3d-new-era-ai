@@ -8,6 +8,11 @@ ignore = [
   # Unmaintained notice (not a vulnerability) for a transitive dependency:
   # winit -> sctk-adwaita -> ab_glyph -> ttf-parser. Revisit when winit moves on.
   { id = "RUSTSEC-2026-0192", reason = "transitive via winit; no upgrade available" },
+  # Unmaintained notices (not vulnerabilities) for the zbus family, pulled in by
+  # eframe -> egui-winit -> accesskit_unix. Revisit with the next egui release.
+  { id = "RUSTSEC-2026-0370", reason = "zvariant: transitive via accesskit_unix; no upgrade available" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names: transitive via accesskit_unix; no upgrade available" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: transitive via accesskit_unix; no upgrade available" },
 ]
 
 [licenses]

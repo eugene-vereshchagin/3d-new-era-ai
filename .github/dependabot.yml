@@ -5,11 +5,13 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # egui's font crate and icon set must move with egui itself, or two
+      # epaint versions end up in the graph.
       egui:
-        patterns: ["egui*", "eframe", "wgpu*"]
+        patterns: ["egui*", "eframe", "epaint*", "wgpu*"]
       rust-deps:
         patterns: ["*"]
-        exclude-patterns: ["egui*", "eframe", "wgpu*"]
+        exclude-patterns: ["egui*", "eframe", "epaint*", "wgpu*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
