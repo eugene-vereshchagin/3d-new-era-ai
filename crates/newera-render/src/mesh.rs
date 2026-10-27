@@ -146,7 +146,9 @@ impl Surface {
         let kind = if let Some(image) = &material.image {
             IMAGE_BASE + mesh.image_layer(image)
         } else {
-            material.pattern.map_or(0, newera_core::Pattern::index)
+            material
+                .pattern
+                .map_or(0, |p| crate::patterns::kind_of(p, material.color.is_some()))
         };
         let color = match (material.color, &material.image) {
             (Some(color), _) => srgb_to_linear(color),
@@ -1303,7 +1305,7 @@ impl Mesh {
                         .or(piece.color)
                         .unwrap_or_else(|| pattern.default_color()),
                 );
-                kind = pattern.index();
+                kind = crate::patterns::kind_of(pattern, texture.color.or(piece.color).is_some());
             } else if let (Some(layer), Some(texture)) =
                 (texture_layer.filter(|_| finishable), piece_texture)
             {

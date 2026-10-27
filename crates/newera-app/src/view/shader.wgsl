@@ -147,6 +147,15 @@ fn brick(uv: vec2<f32>) -> f32 {
     return mix(tone * rough, 1.25, b.x);
 }
 
+// Brick painted a colour of its own: nearly even bricks, shadowed joints
+// (`patterns::PAINTED_BRICK`).
+fn painted_brick(uv: vec2<f32>) -> f32 {
+    let b = running_bond(uv, 0.5, 0.02, 0.07);
+    let tone = 0.94 + 0.08 * b.y;
+    let rough = 0.95 + 0.06 * fbm(uv * vec2<f32>(12.0, 4.0));
+    return mix(tone * rough, 0.8, b.x);
+}
+
 fn stone(uv: vec2<f32>) -> f32 {
     // Voronoi cells: distance to nearest and second-nearest seed.
     let i = floor(uv * 3.0);
@@ -223,6 +232,7 @@ fn pattern_shade(kind: u32, uv: vec2<f32>) -> f32 {
         case 10u: { return grass(uv); }
         case 11u: { return water(uv); }
         case 12u: { return deck(uv); }
+        case 13u: { return painted_brick(uv); }
         default: { return 1.0; }
     }
 }
