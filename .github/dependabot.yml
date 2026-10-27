@@ -12,6 +12,11 @@ updates:
       rust-deps:
         patterns: ["*"]
         exclude-patterns: ["egui*", "eframe", "epaint*", "wgpu*"]
+    ignore:
+      # zip 9.1 needs getrandom on wasm32, whose browser imports the viewer
+      # (loaded without wasm-bindgen) cannot provide: it never starts.
+      - dependency-name: zip
+        versions: [">= 9.1"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
