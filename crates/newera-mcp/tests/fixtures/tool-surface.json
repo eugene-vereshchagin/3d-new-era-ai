@@ -353,7 +353,7 @@
           "type": "object"
         },
         "room": {
-          "description": "Room the fronts face (default: the side toward the middle of the house)",
+          "description": "Room the fronts face, by id or name (default: toward the house middle)",
           "type": "string"
         },
         "to": {

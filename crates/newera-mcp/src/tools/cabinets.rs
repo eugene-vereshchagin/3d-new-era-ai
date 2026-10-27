@@ -394,6 +394,86 @@ mod tests {
         );
     }
     #[test]
+    fn a_cabinet_run_faces_the_room_named_by_its_name() {
+        let s = server();
+        let params: CreateParams = serde_json::from_str(
+            r#"{"walls":[{"pts":[[0,0],[400,0],[400,300],[0,300]],"closed":true},{"pts":[[200,0],[200,300]]}],"rooms":[{"name":"Cozinha","at":[100,150]},{"name":"Área","at":[300,150]}]}"#,
+        )
+        .unwrap();
+        s.create(Parameters(params)).unwrap();
+        let middle = s
+            .document
+            .read()
+            .home()
+            .walls
+            .iter()
+            .find(|w| (w.start.x - 200.0).abs() < 1.0 && (w.end.x - 200.0).abs() < 1.0)
+            .unwrap()
+            .id
+            .to_string();
+        let run = |room: &str| -> f64 {
+            let p: newera_joinery::CabinetRunParams =
+                serde_json::from_value(serde_json::json!({"wall": middle, "room": room})).unwrap();
+            let reply: serde_json::Value =
+                serde_json::from_str(&s.cabinet_run(Parameters(p)).unwrap()).unwrap();
+            let id = reply["modules"][0][0].as_str().unwrap().to_owned();
+            let doc = s.document.read();
+            doc.home()
+                .furniture
+                .iter()
+                .find(|f| f.id.to_string() == id)
+                .unwrap()
+                .position
+                .x
+        };
+        // Any case, with or without the accent the user typed.
+        assert!(run("cozinha") < 200.0);
+        assert!(run("AREA") > 200.0);
+    }
+    #[test]
+    fn a_cabinet_run_faces_an_l_shaped_room_on_its_side_of_the_wall() {
+        let s = server();
+        // The L's centroid, (135.7, 135.7), is past its inner walls.
+        let params: CreateParams = serde_json::from_str(
+            r#"{"walls":[{"pts":[[0,0],[400,0],[400,100],[100,100],[100,400],[0,400]],"closed":true}],"rooms":[{"name":"Cozinha","at":[50,50]}]}"#,
+        )
+        .unwrap();
+        s.create(Parameters(params)).unwrap();
+        let inner = s
+            .document
+            .read()
+            .home()
+            .walls
+            .iter()
+            .find(|w| {
+                (w.start.y - 100.0).abs() < 1.0
+                    && (w.end.y - 100.0).abs() < 1.0
+                    && w.start.x.min(w.end.x) > 50.0
+            })
+            .unwrap()
+            .id
+            .to_string();
+        let p: newera_joinery::CabinetRunParams =
+            serde_json::from_value(serde_json::json!({"wall": inner, "room": "Cozinha"})).unwrap();
+        let reply: serde_json::Value =
+            serde_json::from_str(&s.cabinet_run(Parameters(p)).unwrap()).unwrap();
+        assert!(
+            reply["notes"].to_string().contains("Frentes para Cozinha"),
+            "{reply}"
+        );
+        let doc = s.document.read();
+        for m in reply["modules"].as_array().unwrap() {
+            let id = m[0].as_str().unwrap();
+            let piece = doc
+                .home()
+                .furniture
+                .iter()
+                .find(|f| f.id.to_string() == id)
+                .unwrap();
+            assert!(piece.position.y < 100.0, "{} outside: {reply}", piece.name);
+        }
+    }
+    #[test]
     fn embedded_items_fit_their_host_and_survive_its_changes() {
         let s = server();
         let params: CreateParams = serde_json::from_str(
