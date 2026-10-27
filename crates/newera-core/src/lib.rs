@@ -91,9 +91,9 @@ pub use measure::{
     plan_bounds, stale_annotations, wall_bounds,
 };
 pub use project::{
-    BundledFiles, PROJECT_EXTENSION, Project, ProjectError, cache_dir, from_project_json,
-    model_companions, open_project, project_from_bytes, resolve_asset, resolve_project_path,
-    save_project, to_project_bytes, to_project_json,
+    BundledFiles, PROJECT_EXTENSION, Project, ProjectError, SaveReport, cache_dir,
+    from_project_json, model_companions, open_project, project_from_bytes, resolve_asset,
+    resolve_project_path, save_project, save_project_report, to_project_bytes, to_project_json,
 };
 pub use roof_fit::{ROOF_FIT_ABOVE, ROOF_FIT_KEY, fit_commands, fit_to_roof, roof_height_at};
 pub use standards::{

@@ -237,10 +237,10 @@ impl NewEraMcp {
             (None, Some(path)) => path.to_path_buf(),
             (None, None) => return Err(invalid("`path` is required for the first save")),
         };
-        newera_core::save_project(&doc, &path)
+        let report = newera_core::save_project_report(&doc, &path)
             .map_err(|e| invalid(format!("cannot write {}: {e}", path.display())))?;
         doc.mark_saved(&path);
-        Ok(format!("ok {}", path.display()))
+        Ok(save_reply(&path, &report))
     }
     /// Opens a project, or imports a Sweet Home 3D file, in place of this one.
     pub(crate) fn open_home(
@@ -540,11 +540,57 @@ impl NewEraMcp {
     }
 }
 
+/// The answer to a save: where, and what happened to the files bundled.
+fn save_reply(path: &std::path::Path, report: &newera_core::SaveReport) -> String {
+    use std::fmt::Write as _;
+    let mut reply = format!("ok {}", path.display());
+    if !report.recompressed.is_empty() {
+        let list: Vec<String> = report
+            .recompressed
+            .iter()
+            .map(|(name, before, after)| format!("{name} {before}→{after} B"))
+            .collect();
+        let _ = write!(
+            reply,
+            "\nrecompressed JPEG in the file (the originals are untouched): {}",
+            list.join(", ")
+        );
+    }
+    for missing in &report.missing {
+        let _ = write!(
+            reply,
+            "\nwarning: not found, left out of the file: {}",
+            missing.display()
+        );
+    }
+    reply
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::edit::CreateParams;
     use crate::tools::server;
+
+    #[test]
+    fn a_save_names_the_images_it_recompressed_and_the_files_it_left_out() {
+        let report = newera_core::SaveReport {
+            recompressed: vec![("tex/marble.jpg".into(), 2_966_429, 629_734)],
+            missing: vec![std::path::PathBuf::from("/casa/tex/gone.jpg")],
+        };
+        let reply = save_reply(std::path::Path::new("/casa/casa.newera"), &report);
+        assert!(reply.starts_with("ok /casa/casa.newera"), "{reply}");
+        assert!(reply.contains("tex/marble.jpg 2966429→629734 B"), "{reply}");
+        assert!(
+            reply.contains("not found, left out of the file: /casa/tex/gone.jpg"),
+            "{reply}"
+        );
+        let quiet = save_reply(
+            std::path::Path::new("/casa/casa.newera"),
+            &newera_core::SaveReport::default(),
+        );
+        assert_eq!(quiet, "ok /casa/casa.newera");
+    }
 
     #[test]
     fn an_import_is_cleaned_by_rule_not_one_element_at_a_time() {
