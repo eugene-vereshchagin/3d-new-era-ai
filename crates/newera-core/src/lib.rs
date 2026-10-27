@@ -59,7 +59,10 @@ pub use annotations::{
 };
 pub use ceiling::{CeilingTriangle, room_ceiling};
 pub use command::Command;
-pub use detect::{detect_room, detect_room_with_dividers, interior_point, rooms_following_walls};
+pub use detect::{
+    detect_room, detect_room_with_dividers, interior_point, rooms_following_walls,
+    rooms_sharing_a_space,
+};
 pub use document::{Document, FIRST_VARIANT_NAME, SharedDocument, Variant, VariantInfo};
 pub use elements::{
     BackgroundImage, Baseboard, Compass, Dimension, Element, Hold, Label, Level, Room, RoomUse,

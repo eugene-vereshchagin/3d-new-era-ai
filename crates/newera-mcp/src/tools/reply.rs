@@ -372,6 +372,20 @@ pub(super) const DIFF_LIMIT: usize = 20;
 pub(super) fn applied(doc: &Document, before: &Home) -> String {
     let mut diff = compact::diff(before, doc.home());
     let object = diff.as_object_mut().expect("object");
+    // Two rooms that follow their walls, left in one space by a wall that
+    // moved away: the later one kept its old outline, which nothing encloses.
+    let home = doc.home();
+    if home.walls != before.walls && home.rooms.iter().filter(|r| r.auto).count() > 1 {
+        let sharing: Vec<String> = newera_core::rooms_sharing_a_space(home)
+            .into_iter()
+            .map(|(room, other)| {
+                format!("{room} is in the same space as {other} now; it kept its old outline")
+            })
+            .collect();
+        if !sharing.is_empty() {
+            object.insert("rooms_kept".into(), serde_json::json!(sharing));
+        }
+    }
     if object.is_empty() {
         return ok(doc, &[]);
     }

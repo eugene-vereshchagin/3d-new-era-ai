@@ -62,28 +62,52 @@ pub fn interior_point(points: &[Point2]) -> Option<Point2> {
 
 /// New outlines for the rooms that follow their walls ([`crate::Room::auto`])
 /// whose walls or dividers changed shape. Rooms left without an enclosure keep
-/// their outline.
+/// their outline, and so does one that would come out the same as a room
+/// before it (see [`rooms_sharing_a_space`]).
 pub fn rooms_following_walls(home: &crate::Home) -> Vec<crate::Room> {
-    home.rooms
-        .iter()
-        .filter(|room| room.auto)
-        .filter_map(|room| {
-            let view = home.level_view(room.level);
-            let dividers: Vec<&crate::Polyline> =
-                view.polylines.iter().filter(|p| p.room_divider).collect();
-            let inside = interior_point(&room.points)?;
-            let points = detect_room_with_dividers(&view.walls, &dividers, inside)?;
-            let same = points.len() == room.points.len()
-                && points
-                    .iter()
-                    .zip(&room.points)
-                    .all(|(a, b)| a.distance(*b) < 0.05);
-            (!same).then(|| crate::Room {
+    follow(home).0
+}
+
+/// Rooms following their walls that no longer have a space of their own: the
+/// wall between two of them moved away, and both would be detected as the
+/// same polygon. Each pair is `(room, other)`; `room` comes later in the list
+/// and keeps the outline it had instead of turning into a copy of `other`.
+pub fn rooms_sharing_a_space(home: &crate::Home) -> Vec<(crate::RoomId, crate::RoomId)> {
+    follow(home).1
+}
+
+fn follow(home: &crate::Home) -> (Vec<crate::Room>, Vec<(crate::RoomId, crate::RoomId)>) {
+    let same = |a: &[Point2], b: &[Point2]| {
+        a.len() == b.len() && a.iter().zip(b).all(|(p, q)| p.distance(*q) < 0.05)
+    };
+    let mut taken: Vec<(Option<crate::LevelId>, crate::RoomId, Vec<Point2>)> = Vec::new();
+    let (mut moved, mut sharing) = (Vec::new(), Vec::new());
+    for room in home.rooms.iter().filter(|room| room.auto) {
+        let level = home.resolve_level(room.level);
+        let view = home.level_view(room.level);
+        let dividers: Vec<&crate::Polyline> =
+            view.polylines.iter().filter(|p| p.room_divider).collect();
+        let Some(points) = interior_point(&room.points)
+            .and_then(|inside| detect_room_with_dividers(&view.walls, &dividers, inside))
+        else {
+            continue;
+        };
+        if let Some((_, other, _)) = taken
+            .iter()
+            .find(|(l, _, taken)| *l == level && same(taken, &points))
+        {
+            sharing.push((room.id, *other));
+            continue;
+        }
+        taken.push((level, room.id, points.clone()));
+        if !same(&points, &room.points) {
+            moved.push(crate::Room {
                 points,
                 ..room.clone()
-            })
-        })
-        .collect()
+            });
+        }
+    }
+    (moved, sharing)
 }
 
 pub fn detect_room(walls: &[Wall], point: Point2) -> Option<Vec<Point2>> {
@@ -280,6 +304,39 @@ mod follow_tests {
         doc.execute(Command::update(manual)).unwrap();
         ops::translate(&mut doc, &[right.into()], -100.0, 0.0, true).unwrap();
         assert!((area(&doc) - 485.0 * 285.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn two_rooms_left_in_one_space_do_not_become_copies() {
+        let mut doc = Document::default();
+        square(&mut doc, 600.0, 300.0);
+        let partition = doc.new_wall_id();
+        doc.execute(Command::insert(Wall::new(
+            partition,
+            Point2::new(300.0, 0.0),
+            Point2::new(300.0, 300.0),
+        )))
+        .unwrap();
+        auto_room(&mut doc, Point2::new(150.0, 150.0));
+        auto_room(&mut doc, Point2::new(450.0, 150.0));
+        let right = doc.home().rooms[1].points.clone();
+
+        // The partition goes out of the house: one space is left.
+        ops::translate(&mut doc, &[partition.into()], 0.0, 400.0, true).unwrap();
+        let home = doc.home();
+        assert!(
+            (home.rooms[0].area() - 585.0 * 285.0).abs() < 1.0,
+            "the first room takes the space: {}",
+            home.rooms[0].area()
+        );
+        assert_eq!(
+            home.rooms[1].points, right,
+            "the second keeps its outline instead of copying the first"
+        );
+        assert_eq!(
+            super::rooms_sharing_a_space(home),
+            vec![(home.rooms[1].id, home.rooms[0].id)]
+        );
     }
 
     #[test]
