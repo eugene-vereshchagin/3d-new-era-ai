@@ -643,7 +643,7 @@ impl NewEraMcp {
         )]))
     }
     #[tool(
-        description = "Export to a file, by its extension. what=plan (default): the plan as .pdf (A3; scale=50/100 or fit), .svg (true scale) or .png, or the 3D model as .glb or .obj. what=cut_list: the joinery's cut list (and that of groups drawn by hand) as .csv (spreadsheet), .dxf (boards laid out on sheets, for CNC) or .svg (sheets to view); `cut_list` reads it."
+        description = "Export to a file, by its extension. what=plan (default): the plan as .pdf (A3; scale=50/100 or fit), .svg (true scale) or .png, or the 3D model as .glb or .obj (every storey). what=cut_list: the joinery's cut list (and that of groups drawn by hand) as .csv (spreadsheet), .dxf (boards laid out on sheets, for CNC) or .svg (sheets to view); `cut_list` reads it."
     )]
     pub(crate) fn export(
         &self,
@@ -668,7 +668,12 @@ impl NewEraMcp {
                 };
                 newera_render::export_home(&home, &path, assets.as_deref())
                     .map_err(|e| invalid(e.to_string()))?;
-                return Ok(format!("ok {}", path.display()));
+                let levels = newera_render::exported_levels(&home);
+                return Ok(if levels.is_empty() {
+                    format!("ok {}", path.display())
+                } else {
+                    format!("ok {} levels={}", path.display(), levels.join(","))
+                });
             }
             Some("pdf") => {
                 let doc = self.document.read();

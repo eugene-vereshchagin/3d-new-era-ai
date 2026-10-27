@@ -409,13 +409,38 @@ pub fn isolated(
     Ok((alone, bounds))
 }
 
-/// Exports the home's 3D model (`.glb` or `.obj`), with models and textures
-/// resolved relative to `assets`. The ground plane is left out.
+/// The home with every storey shown: an export is the whole building,
+/// whichever storey the editor has selected (the 3D view shows those up to
+/// it). A storey hidden on purpose stays out.
+fn whole_building(home: &newera_core::Home) -> std::borrow::Cow<'_, newera_core::Home> {
+    if home.levels.is_empty() || home.environment.all_levels_visible {
+        std::borrow::Cow::Borrowed(home)
+    } else {
+        let mut whole = home.clone();
+        whole.environment.all_levels_visible = true;
+        std::borrow::Cow::Owned(whole)
+    }
+}
+
+/// The names of the storeys an export of `home` holds, lowest first; empty
+/// for a home without storeys.
+pub fn exported_levels(home: &newera_core::Home) -> Vec<String> {
+    home.sorted_levels()
+        .into_iter()
+        .filter(|l| l.viewable)
+        .map(|l| l.name.clone())
+        .collect()
+}
+
+/// Exports the home's 3D model (`.glb` or `.obj`), every storey of it
+/// ([`exported_levels`]), with models and textures resolved relative to
+/// `assets`. The ground plane is left out.
 pub fn export_home(
     home: &newera_core::Home,
     path: &Path,
     assets: Option<&Path>,
 ) -> Result<(), export::ExportError> {
+    let home = &*whole_building(home);
     let cache = ModelCache::default();
     let models = |piece: &newera_core::Furniture| cache.piece_model(piece, assets);
     let mut mesh = Mesh::from_home(home, &Selection::new(), &models);
@@ -445,6 +470,7 @@ pub fn export_home(
 /// The home as a binary glTF built in memory, with catalog furniture and no
 /// image files (for environments without a file system).
 pub fn glb_home(home: &newera_core::Home) -> Vec<u8> {
+    let home = &*whole_building(home);
     let mut mesh = Mesh::from_home(home, &Selection::new(), &|_| None);
     mesh.drop_ground();
     export::glb(&mesh, &|_| None)
@@ -863,6 +889,42 @@ mod tests {
             newera_core::lighting::emitters(&home, &newera_catalog::light_for).len(),
             1
         );
+    }
+
+    #[test]
+    fn an_export_holds_every_storey_whichever_is_selected() {
+        use newera_core::{Home, Level, LevelId, Point2, Wall, WallId};
+        let mut home = Home::default();
+        home.levels = vec![
+            Level {
+                id: LevelId(1),
+                name: "Térreo".into(),
+                ..Level::default()
+            },
+            Level {
+                id: LevelId(2),
+                name: "Superior".into(),
+                elevation: 300.0,
+                ..Level::default()
+            },
+        ];
+        home.selected_level = Some(LevelId(1));
+        home.environment.all_levels_visible = false;
+        let wall = |id, level| Wall {
+            level: Some(LevelId(level)),
+            ..Wall::new(WallId(id), Point2::new(0.0, 0.0), Point2::new(400.0, 0.0))
+        };
+        home.walls.push(wall(1, 1));
+        let ground_only = super::glb_home(&home).len();
+        home.walls.push(wall(2, 2));
+        assert!(
+            super::glb_home(&home).len() > ground_only,
+            "the upper storey's wall is in the export with the ground floor selected"
+        );
+        assert_eq!(super::exported_levels(&home), ["Térreo", "Superior"]);
+        home.levels[1].viewable = false;
+        assert_eq!(super::glb_home(&home).len(), ground_only);
+        assert_eq!(super::exported_levels(&home), ["Térreo"]);
     }
 
     #[test]
