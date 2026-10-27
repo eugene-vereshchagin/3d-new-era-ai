@@ -71,6 +71,19 @@ const frames = async (times) => {
   }
 };
 
+// The request for support comes up at every launch, over what the checks
+// click; Escape closes it, on a frame.
+const dismissSupport = async () => {
+  // Keys reach egui only through its canvas, which a fresh page has not
+  // focused yet.
+  await evaluate("document.querySelector('canvas')?.focus()");
+  for (let i = 0; i < 3; i++) {
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await frames(1);
+  }
+};
+
 const rpc = async (url, body) => {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(20000),
@@ -107,6 +120,7 @@ try {
   }
   if (!started) throw new Error("the editor did not start in 60 s");
   await frames(20);
+  await dismissSupport();
   if (await evaluate("navigator.language") !== "pt-BR") throw new Error("the UI fixture language was not applied");
 
   // Nothing is pressed here: a window wide enough to be somebody's desk comes
@@ -443,6 +457,7 @@ try {
     }
     if (!backAgain) bad("the address was lost when the page reloaded");
     else ok("reloaded, and the same address still answers");
+    await dismissSupport();
     const restoredHome=await readHome();
     if (restoredHome.name !== beforeReload.name
         || restoredHome.recovery.restored_from_revision !== beforeReload.rev
@@ -478,6 +493,7 @@ try {
     if (!legacyHome?.recovery?.legacy || legacyHome.recovery.restored_from_revision !== null || legacyHome.name !== beforeReload.name) {
       throw new Error(`legacy browser snapshot was not restored: ${JSON.stringify(legacyHome?.recovery)}`);
     }
+    await dismissSupport();
     ok('legacy browser snapshots still restore without pretending their saved revision is known');
 
     // A mounted but unused 16 MiB import must not exhaust the 8 MiB worker
@@ -500,7 +516,7 @@ try {
         await frames(3);
         let home;
         try {home=await readHome();} catch {continue;}
-        if(home.name===name) return home;
+        if(home.name===name) { await dismissSupport(); return home; }
       }
       throw new Error('asset bundle did not load: '+name);
     };

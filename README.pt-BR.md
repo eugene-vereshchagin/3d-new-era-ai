@@ -227,7 +227,8 @@ O app envia relatórios de erro pelo Sentry, junto com as notas que os agentes d
 ferramenta `feedback` do MCP. Vem **ligada por padrão** e desliga com um clique em
 **Ajuda → Enviar relatórios de erro** ou com `newera telemetry off`. Nada do projeto é
 enviado, nem o IP nem o nome da máquina. Pela mesma chave, abrir o app conta um `app_open` —
-id sorteado da instalação, versão, sistema, arquitetura e modo — e os instaladores contam uma
+id sorteado da instalação, versão, sistema, arquitetura e modo —, o pedido de apoio conta um
+`support_prompt` quando aparece e qual botão o fechou, e os instaladores contam uma
 instalação e uma desinstalação, dizendo o sistema e se o app veio de uma versão publicada ou
 foi compilado ali. As duas contagens vão para `3dneweraai.com/ping`, um endereço do site que
 guarda o segredo do Google Analytics e repassa a contagem sem levar o IP adiante: vai só o

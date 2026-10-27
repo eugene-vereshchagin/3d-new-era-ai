@@ -66,6 +66,7 @@ pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
                 gpu::watch_device(state);
             }
             let mut app = app::NewEraApp::new(cc, document, options.mcp_url);
+            app.ask_support();
             if let Some(path) = options.open {
                 app.open_path(&path);
             }
@@ -150,6 +151,7 @@ pub async fn start_web(
                     let _ = body.set_attribute("data-editor-backend", &backend);
                 }
                 let mut app = app::NewEraApp::new(cc, document, None);
+                app.ask_support();
                 // The demo home is what a first visit opens on; someone who
                 // was already drawing here gets their own work back instead —
                 // unless the address asked for a project (a link from their

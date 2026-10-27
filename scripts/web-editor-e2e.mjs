@@ -158,6 +158,17 @@ await send("Page.enable");
         failed = true;
       }
     };
+    // The request for support comes up at every launch; Escape closes it.
+    // Keys reach egui only through its canvas, which a fresh page has not
+    // focused yet.
+    await evaluate("document.querySelector('canvas')?.focus()");
+    // The tab only answers a key on a frame, so ask for pictures meanwhile.
+    for (let i = 0; i < 3; i++) {
+      await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await send("Page.captureScreenshot", { format: "png" });
+      await sleep(200);
+    }
     // Wall tool (W), then a wall drawn right of the demo house on the plan.
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "w", code: "KeyW", text: "w" });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "w", code: "KeyW" });

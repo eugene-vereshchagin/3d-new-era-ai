@@ -505,6 +505,37 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
             "Apoyar el proyecto",
             "Soutenir le projet",
         ],
+        "Apoiar no Buy Me a Coffee" => [
+            "Support on Buy Me a Coffee",
+            "Apoyar en Buy Me a Coffee",
+            "Soutenir sur Buy Me a Coffee",
+        ],
+        "Abrir o GitHub" => ["Open GitHub", "Abrir GitHub", "Ouvrir GitHub"],
+        "Agora não" => ["Not now", "Ahora no", "Pas maintenant"],
+        "Muita gente usa o 3D New Era AI todos os dias, mas quase ninguém apoia o projeto." => [
+            "Many people use 3D New Era AI every day, but almost no one supports the project.",
+            "Mucha gente usa 3D New Era AI todos los días, pero casi nadie apoya el proyecto.",
+            "Beaucoup de gens utilisent 3D New Era AI chaque jour, mais presque personne ne soutient le projet.",
+        ],
+        "As IAs que usam a ferramenta enviam sozinhas relatos de problemas e sugestões de melhoria, e eles chegam em grande número. Quero corrigir todos, mas me falta tempo e dinheiro para pagar as ferramentas de IA e os tokens que esse trabalho exige." => {
+            [
+                "The AIs that use the tool send problem reports and improvement suggestions on their own, and they arrive in large numbers. I want to fix them all, but I lack the time and the money to pay for the AI tools and tokens this work takes.",
+                "Las IA que usan la herramienta envían solas reportes de problemas y sugerencias de mejora, y llegan en gran número. Quiero corregirlos todos, pero me falta tiempo y dinero para pagar las herramientas de IA y los tokens que este trabajo exige.",
+                "Les IA qui utilisent l'outil envoient d'elles-mêmes des rapports de problèmes et des suggestions d'amélioration, et ils arrivent en grand nombre. Je veux tous les corriger, mais il me manque le temps et l'argent pour payer les outils d'IA et les tokens que ce travail demande.",
+            ]
+        }
+        "Se a ferramenta é útil para você, considere apoiar no Buy Me a Coffee." => [
+            "If the tool is useful to you, please consider supporting it on Buy Me a Coffee.",
+            "Si la herramienta te resulta útil, considera apoyarla en Buy Me a Coffee.",
+            "Si l'outil vous est utile, pensez à le soutenir sur Buy Me a Coffee.",
+        ],
+        "Também dá para ajudar com código: abra issues e pull requests no GitHub. Todos serão avaliados, e o que for aceito entra na próxima versão." => {
+            [
+                "You can also help with code: open issues and pull requests on GitHub. Every one will be reviewed, and what is accepted goes into the next release.",
+                "También puedes ayudar con código: abre issues y pull requests en GitHub. Todos serán evaluados, y lo que se acepte entra en la próxima versión.",
+                "Vous pouvez aussi aider avec du code : ouvrez des issues et des pull requests sur GitHub. Toutes seront examinées, et ce qui est accepté entre dans la prochaine version.",
+            ]
+        }
         "Arco" => ["Arc", "Arco", "Arc"],
         "Arquitetura" => ["Architecture", "Arquitectura", "Architecture"],
         "Arquivo" => ["File", "Archivo", "Fichier"],

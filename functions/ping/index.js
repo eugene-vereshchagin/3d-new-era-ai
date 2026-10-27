@@ -7,7 +7,7 @@
 // one environment variable of the Pages project, and every build reports the
 // same way.
 //
-// What is accepted is a closed list — three event names, a handful of
+// What is accepted is a closed list — four event names, a handful of
 // parameters, each capped — and the payload Google sees is built here from
 // those fields alone, never forwarded as it arrived. The visitor's address is
 // not passed on: the country Cloudflare already knows goes in as a parameter,
@@ -28,7 +28,7 @@ const DEBUG_COLLECT = 'https://www.google-analytics.com/debug/mp/collect';
 const MAX_BODY = 2048;
 
 /** What may be counted. An unknown name is a bad request, not a new event. */
-const EVENTS = new Set(['app_open', 'install', 'uninstall']);
+const EVENTS = new Set(['app_open', 'install', 'uninstall', 'support_prompt']);
 
 /**
  * The parameters that reach Google, and the values each one may take. A list
@@ -42,6 +42,8 @@ const PARAMS = {
   channel: ['release', 'source'],
   installer: ['script', 'brew', 'winget', 'mcpb'],
   first_install: ['0', '1'],
+  // What was done with the request for support the app shows at launch.
+  action: ['shown', 'coffee', 'github', 'dismiss'],
 };
 
 /** An installation id: what the app keeps beside its settings, nothing more. */

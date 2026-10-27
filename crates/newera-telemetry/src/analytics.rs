@@ -93,6 +93,31 @@ fn payload(client: &str, mode: &str) -> serde_json::Value {
 /// `mode` is how it was started — `gui`, `serve`, `mcp` — so a headless
 /// server is not counted as somebody sitting in front of a window.
 pub fn opened(mode: &str) {
+    send(|client| payload(client, mode));
+}
+
+/// What one answer to the request for support looks like to the count:
+/// `shown` when it comes up, then `coffee`, `github` or `dismiss`.
+fn support_payload(client: &str, action: &str) -> serde_json::Value {
+    serde_json::json!({
+        "event": "support_prompt",
+        "client_id": client,
+        "app_version": env!("CARGO_PKG_VERSION"),
+        "operating_system": std::env::consts::OS,
+        "architecture": std::env::consts::ARCH,
+        "action": action,
+    })
+}
+
+/// Reports what was done with the request for support, in the background,
+/// under the same switch as [`opened`].
+pub fn support(action: &str) {
+    send(|client| support_payload(client, action));
+}
+
+/// Posts the body built for this installation, when counting is on and
+/// there is somewhere to post it.
+fn send(body: impl FnOnce(&str) -> serde_json::Value) {
     if !super::enabled() {
         return;
     }
@@ -102,7 +127,7 @@ pub fn opened(mode: &str) {
     let Ok(client) = client_id() else {
         return;
     };
-    let body = payload(&client, mode);
+    let body = body(&client);
     std::thread::spawn(move || {
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_global(Some(Duration::from_secs(4)))
@@ -131,6 +156,21 @@ mod tests {
             panic!("an object")
         };
         assert_eq!(fields.len(), 6, "an unknown field would be dropped anyway");
+    }
+
+    /// An answer to the request for support carries its action and the same
+    /// fields as an opening, nothing else.
+    #[test]
+    fn the_support_ping_says_what_was_done() {
+        let body = super::support_payload("abc123", "coffee");
+        assert_eq!(body["event"], "support_prompt");
+        assert_eq!(body["client_id"], "abc123");
+        assert_eq!(body["action"], "coffee");
+        assert_eq!(body["app_version"], env!("CARGO_PKG_VERSION"));
+        let serde_json::Value::Object(fields) = body else {
+            panic!("an object")
+        };
+        assert_eq!(fields.len(), 6);
     }
 
     /// A build for working on, and CI, stay out of the count: what is counted

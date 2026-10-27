@@ -66,6 +66,14 @@ test('only the fields the endpoint knows reach Google', () => {
   assert.equal(params.country, undefined, 'and a country that is not one');
 });
 
+test('an answer to the request for support is counted with its action', () => {
+  const payload = payloadFor({ event: 'support_prompt', client_id: 'abc123', action: 'coffee' }, 'BR');
+  assert.equal(payload.events[0].name, 'support_prompt');
+  assert.equal(payload.events[0].params.action, 'coffee');
+  const odd = payloadFor({ event: 'support_prompt', client_id: 'abc123', action: 'paid' }, 'BR');
+  assert.equal(odd.events[0].params.action, undefined, 'a value outside the list');
+});
+
 test('an event nobody counts, and an id that is not one, are refused', () => {
   assert.equal(payloadFor({ event: 'bought_something', client_id: 'abc' }, 'BR'), null);
   assert.equal(payloadFor({ event: 'app_open', client_id: 'a b c' }, 'BR'), null);

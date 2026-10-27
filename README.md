@@ -358,7 +358,8 @@ and the MCP token is removed from every report. Notes are always kept locally in
 folder (`notes.jsonl`).
 
 Under the same switch, opening the app counts one `app_open` — a random installation id, the
-version, the operating system, the architecture and the mode — and the installers count one
+version, the operating system, the architecture and the mode — the request for support counts a
+`support_prompt` when it shows and which button closed it, and the installers count one
 install and one uninstall, saying which system and whether the app came from a release or was
 compiled on the machine. Both go to `3dneweraai.com/ping`, an endpoint of the site that holds
 the Google Analytics secret and forwards the count without passing the IP address on: the
