@@ -6,6 +6,216 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- At every launch, on the desktop and in the web editor, a dialog asks for support: it explains
+  that the AIs using the tool send more reports and suggestions than there is time and money to
+  fix, links to Buy Me a Coffee and invites issues and pull requests on GitHub.
+- `update` takes `into` on a door, the same point `place` takes: the door turns to swing into that
+  side, hinged on the same jamb. A door placed opening the wrong way had to be deleted and placed
+  again.
+
+### Changed
+
+- Crash reports from the released builds now name the function and line where the program
+  crashed. Each release uploads its debug files to Sentry; the downloads stay stripped and the
+  same size.
+
+### Fixed
+
+- A paste with nothing readable on the clipboard is really no longer reported as an error: the
+  clipboard writes through the `log` crate, and the check saw every such line under the target
+  `log` instead of its own. An MCP client that hangs up before its answer is sent, and a Vulkan
+  driver that fails to start while wgpu tries the next backend, are no longer reported either;
+  all three stay as breadcrumbs.
+- Hiding a roof no longer refits the walls and panels fitted to it: they were cut and split
+  as if the roof were gone. Hiding is a display change; editing or deleting the roof still
+  refits them.
+- A render (`render_plan`, `render_3d`, `render_photo`, `edit_video`) is no longer cancelled
+  because the client did not answer a ping within 10 s. Pings are still sent to keep the session
+  alive, but a render stops only when the client cancels it, disconnects, or a photo passes its
+  `max_s`.
+- `cabinets` with a `sink_w` under 60 or a `cooktop_w` under 58 no longer closes the program:
+  the cutout was kept 30 cm (29 for the cooktop) from each side of a cabinet narrower than that.
+  It now goes to the middle of such a cabinet.
+- `embed z=` into a cabinet hung on the wall is the height above the room floor, as the tool
+  says: a microwave asked at 160 cm in a cabinet at 150 cm sat 160 cm above the cabinet's base,
+  past its top. The item now sits on the niche that is built, and the reply's `bottom` is that
+  height above the floor.
+- `place` with `wall` and `at` but no `along` puts the piece at the point projected onto the wall,
+  kept far enough from the ends for it to fit. It used to ignore `at` and centre the piece on the
+  wall, so a door asked for near a corner came out in the middle.
+- `update h_end`, `update level` and `update opacity` are said as changes. The compact rows a
+  write is compared on had no wall height at its end, no storey and no piece opacity, so these
+  writes were applied but answered as if the element already had the values. Reads now show
+  `h_end` on a sloping wall and `opacity` on a piece that has one, and a move to another storey
+  is named as `level` in the reply.
+- `place` with `defaults={unit:...}` (or `stretch`) no longer hands them to the catalog items in the
+  batch. Every catalog piece was refused with `unit and stretch are for model=<file>`; now only the
+  items that import a model take them, and an item that sets them itself is still told.
+- `fit_roof` fits a wall to the roofs over its own storey, whichever storey is selected. A
+  double-height wall on the ground floor under a roof drawn on the floor above came out 245 cm
+  too low — the roof's heights from the upper floor were applied from the ground floor — and
+  with the ground floor selected it found no roof at all.
+- A `create` that welds wall ends gives the ids it created as they are in `structuredContent`.
+  The `welded=` list after them was read as more ids (`"w2.a→[965.0"`, `"580.0]"`), so a client
+  reading the fields got ids that do not exist. `welded` is now its own list, one entry per end.
+- A light's `z` outside 0..1 in `place` or `update` is refused with "z is a fraction of the piece's
+  height (0 = bottom face), not cm". A height in cm such as `z:268.5` was clamped to 1 without a
+  word, and the source landed on the top face of the fixture.
+- A `render_plan` or `render_3d` asked for while another render runs waits for its turn instead of
+  being refused with "A render is already running"; an agent drawing two views at once got one
+  and an error. `render_photo` and `edit_video`, which take minutes, are still refused while
+  another render runs, and the descriptions say one render runs at a time.
+- A scene too big for one GPU buffer (over 256 MiB of vertices or indices: a large project with
+  detailed models) no longer closes the editor. The device asks for the largest buffer the GPU
+  takes, and a scene larger than that goes up and is drawn in parts.
+- `layout` no longer says a roof slope blocks a window or door under it when the slope passes
+  above the opening's head: a tilted plate was judged by its whole height range, from eave to
+  ridge, instead of where it actually is over the opening.
+- Moving a wall takes its doors and windows with it. They stayed where the wall had been,
+  standing in the air, and a door moved together with its wall was pulled back to the old
+  place. `update` of a wall's `a`/`b` keeps each opening at the same distance from the start,
+  inside the wall; one that no longer fits is left where it was and named in the reply
+  (`openings_left=`).
+- An imported model with a side under 1 cm keeps it: a shelf 8 mm thick comes in 0.8 cm deep. Every
+  side was raised to at least 1 cm, so thin panels, plates and knobs grew; only a side with no
+  thickness at all (a plane) is now given the least size, 0.01 cm.
+- `cabinet_run room=` takes the room's name as well as its id (`room=Cozinha`), in any case and
+  with or without accents. A name was refused as an invalid id.
+- `cabinet_run room=` puts the cabinets on the face of the wall the room is on, looked for just
+  past the wall, and the notes say which face (`Frentes para Cozinha (r1): no lado de w5 voltado
+  para [250, 40]`). The side used to be the one toward the room's centroid, which in an L-shaped
+  room lies past its own inner walls: the run came out on the far side, outside the room. A room
+  on neither face of the wall is refused.
+- A door or window only cuts the walls of its own storey. The same wall drawn again upstairs,
+  right over it, was opened too, and could be named the opening's wall in `home` and `measure`.
+- A refused `place` no longer uses up ids. The pieces it would have placed took their numbers anyway,
+  so after a refused batch of three the next piece came out `f4` instead of `f1`, and an agent
+  that had planned its ids found them shifted.
+- `layout` checks a solid drawn as an outline by its outline, not by the rectangle around it:
+  a shelf drawn turned 10.5° along a sloped wall, or a countertop notched around a wall corner,
+  was reported `in_wall` because its bounds reached into the wall. Overlaps between pieces use
+  the outline too.
+- An `elev` a ceiling piece does not keep is said. A downlight or presence sensor given `elev`
+  goes back onto the ceiling, and `update` answered that it "already had the values asked for"
+  while it sat 27 cm higher; `place` said nothing. `update` now lists it under `overridden`
+  (`elev 240 snapped to the ceiling at 267`) and `place` adds a line per piece after its ids.
+- `show_plan` in a client with no viewer (Claude Code, a CLI) no longer answers with the whole plan
+  as SVG — 150 to 330 thousand characters the client refused or spilled to disk. The drawing goes
+  only to a client that declared the MCP Apps extension (`io.modelcontextprotocol/ui`) when it
+  connected; any other gets the one-line summary and the editor link.
+- `update` of one end of a wall (`a` or `b`) no longer moves the other one: only the ends given
+  are welded onto a wall they nearly touch, and the reply lists each one it moved
+  (`welded=w14.b→[615.7,448.7]`), as `create` does. The end left out could be pulled several
+  centimetres with nothing saying so, or the change come back as `unchanged`.
+- `update` takes `layer` on a label or a line, as `home` shows it there: `electrical`, `plumbing`, or
+  empty for the architectural plan. It was refused as a field that does not apply, so a note or a
+  line drawn on the wrong project could not be moved to the right one.
+- A door hinged on the right (`hinge_right`) has its handle on the left in 3D, away from the
+  hinges, as the plan swing shows. The 3D handle always stayed on the right.
+- An export to `.glb` or `.obj` holds every storey of the building. It held only the storeys up to
+  the one selected in the editor, as the 3D view shows them, so exporting with the ground floor
+  selected lost the floors above. `export` now lists the storeys it wrote (`levels=…`); a storey
+  hidden on purpose stays out.
+- `edit_model action=material` with both an image (`mat:img:…`) and a `color` draws the image
+  tinted by the colour. The colour replaced it and the material came out flat. A colour alone
+  still repaints the file's own image.
+- `update` takes `pts` on a solid drawn from an outline and redraws it there, as `create` would; it
+  was refused, and the only way to reshape a slab or a deck was to delete it and draw it again. A
+  wall takes `pts` as its two ends (the same as `a` and `b`), and more points are refused saying
+  that more walls are drawn with `create`.
+- Changing the size or place of a piece inside a group made with `arrange` says to take it out with
+  `arrange ungroup` and group again, instead of "belongs to the group", which the group did not
+  take either.
+- A wall that starts a step aside from an L corner — carrying on from one of its walls a few
+  centimetres off the corner's line — no longer has its end pulled into the corner and its
+  long faces drawn sloping. It meets the wall it touches as a T.
+- `export` to `.png` says the size it wrote (`ok plan.png 2048x1536 px`). A side past 2048 px was
+  cut down to 2048 with only `ok <path>` in reply; now the reply also gives the size asked and
+  the limits, and `w`/`h` say they are 64..2048.
+- `edit_model action=material` refuses an image it cannot read (`mat:img:…` with a wrong path
+  or a broken file) and names the full path it looked at, changing nothing. It answered ok and
+  the material was drawn without its image.
+- Two rooms that follow their walls no longer turn into copies of each other when the wall
+  between them is moved away. The first takes the space; the other keeps the outline it had,
+  and the reply names it (`rooms_kept`) so it can be deleted or redrawn.
+- Adding a storey below the ground floor (`edit_levels add elev=-300`), or changing a storey's
+  elevation so another becomes the lowest, no longer moves the ground floor's walls, rooms and
+  pieces onto it. What was drawn before any storey existed belongs to "the lowest storey"; it is
+  now given that storey by name, in the same step, before the lowest one changes.
+- `file save` says what it did to the images and models it bundles: the big JPEGs it stored
+  recompressed (name, bytes before and after; the originals are untouched) and the files the
+  project refers to that were not found and were left out. It answered a bare `ok` either way.
+- A checkpoint set before the project was opened is no longer reverted to. Its place in the undo
+  history was saved, but the history was not: after reopening, `history` called it "0 changes
+  ago" and `edit_history revert` undid whatever had been done since. `history` now marks it
+  `restorable` false and revert refuses it with nothing changed; checkpoints set in this session
+  work as before.
+- `cabinet_run p.sink=null` (or `cooktop=null`) takes the sink out of the run: the bowl set into
+  the old countertop brought it back every time. A sink or cooktop asked for in the call moves
+  the bowl or cooktop already there instead of being overruled by it.
+- A sink or cooktop asked for where another wall's run turns the corner keeps its place: that run
+  is planned again and stops short of it and of the room to open its doors, and stays so when
+  either wall is planned again. The sink was pushed along or lost to a blind panel, and a stretch
+  the corner panels took whole said "não cabe no vão de -61 cm"; that case is now an error
+  naming the cabinets in the way.
+- A solid outline or profile enclosing under 1 cm² is refused saying how much it encloses and that
+  coordinates are cm (`encloses 0.98 cm²; … metres ×100?`), instead of "needs at least 3 points
+  enclosing an area", which did not say the points were read as centimetres.
+- `create` names the walls it drew shorter than they are thick (`short=w1`), the mark of a plan
+  typed in metres, so the reply says so before the rest of the plan is built on it.
+- A `measure` probe through a door or passage no longer reports the wall there: where the
+  opening covers the whole height probed (`z`, 0–200 by default) the wall is free floor. Wall
+  beside the opening, a lintel or a window sill inside that height still count.
+- The first storey `edit_levels add` makes in an empty project is the only one. An empty
+  "Térreo" was created beside it, at the same elevation, and the reply named only the storey
+  asked for. Over a plan already drawn, the ground storey made for it is still added, and `edit_levels` now names both
+  (`ids=lv1,lv2`, and a line saying which holds what was drawn).
+- `edit_levels` says that storeys belong to each plan version: with several versions, its reply
+  names the one it changed (`storeys are per version: this changed v=4 only`), and its
+  description says a change applies to the active one.
+- A countertop changed with `joinery` (shorter, with its cutouts moved) keeps the real sink and
+  cooktop set into it in their cutouts: they kept their distance from the countertop's middle,
+  so cutting 76 cm off one end moved the cooktop 38 cm off its hole. One whose cutout is gone
+  stays where it stood, and the reply says so.
+- Brick given a colour (`brick #fbfaf7 25x7`) is drawn as painted brick in that colour: even
+  bricks with shadowed joints. Its strong light-and-dark tones and light mortar turned a white
+  brick wall into grey mottle. Brick with no colour is unchanged.
+- A joinery build resized with `update` (`d=60 h=45`) keeps that size when it is changed again
+  with `joinery` (`p.color`): it was rebuilt at the size its parameters remembered. The reply
+  notes the sizes it took; a size given in the change still wins.
+- An unknown wall `type` is refused with the list of wall types there are, instead of a pointer
+  to the `materials` tool.
+- `glass` (on `place` and `update`) lists its four kinds in the schema, so a client can offer them
+  and check them before the call.
+- The schemas say what agents got wrong: `v` is the index of a plan version in `variants`
+  (0-based), not a revision; `render_3d` `yaw` and `pitch` do not go with `piece`; and `fixed`
+  marks a piece built-in, not locked in place.
+- A cabinet's, run's or sofa's `color` takes `#rrggbb` as well as `[r,g,b]`, as `handle_color`
+  already did: `p.color="#d8d2c6"` was refused as an invalid type.
+- A cooktop embedded in a countertop counts as the kitchen's cooking zone whatever it is named:
+  the review read embedded items by their Portuguese names, so a `Варочная панель` set into the
+  stone left the kitchen "missing" its cooktop. Embedded items are now read by what their host
+  says they are, however deep in the group, and catalog `cooktop` and `sink-bowl` pieces count
+  as a cooktop and a sink.
+- `update` resizing a group and renaming one of its parts in the same call resizes the parts
+  too, in either order: they kept their old size and place, and with the rename first the resize
+  also undid the rename.
+- A group made with `arrange` faces the way its largest piece does, with its box measured that
+  way: a wardrobe facing -x grouped with its nightstands made a group at 0° that was reported as
+  `turned` against what it holds, and a box wider than the pieces.
+- On macOS the editor no longer closes while a file dialog is open (open, save, export, import,
+  photo, video, a finish image). The dialog used to wait for its answer inside the frame that
+  opened it, and an event that arrived meanwhile closed the program. File dialogs now open as a
+  sheet on the window (a dialog of their own elsewhere), and the window keeps drawing until the
+  answer comes.
+- An editor that closes at launch because of its graphics driver no longer does so on every
+  launch: if the last launch closed before it drew, the next one tries the next graphics backend
+  of the system (on Windows Direct3D 12, then Vulkan, then OpenGL; on Linux OpenGL) and keeps the
+  one that works until the next version. `WGPU_BACKEND` still chooses by hand. A GPU lost while
+  the editor is open is now named as such in the crash report.
+
 ### Security
 
 - Dependencies updated past the open advisories: `zip` 9 (archive extraction through symlinks,
