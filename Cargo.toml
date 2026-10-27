@@ -77,6 +77,8 @@ large_enum_variant = "allow"
 # needs a different empty value per type and says no more on failure.
 assert_is_empty = "allow"
 
+# Stripped. The released binaries are built with debug line tables on top
+# (release.yml), whose debug files go to Sentry and not into the download.
 [profile.release]
 lto = "thin"
 codegen-units = 1
