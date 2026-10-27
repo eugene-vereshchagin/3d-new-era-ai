@@ -178,14 +178,15 @@ impl NewEraMcp {
         }
         let apply = |doc: &mut newera_core::Document,
                      items: Vec<UpdateSpec>,
-                     rename: Option<&edit::RenameSpec>| {
+                     rename: Option<&edit::RenameSpec>|
+         -> Result<Vec<String>, ErrorData> {
             if let Some(rule) = rename {
                 edit::rename(doc, rule).map_err(invalid)?;
             }
-            if !items.is_empty() {
-                edit::update(doc, items).map_err(invalid)?;
+            if items.is_empty() {
+                return Ok(Vec::new());
             }
-            Ok(())
+            edit::update(doc, items).map_err(invalid)
         };
         let asked: Vec<String> = p.items.iter().map(|i| i.id.clone()).collect();
         if Dry::on(p.dry.as_ref()) {
@@ -196,16 +197,21 @@ impl NewEraMcp {
             apply(&mut scratch, items.clone(), rename.as_ref())?;
             let still = unchanged(&before, scratch.home(), &asked);
             let answer = reply::preview_with(&doc, Dry::brief(p.dry.as_ref()), move |scratch| {
-                apply(scratch, items, rename.as_ref())
+                apply(scratch, items, rename.as_ref()).map(|_| ())
             })?;
             return Ok(with_unchanged(&answer, &still));
         }
         let mut doc = self.document.write();
         on_variant(&mut doc, p.v)?;
         let before = doc.home().clone();
-        apply(&mut doc, p.items, p.rename.as_ref())?;
+        let left = apply(&mut doc, p.items, p.rename.as_ref())?;
         let still = unchanged(&before, doc.home(), &asked);
-        Ok(with_unchanged(&applied(&doc, &before), &still))
+        let mut reply = with_unchanged(&applied(&doc, &before), &still);
+        if !left.is_empty() {
+            reply.push_str(" openings_left=");
+            reply.push_str(&left.join("; "));
+        }
+        Ok(reply)
     }
     #[tool(
         description = "Delete (remove) walls, rooms, pieces or any element by id, atomically. Labels left pointing at a deleted piece — about it, or standing on it — are named in the reply as labels_left [[id, text]], since an index code over what is now another piece is found by nobody; labels=true deletes them in the same step."

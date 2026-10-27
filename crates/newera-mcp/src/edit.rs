@@ -844,9 +844,14 @@ pub(crate) fn missing(home: &newera_core::Home, id: ElementId) -> String {
     format!("{id} not found")
 }
 
-pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<()> {
+/// Changes elements by id in one step. Returns the doors and windows of a
+/// reshaped wall that no longer fit in it and were left where they were.
+pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<Vec<String>> {
     let mut commands = Vec::with_capacity(items.len());
     let mut reshaped: Vec<Wall> = Vec::new();
+    // Each wall whose ends moved, as it was: its openings follow it.
+    let mut reshaped_from: Vec<Wall> = Vec::new();
+    let asked: Vec<ElementId> = items.iter().filter_map(|i| i.id.parse().ok()).collect();
     for spec in items {
         let id: ElementId = spec.id.parse().map_err(|e| format!("{e}"))?;
         let Some(element) = doc.home().element(id) else {
@@ -954,6 +959,9 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<(
                 Element::Level(l)
             }
             Element::Wall(mut w) => {
+                if spec.a.is_some() || spec.b.is_some() {
+                    reshaped_from.push(w.clone());
+                }
                 w.start = spec.a.unwrap_or(w.start);
                 w.end = spec.b.unwrap_or(w.end);
                 if let Some(raw) = &spec.kind {
@@ -1174,7 +1182,28 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<(
             };
         }
     }
-    doc.execute(Command::Batch { commands }).map_err(core)
+    // The doors and windows of a wall whose ends moved go with it, at the
+    // same distance from its start: left behind, they stood in the air.
+    let mut left = Vec::new();
+    for old in &reshaped_from {
+        let Some(now) = commands.iter().find_map(|c| match c {
+            Command::Update {
+                element: Element::Wall(w),
+            } if w.id == old.id => Some(w.clone()),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let (carried, stayed) = newera_core::ops::carry_openings(doc.home(), old, &now, &asked);
+        commands.extend(carried.into_iter().map(Command::update));
+        left.extend(
+            stayed
+                .into_iter()
+                .map(|id| format!("{id} no longer fits in {}; left where it was", old.id)),
+        );
+    }
+    doc.execute(Command::Batch { commands }).map_err(core)?;
+    Ok(left)
 }
 
 /// A rename by rule: `pattern` replaced by `to` wherever it matches.
@@ -1755,6 +1784,57 @@ mod tests {
         }
         let bad: UpdateSpec = serde_json::from_str(r#"{"id":"r5","floor_mat":"lava"}"#).unwrap();
         assert!(update(&mut doc, vec![bad]).is_err());
+    }
+
+    #[test]
+    fn a_reshaped_wall_keeps_its_doors() {
+        let mut doc = Document::default();
+        let wall = Wall::new(
+            doc.new_wall_id(),
+            Point2::new(0.0, 0.0),
+            Point2::new(400.0, 0.0),
+        );
+        let mut door = newera_core::Furniture {
+            id: doc.new_furniture_id(),
+            catalog: "door".into(),
+            width: 80.0,
+            depth: 15.0,
+            height: 210.0,
+            opening: Some(newera_core::Opening::default()),
+            ..newera_core::Furniture::default()
+        };
+        newera_core::align_to_wall(&mut door, &wall, 300.0);
+        let (w, d) = (wall.id.to_string(), door.id);
+        doc.execute(Command::Batch {
+            commands: vec![Command::insert(wall), Command::insert(door)],
+        })
+        .unwrap();
+        let reshape = |doc: &mut Document, change: serde_json::Value| {
+            update(doc, vec![serde_json::from_value(change).unwrap()]).unwrap()
+        };
+        let at = |doc: &Document| doc.home().find_piece(d).unwrap().position;
+
+        // Moved off its line, the wall takes the door along.
+        let left = reshape(
+            &mut doc,
+            serde_json::json!({"id": w, "a": [0, 20], "b": [400, 20]}),
+        );
+        assert!(left.is_empty(), "{left:?}");
+        assert_eq!(at(&doc), Point2::new(300.0, 20.0));
+        // Shortened past it, the door is kept inside.
+        reshape(&mut doc, serde_json::json!({"id": w, "b": [300, 20]}));
+        let p = at(&doc);
+        assert!(
+            (p.x - 260.0).abs() < 1e-9 && (p.y - 20.0).abs() < 1e-9,
+            "{p:?}"
+        );
+        // Too short to hold it: left where it was, and the reply says so.
+        let left = reshape(&mut doc, serde_json::json!({"id": w, "b": [60, 20]}));
+        assert_eq!(at(&doc), p);
+        assert!(
+            left[0].starts_with(&format!("{d} no longer fits")),
+            "{left:?}"
+        );
     }
 
     #[test]
