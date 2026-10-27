@@ -765,6 +765,41 @@ impl Furniture {
         out
     }
 
+    /// Plan outline of a solid drawn as a polygon, fitted to its box (it
+    /// follows a resize) and placed on the plan; `None` for anything else,
+    /// tilted outlines included. Its box is only the bounds: a notched or
+    /// rotated outline covers much less.
+    pub fn plan_outline(&self) -> Option<Vec<Point2>> {
+        let Some(SolidShape::Outline(points)) = &self.shape else {
+            return None;
+        };
+        if points.len() < 3 || self.pitch != 0.0 || self.roll != 0.0 {
+            return None;
+        }
+        let (lo, hi) = points
+            .iter()
+            .fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| {
+                (
+                    [lo[0].min(p[0]), lo[1].min(p[1])],
+                    [hi[0].max(p[0]), hi[1].max(p[1])],
+                )
+            });
+        let fit = |v: f64, k: usize, size: f64| {
+            let span = hi[k] - lo[k];
+            if span > 1e-9 {
+                (v - lo[k]) / span * size - size / 2.0
+            } else {
+                0.0
+            }
+        };
+        Some(
+            points
+                .iter()
+                .map(|p| self.to_plan((fit(p[0], 0, self.width), fit(p[1], 1, self.depth))))
+                .collect(),
+        )
+    }
+
     /// Plan footprint of what it really covers once tilted.
     pub fn projected_footprint(&self) -> [Point2; 4] {
         if self.pitch == 0.0 && self.roll == 0.0 {

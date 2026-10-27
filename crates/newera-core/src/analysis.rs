@@ -454,9 +454,13 @@ pub fn check_layout_in(home: &Home, scope: Storeys) -> Vec<Issue> {
         }
     }
 
+    // A solid drawn as an outline covers its outline, not its bounds.
     let footprints: Vec<Polygon<f64>> = pieces
         .iter()
-        .map(|f| polygon(&f.projected_footprint()))
+        .map(|f| {
+            f.plan_outline()
+                .map_or_else(|| polygon(&f.projected_footprint()), |pts| polygon(&pts))
+        })
         .collect();
 
     // Heights in the building, for pieces of two storeys: a sofa downstairs
@@ -548,9 +552,20 @@ pub fn check_layout_in(home: &Home, scope: Storeys) -> Vec<Issue> {
             if depth <= WALL_TOLERANCE {
                 continue;
             }
-            if crate::solid::hits_prism(piece, &polygon(outline), 0.0, |at| {
-                wall_top_at(wall, at) - 1.0
-            }) {
+            // An outline's box is only its bounds: the shared area found
+            // above is the solid's own, and it is in the wall if it starts
+            // below the wall's top there.
+            let hits = if piece.plan_outline().is_some() {
+                shared
+                    .iter()
+                    .flat_map(|p| p.exterior().coords())
+                    .any(|c| piece.elevation < wall_top_at(wall, Point2::new(c.x, c.y)) - 1.0)
+            } else {
+                crate::solid::hits_prism(piece, &polygon(outline), 0.0, |at| {
+                    wall_top_at(wall, at) - 1.0
+                })
+            };
+            if hits {
                 issues.push(Issue::InWall(piece.id, wall.id));
             }
         }
@@ -1925,6 +1940,51 @@ mod tilt_tests {
             "{:?}",
             check_layout(&home)
         );
+    }
+
+    #[test]
+    fn a_solid_drawn_as_a_turned_outline_is_in_a_wall_only_by_its_outline() {
+        use crate::furniture::SolidShape;
+        // A 100 × 35 cm shelf drawn as a polygon turned 10.5°, its back 8 cm
+        // clear of a wall running the same way: its bounds reach into the
+        // wall, the shelf does not.
+        let (sin, cos) = 10.5_f64.to_radians().sin_cos();
+        let turn = |x: f64, y: f64| [x * cos - y * sin, x * sin + y * cos];
+        let points: Vec<[f64; 2]> = [(-50.0, -17.5), (50.0, -17.5), (50.0, 17.5), (-50.0, 17.5)]
+            .iter()
+            .map(|&(x, y)| turn(x, y))
+            .collect();
+        let bound = |k: usize| points.iter().map(|p| p[k].abs()).fold(0.0, f64::max) * 2.0;
+        let center = Point2::new(300.0, 200.0);
+        let shelf = |clear: f64| {
+            // Wall center line behind the shelf: 17.5 + clear + half of 15 cm.
+            let [ox, oy] = turn(0.0, -(17.5 + clear + 7.5));
+            let [ux, uy] = turn(150.0, 0.0);
+            let mut wall = Wall::new(
+                WallId(1),
+                Point2::new(center.x + ox - ux, center.y + oy - uy),
+                Point2::new(center.x + ox + ux, center.y + oy + uy),
+            );
+            wall.thickness = 15.0;
+            let mut home = Home::default();
+            home.walls.push(wall);
+            home.furniture.push(Furniture {
+                id: FurnitureId(1),
+                catalog: "solid".into(),
+                name: "Prateleira".into(),
+                position: center,
+                width: bound(0),
+                depth: bound(1),
+                height: 180.0,
+                shape: Some(SolidShape::Outline(points.clone())),
+                ..Furniture::default()
+            });
+            check_layout(&home)
+        };
+        let in_wall = Issue::InWall(FurnitureId(1), WallId(1));
+        assert!(!shelf(8.0).contains(&in_wall), "{:?}", shelf(8.0));
+        // Pushed 12 cm into the wall, it is in it.
+        assert!(shelf(-12.0).contains(&in_wall), "{:?}", shelf(-12.0));
     }
 
     #[test]
