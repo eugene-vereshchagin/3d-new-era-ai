@@ -11,6 +11,13 @@ All notable changes to this project are documented here. The format follows
 - `cabinet_run room=` takes the room's name as well as its id (`room=Cozinha`), in any case and
   with or without accents. A name was refused as an invalid id.
 
+### Security
+
+- Dependencies updated past the open advisories: `zip` 9 (archive extraction through symlinks,
+  SUID bits), `rustls-webpki`, `webpki-roots` and `webpki-root-certs` (distrusted emSign
+  intermediates) and `ctutils` (non-constant-time comparisons). Also `glam` 0.34, `rmcp` 3.5,
+  `tokio` 1.53.3, `serde_json`, `schemars`, `sha2`, `uuid` and `winresource`.
+
 ## [3.1.0] - 2026-10-01
 
 ### Added
