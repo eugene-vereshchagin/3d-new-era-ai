@@ -81,6 +81,11 @@ pub(crate) enum Pane {
 /// phone held upright, or a window squeezed to the side of a screen.
 pub(crate) const NARROW: f32 = 720.0;
 
+/// What to do with the answer of a file dialog: the path, `None` when it was
+/// cancelled.
+#[cfg(not(target_arch = "wasm32"))]
+type AskThen = Box<dyn FnOnce(&mut NewEraApp, Option<PathBuf>)>;
+
 pub(crate) struct NewEraApp {
     pub(crate) document: SharedDocument,
     pub(crate) mcp_url: Option<String>,
@@ -144,6 +149,9 @@ pub(crate) struct NewEraApp {
     pub(crate) job: Option<crate::jobs::Job>,
     /// What to do once the save that is running finishes.
     after_save: Option<Pending>,
+    /// A file dialog that is open, and what to do with its answer.
+    #[cfg(not(target_arch = "wasm32"))]
+    asking: Option<(crate::files::Asked, AskThen)>,
     /// A browser file picker to open on the next frame.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pick_request: Option<crate::files::PickKind>,
@@ -238,6 +246,8 @@ impl NewEraApp {
             plugin_job: None,
             job: None,
             after_save: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            asking: None,
             pick_request: None,
             waited_frames: 0,
             #[cfg(target_arch = "wasm32")]
@@ -390,20 +400,22 @@ impl NewEraApp {
             #[cfg(target_arch = "wasm32")]
             Pending::Open(_) => self.pick_request = Some(crate::files::PickKind::Project),
             #[cfg(not(target_arch = "wasm32"))]
-            Pending::Open(path) => {
-                let path = path.or_else(|| {
-                    rfd::FileDialog::new()
-                        .add_filter(
-                            crate::i18n::tr("Projetos (3D New Era AI, Sweet Home 3D)"),
-                            &[newera_core::PROJECT_EXTENSION, "sh3d"],
-                        )
-                        .add_filter("3D New Era AI", &[newera_core::PROJECT_EXTENSION])
-                        .add_filter(crate::i18n::tr("Sweet Home 3D"), &["sh3d"])
-                        .pick_file()
+            Pending::Open(Some(path)) => self.open_path(&path),
+            #[cfg(not(target_arch = "wasm32"))]
+            Pending::Open(None) => {
+                let dialog = crate::files::open_dialog(&[
+                    (
+                        crate::i18n::tr("Projetos (3D New Era AI, Sweet Home 3D)"),
+                        &[newera_core::PROJECT_EXTENSION, "sh3d"][..],
+                    ),
+                    ("3D New Era AI", &[newera_core::PROJECT_EXTENSION][..]),
+                    (crate::i18n::tr("Sweet Home 3D"), &["sh3d"][..]),
+                ]);
+                self.ask_file(dialog, |app, path| {
+                    if let Some(path) = path {
+                        app.open_path(&path);
+                    }
                 });
-                if let Some(path) = path {
-                    self.open_path(&path);
-                }
             }
             Pending::Quit => {
                 self.allow_close = true;
@@ -667,6 +679,11 @@ impl NewEraApp {
         if crate::jobs::busy(self) {
             return false;
         }
+        // A save already waiting on its dialog keeps what runs after it.
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.asking.is_some() || crate::files::dialog_open() {
+            return false;
+        }
         self.after_save = then;
         #[cfg(target_arch = "wasm32")]
         {
@@ -710,23 +727,37 @@ impl NewEraApp {
         }
     }
 
+    /// Saves to the current path, or asks for one first; then the save
+    /// starts when the dialog answers.
     #[cfg(not(target_arch = "wasm32"))]
     fn save_native(&mut self, save_as: bool) -> bool {
         let current = self.document.read().path().map(Path::to_path_buf);
-        let path = match current {
-            Some(path) if !save_as => Some(path),
+        match current {
+            Some(path) if !save_as => self.save_to(path),
             _ => {
                 let name = self.document.read().home().name.clone();
-                rfd::FileDialog::new()
-                    .add_filter("3D New Era AI", &[newera_core::PROJECT_EXTENSION])
-                    .set_file_name(format!("{name}.{}", newera_core::PROJECT_EXTENSION))
-                    .save_file()
+                let dialog = crate::files::save_dialog(
+                    "3D New Era AI",
+                    newera_core::PROJECT_EXTENSION,
+                    &format!("{name}.{}", newera_core::PROJECT_EXTENSION),
+                );
+                let asked = self.ask_file(dialog, |app, path| match path {
+                    Some(path) if !crate::jobs::busy(app) => {
+                        app.save_to(path);
+                    }
+                    _ => app.after_save = None,
+                });
+                if !asked {
+                    self.after_save = None;
+                }
+                asked
             }
-        };
-        let Some(mut path) = path else {
-            self.after_save = None;
-            return false;
-        };
+        }
+    }
+
+    /// Writes the project to `path` in the background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_to(&mut self, mut path: PathBuf) -> bool {
         if path.extension().is_none() {
             path.set_extension(newera_core::PROJECT_EXTENSION);
         }
@@ -757,6 +788,41 @@ impl NewEraApp {
         true
     }
 
+    /// Opens a file dialog and runs `then` with its answer, a few frames
+    /// later. One dialog at a time: returns false, and does nothing, while
+    /// another is open.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn ask_file(
+        &mut self,
+        dialog: crate::files::FileDialog,
+        then: impl FnOnce(&mut Self, Option<PathBuf>) + 'static,
+    ) -> bool {
+        if self.asking.is_some() || crate::files::dialog_open() {
+            return false;
+        }
+        self.asking = Some((crate::files::ask(dialog, None), Box::new(then)));
+        true
+    }
+
+    /// Runs what was waiting on the open file dialog, once it answered.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn answer_file_dialog(&mut self, ctx: &egui::Context) {
+        let Some((asked, _)) = &self.asking else {
+            return;
+        };
+        let path = match asked.take() {
+            crate::files::Answer::Waiting => {
+                ctx.request_repaint_after(Duration::from_millis(100));
+                return;
+            }
+            crate::files::Answer::Chosen(path) => Some(path),
+            crate::files::Answer::Cancelled => None,
+        };
+        if let Some((_, then)) = self.asking.take() {
+            then(self, path);
+        }
+    }
+
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     fn remember(&mut self, path: &Path) {
         self.settings.recent.retain(|p| p != path);
@@ -776,28 +842,30 @@ impl NewEraApp {
         };
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let Some(path) =
-                crate::files::pick_save(&ext.to_uppercase(), ext, &format!("{name}.{ext}"))
-            else {
-                return;
-            };
-            let file = path
-                .file_name()
-                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            crate::jobs::start(self, crate::i18n::tr("Exportando"), file, move || {
-                newera_core::progress::step("Montando o modelo 3D", 0, 0);
-                let done = newera_render::export_home(&home, &path, assets.as_deref());
-                Box::new(move |app: &mut Self| match done {
-                    Ok(()) => {
-                        app.set_status(crate::i18n::fill(
-                            "Modelo 3D exportado para {}",
-                            &[&path.display()],
-                        ));
-                    }
-                    Err(err) => {
-                        app.set_status(crate::i18n::fill("⚠ Falha ao exportar: {}", &[&err]));
-                    }
-                })
+            let dialog =
+                crate::files::save_dialog(&ext.to_uppercase(), ext, &format!("{name}.{ext}"));
+            self.ask_file(dialog, move |app, path| {
+                let Some(path) = path.filter(|_| !crate::jobs::busy(app)) else {
+                    return;
+                };
+                let file = path
+                    .file_name()
+                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                crate::jobs::start(app, crate::i18n::tr("Exportando"), file, move || {
+                    newera_core::progress::step("Montando o modelo 3D", 0, 0);
+                    let done = newera_render::export_home(&home, &path, assets.as_deref());
+                    Box::new(move |app: &mut Self| match done {
+                        Ok(()) => {
+                            app.set_status(crate::i18n::fill(
+                                "Modelo 3D exportado para {}",
+                                &[&path.display()],
+                            ));
+                        }
+                        Err(err) => {
+                            app.set_status(crate::i18n::fill("⚠ Falha ao exportar: {}", &[&err]));
+                        }
+                    })
+                });
             });
         }
         #[cfg(target_arch = "wasm32")]
@@ -874,27 +942,29 @@ impl NewEraApp {
         };
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let Some(path) =
-                crate::files::pick_save(&ext.to_uppercase(), ext, &format!("{name}.{ext}"))
-            else {
-                return;
-            };
-            let file = path
-                .file_name()
-                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            crate::jobs::start(self, crate::i18n::tr("Exportando"), file, move || {
-                newera_core::progress::step("Desenhando a planta", 0, 0);
-                let done = make()
-                    .and_then(|bytes| std::fs::write(&path, bytes).map_err(|e| e.to_string()));
-                Box::new(move |app: &mut Self| match done {
-                    Ok(()) => app.set_status(crate::i18n::fill(
-                        "Planta exportada para {}",
-                        &[&path.display()],
-                    )),
-                    Err(err) => {
-                        app.set_status(crate::i18n::fill("⚠ Falha ao exportar: {}", &[&err]));
-                    }
-                })
+            let dialog =
+                crate::files::save_dialog(&ext.to_uppercase(), ext, &format!("{name}.{ext}"));
+            self.ask_file(dialog, move |app, path| {
+                let Some(path) = path.filter(|_| !crate::jobs::busy(app)) else {
+                    return;
+                };
+                let file = path
+                    .file_name()
+                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                crate::jobs::start(app, crate::i18n::tr("Exportando"), file, move || {
+                    newera_core::progress::step("Desenhando a planta", 0, 0);
+                    let done = make()
+                        .and_then(|bytes| std::fs::write(&path, bytes).map_err(|e| e.to_string()));
+                    Box::new(move |app: &mut Self| match done {
+                        Ok(()) => app.set_status(crate::i18n::fill(
+                            "Planta exportada para {}",
+                            &[&path.display()],
+                        )),
+                        Err(err) => {
+                            app.set_status(crate::i18n::fill("⚠ Falha ao exportar: {}", &[&err]));
+                        }
+                    })
+                });
             });
         }
         #[cfg(target_arch = "wasm32")]
@@ -919,26 +989,24 @@ impl NewEraApp {
         if crate::jobs::busy(self) {
             return;
         }
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter(crate::i18n::tr("Modelos 3D"), &["obj", "gltf", "glb"])
-            .pick_file()
-        else {
-            return;
-        };
-        let at = self.plan.view_center();
-        let file = path
-            .file_name()
-            .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-        crate::jobs::start(
-            self,
-            crate::i18n::tr("Importando modelo"),
-            file,
-            move || {
+        let dialog = crate::files::open_dialog(&[(
+            crate::i18n::tr("Modelos 3D"),
+            &["obj", "gltf", "glb"][..],
+        )]);
+        self.ask_file(dialog, |app, path| {
+            let Some(path) = path.filter(|_| !crate::jobs::busy(app)) else {
+                return;
+            };
+            let at = app.plan.view_center();
+            let file = path
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            crate::jobs::start(app, crate::i18n::tr("Importando modelo"), file, move || {
                 newera_core::progress::step("Lendo o arquivo", 0, 0);
                 let loaded = newera_catalog::load_model(&path);
                 Box::new(move |app: &mut Self| app.place_model(&path, at, loaded))
-            },
-        );
+            });
+        });
     }
 
     /// Puts an imported model in the plan, at its natural size.
@@ -1048,16 +1116,21 @@ impl NewEraApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn import_background(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter(
-                crate::i18n::tr("Imagens"),
-                &["png", "jpg", "jpeg", "webp", "bmp"],
-            )
-            .pick_file()
-        else {
-            return;
-        };
-        let size = match image::image_dimensions(&path) {
+        let dialog = crate::files::open_dialog(&[(
+            crate::i18n::tr("Imagens"),
+            &["png", "jpg", "jpeg", "webp", "bmp"][..],
+        )]);
+        self.ask_file(dialog, |app, path| {
+            if let Some(path) = path {
+                app.set_background(&path);
+            }
+        });
+    }
+
+    /// Puts the image at `path` behind the plan, ready to calibrate.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn set_background(&mut self, path: &Path) {
+        let size = match image::image_dimensions(path) {
             Ok((w, h)) => [w, h],
             Err(err) => {
                 return self.set_status(crate::i18n::fill("⚠ Imagem inválida: {}", &[&err]));
@@ -2682,6 +2755,8 @@ impl eframe::App for NewEraApp {
         self.web_files(&ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.collect_plugin();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.answer_file_dialog(&ctx);
         #[cfg(not(target_arch = "wasm32"))]
         crate::gpu::drew_frame();
         self.follow_document_camera();
