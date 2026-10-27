@@ -616,11 +616,14 @@ pub fn plan_run(
                     )),
                 ),
                 Piece::Sink => {
-                    // The bowl over the drain, as long as it fits the cabinet.
+                    // The bowl over the drain, as long as it fits the cabinet;
+                    // one narrower than the bowl (a `sink_w` under 60) has it
+                    // in the middle.
+                    let margin = 30.0_f64.min(w / 2.0);
                     let at = p
                         .sink
                         .unwrap_or(from + w / 2.0)
-                        .clamp(from + 30.0, from + w - 30.0);
+                        .clamp(from + margin, from + w - margin);
                     cutouts.push((CutoutKind::Sink, at));
                     (
                         Role::Sink,
@@ -628,10 +631,11 @@ pub fn plan_run(
                     )
                 }
                 Piece::Cooktop => {
+                    let margin = 29.0_f64.min(w / 2.0);
                     let at = p
                         .cooktop
                         .unwrap_or(from + w / 2.0)
-                        .clamp(from + 29.0, from + w - 29.0);
+                        .clamp(from + margin, from + w - margin);
                     cutouts.push((CutoutKind::Cooktop, at));
                     heat_ends.push(from + w / 2.0);
                     let mut c = cabinet(w, DoorType::Drawers, 2, h, 0);
@@ -975,6 +979,42 @@ mod tests {
         assert!(notes.iter().any(|n| n.contains("canto cego")));
         let total: f64 = sizes.iter().map(|s| s.1).sum();
         assert!((total - 292.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_sink_or_cooktop_cabinet_narrower_than_its_bowl_keeps_the_cutout_inside() {
+        // A cabinet narrower than the 60 and 58 cm the bowl and the cooktop
+        // are kept clear of its sides, between two 60 cm ones.
+        for role in [Role::Sink, Role::Cooktop] {
+            let w = if role == Role::Sink { 50.0 } else { 48.0 };
+            let at = 60.0 + w / 2.0;
+            let params = RunParams {
+                sink: (role == Role::Sink).then_some(at),
+                sink_w: 50.0,
+                cooktop: (role == Role::Cooktop).then_some(at),
+                cooktop_w: 48.0,
+                ..RunParams::default()
+            };
+            let (modules, notes) = plan_run(
+                &[gap(0.0, 120.0 + w, EndKind::Free, EndKind::Free)],
+                &[],
+                &[],
+                &params,
+            )
+            .unwrap();
+            let cabinet = modules.iter().find(|m| m.role == role).unwrap();
+            assert!((cabinet.width - w).abs() < 1e-6, "{cabinet:?}");
+            let top = modules.iter().find(|m| m.role == Role::Countertop).unwrap();
+            let Build::Countertop(t) = &top.build else {
+                panic!()
+            };
+            assert_eq!(t.cutouts.len(), 1, "{notes:?}");
+            let x = top.from + t.cutouts[0].x;
+            assert!(
+                x >= cabinet.from && x <= cabinet.from + cabinet.width,
+                "{x} {cabinet:?}"
+            );
+        }
     }
 
     #[test]
