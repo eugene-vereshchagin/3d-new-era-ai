@@ -1,5 +1,6 @@
 //! Pictures and files: the plan, the 3D view, a photo, and the exports.
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -45,9 +46,9 @@ pub(crate) struct ExportSchema {
     /// Default `plan`: the drawing or the 3D model. `cut_list`: the boards of the joinery.
     #[schemars(extend("enum" = ["plan", "cut_list"]))]
     what: Option<String>,
-    /// For `plan`, `.png` only: width px (default 1600).
+    /// For `plan`, `.png` only: width px (default 1600, 64..2048).
     w: Option<u32>,
-    /// For `plan`, `.png` only: height px (default 1200).
+    /// For `plan`, `.png` only: height px (default 1200, 64..2048).
     h: Option<u32>,
     /// For `plan`, `.pdf`: scale denominator (50 → 1:50); omitted fits the sheet.
     scale: Option<f64>,
@@ -58,9 +59,9 @@ pub(crate) struct ExportSchema {
 pub(crate) struct ExportParams {
     /// Output file: `.pdf`, `.svg`, `.png`, `.glb` or `.obj`.
     path: String,
-    /// `.png` only: width px (default 1600).
+    /// `.png` only: width px (default 1600, 64..2048).
     w: Option<u32>,
-    /// `.png` only: height px (default 1200).
+    /// `.png` only: height px (default 1200, 64..2048).
     h: Option<u32>,
     /// PDF scale denominator (50 → 1:50); omitted fits the sheet.
     scale: Option<f64>,
@@ -215,6 +216,15 @@ fn scene_options_for(_doc: &Document) -> SceneOptions {
         ..SceneOptions::default()
     }
 }
+/// The smallest and largest side of a plan PNG, in pixels.
+const PNG_MIN: u32 = 64;
+const PNG_MAX: u32 = 2048;
+
+/// The size a plan PNG asked at `(w, h)` comes out at.
+fn png_size((w, h): (u32, u32)) -> (u32, u32) {
+    (w.clamp(PNG_MIN, PNG_MAX), h.clamp(PNG_MIN, PNG_MAX))
+}
+
 impl NewEraMcp {
     fn render(
         &self,
@@ -234,7 +244,7 @@ impl NewEraMcp {
         grid: bool,
         bg: Option<f64>,
     ) -> Result<Vec<u8>, ErrorData> {
-        let (w, h) = (w.clamp(64, 2048), h.clamp(64, 2048));
+        let (w, h) = png_size((w, h));
         let doc = self.document.read();
         let mut view = doc.home().level_view(doc.home().current_level());
         if let Some(opacity) = bg {
@@ -694,7 +704,22 @@ impl NewEraMcp {
                 let scene = plan_scene(&view, &scene_options_for(&doc));
                 to_svg(&scene, &SvgOptions::default()).into_bytes()
             }
-            Some("png") => self.render(p.w.unwrap_or(1600), p.h.unwrap_or(1200), None, false)?,
+            Some("png") => {
+                let asked = (p.w.unwrap_or(1600), p.h.unwrap_or(1200));
+                let size = png_size(asked);
+                let png = self.render(asked.0, asked.1, None, false)?;
+                std::fs::write(&path, png)
+                    .map_err(|e| invalid(format!("cannot write {}: {e}", path.display())))?;
+                let mut reply = format!("ok {} {}x{} px", path.display(), size.0, size.1);
+                if size != asked {
+                    let _ = write!(
+                        reply,
+                        " (asked {}x{}; w and h are {PNG_MIN}..{PNG_MAX})",
+                        asked.0, asked.1
+                    );
+                }
+                return Ok(reply);
+            }
             _ => return Err(invalid("path must end with .pdf, .svg, .png, .glb or .obj")),
         };
         std::fs::write(&path, bytes)
@@ -1123,5 +1148,32 @@ mod tests {
             }))
             .is_err()
         );
+    }
+    #[test]
+    fn a_png_export_says_the_size_it_wrote_and_why_not_the_one_asked() {
+        let dir = std::env::temp_dir().join(format!("newera-export-png-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("plan.png");
+        let document = newera_core::SharedDocument::new(newera_core::Document::default());
+        let call = |w: u32| {
+            let answer = crate::call(
+                document.clone(),
+                "export",
+                serde_json::json!({"path": path, "w": w, "h": 300}),
+            )
+            .unwrap();
+            answer.content[0].as_text().unwrap().text.clone()
+        };
+        let fits = call(400);
+        assert!(fits.ends_with(" 400x300 px"), "{fits}");
+        let clamped = call(4000);
+        assert!(
+            clamped.contains(" 2048x300 px (asked 4000x300; w and h are 64..2048)"),
+            "{clamped}"
+        );
+        // The PNG header's width is what the reply says.
+        let png = std::fs::read(&path).unwrap();
+        assert_eq!(u32::from_be_bytes(png[16..20].try_into().unwrap()), 2048);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -3144,7 +3144,7 @@
     "inputSchema": {
       "properties": {
         "h": {
-          "description": "For `plan`, `.png` only: height px (default 1200)",
+          "description": "For `plan`, `.png` only: height px (default 1200, 64..2048)",
           "type": "integer"
         },
         "ids": {
@@ -3163,7 +3163,7 @@
           "type": "number"
         },
         "w": {
-          "description": "For `plan`, `.png` only: width px (default 1600)",
+          "description": "For `plan`, `.png` only: width px (default 1600, 64..2048)",
           "type": "integer"
         },
         "what": {
