@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-27
+
 ### Added
 
 - A Microsoft Store package: each release also carries `newera-windows-x64.msix`, the package
@@ -1261,7 +1263,8 @@ MCP server, with everything below.
 - `scripts/mcp.sh` / `make mcp` to call MCP tools from the shell.
 - CI for formatting, clippy, tests on Linux/macOS/Windows, MCP smoke test, MSRV and cargo-deny; release builds.
 
-[Unreleased]: https://github.com/leandrodaf/3d-new-era-ai/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/leandrodaf/3d-new-era-ai/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/leandrodaf/3d-new-era-ai/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/leandrodaf/3d-new-era-ai/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/leandrodaf/3d-new-era-ai/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/leandrodaf/3d-new-era-ai/compare/v1.10.0...v2.0.0

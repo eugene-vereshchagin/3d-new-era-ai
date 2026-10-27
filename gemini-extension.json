@@ -1,6 +1,6 @@
 {
   "name": "3d-new-era-ai",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Design homes with your AI in 3D New Era AI: floor plans, furniture, joinery, lighting and photos, live in the editor.",
   "contextFileName": "plugin/skills/design-a-home/SKILL.md",
   "mcpServers": {
