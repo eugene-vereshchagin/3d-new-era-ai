@@ -43,7 +43,10 @@ pub fn icons() -> Vec<rmcp::model::Icon> {
 /// The fields an `ok` line can carry, in the order a reply writes them.
 /// Counts are integers; the rest are comma-separated lists.
 const COUNTS: [&str; 6] = ["rev", "v", "i", "fitted", "accepted", "removed"];
-const LISTS: [&str; 3] = ["faces", "turned", "ids"];
+const LISTS: [&str; 4] = ["faces", "turned", "ids", "welded"];
+/// Lists whose items never hold a space: they end at the first one, so
+/// whatever the line says after them is not read as one more item.
+const WORDS: [&str; 2] = ["ids", "welded"];
 
 /// Lays a successful answer out as an object, unless it already has one.
 /// Refusals (`isError`) stay as they are: a schema describes what a tool
@@ -150,12 +153,37 @@ fn written(text: &str) -> Value {
                 fields.insert((*key).to_owned(), json!(count));
             }
         } else {
-            let items: Vec<&str> = value.split(',').filter(|s| !s.is_empty()).collect();
-            fields.insert((*key).to_owned(), json!(items));
+            let value = if WORDS.contains(key) {
+                value.split_whitespace().next().unwrap_or_default()
+            } else {
+                value
+            };
+            fields.insert((*key).to_owned(), json!(items(value)));
         }
     }
     fields.insert("text".to_owned(), Value::String(text.to_owned()));
     Value::Object(fields)
+}
+
+/// A comma-separated list, leaving alone the commas inside brackets:
+/// `w2.a→[965.0,580.0],w1.b→[1.0,2.0]` is two items.
+fn items(value: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut depth, mut start) = (0_usize, 0);
+    for (at, c) in value.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                out.push(&value[start..at]);
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&value[start..]);
+    out.retain(|s| !s.is_empty());
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -821,8 +849,12 @@ pub(crate) fn schema(name: &str) -> Option<Value> {
             &["name", "summary", "editor"],
         ),
         // Writes answering an `ok` line.
-        "create" | "edit_walls" | "edit_background" | "edit_levels" | "edit_cameras"
-        | "edit_home" | "file" | "arrange" | "edit_model" | "edit_library" => ok_line(&[]),
+        "create" => ok_line(&[(
+            "welded",
+            strings("Wall ends pulled onto a wall: \"<wall>.<a|b>→[x,y]\""),
+        )]),
+        "edit_walls" | "edit_background" | "edit_levels" | "edit_cameras" | "edit_home"
+        | "file" | "arrange" | "edit_model" | "edit_library" => ok_line(&[]),
         "delete" => ok_line(&[
             (
                 "labels_left",
@@ -859,6 +891,10 @@ pub(crate) fn schema(name: &str) -> Option<Value> {
                 list("Asked ids that came out as they were: {id, now}"),
             ),
             ("unchanged_note", text("Why they did not change")),
+            (
+                "welded",
+                strings("Wall ends pulled onto a wall: \"<wall>.<a|b>→[x,y]\""),
+            ),
         ]),
         "move" => write_or_dry(&[]),
         "place" => write_or_dry(&[
@@ -1132,6 +1168,22 @@ mod tests {
             "ok /tmp/a b.newera"
         );
         assert_eq!(from_text("ok rev=2 ids=r1 fitted=3")["fitted"], 3);
+    }
+
+    #[test]
+    fn welded_ends_are_their_own_list() {
+        let reply = from_text("ok rev=639 ids=w1,w2 welded=w2.a→[965.0,580.0],w1.b→[1.0,2.0]");
+        assert_eq!(reply["ids"], json!(["w1", "w2"]), "{reply}");
+        assert_eq!(
+            reply["welded"],
+            json!(["w2.a→[965.0,580.0]", "w1.b→[1.0,2.0]"]),
+            "{reply}"
+        );
+        // Ids end at the first space, whatever follows them.
+        assert_eq!(
+            from_text("ok rev=2 ids=w1,w2 and more")["ids"],
+            json!(["w1", "w2"])
+        );
     }
 
     #[test]
