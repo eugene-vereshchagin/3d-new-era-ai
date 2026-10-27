@@ -5,6 +5,9 @@
 //! their materials and textures in the application.
 
 mod bundled;
+pub use bundled::{
+    files as bundled_files, generation as bundled_generation, mount_fetched as mount_bundled,
+};
 mod check;
 mod finish;
 mod fixtures;

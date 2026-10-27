@@ -16,6 +16,9 @@ crate-type = ["cdylib", "rlib"]
 console_error_panic_hook = "0.1"
 log = "0.4"
 newera-app.workspace = true
+# The finished products' models and textures are fetched beside the page:
+# embedded, they took the wasm past what the host serves (25 MiB a file).
+newera-catalog = { workspace = true, features = ["external-assets"] }
 # Not called from here: it turns on wgpu's WebGL backend so the editor still
 # opens where the browser has no WebGPU (Firefox today, older Safari). egui
 # prefers WebGPU and falls back to this on its own.

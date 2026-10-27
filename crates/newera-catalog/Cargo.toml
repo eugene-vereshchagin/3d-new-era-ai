@@ -8,6 +8,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+# Leaves the finished products' files out of a wasm32 build, for a page that
+# fetches them beside it (the browser editor).
+external-assets = []
+
 [dependencies]
 gltf = { version = "1.4.1", default-features = false, features = ["import", "names", "utils"] }
 newera-core.workspace = true

@@ -193,6 +193,14 @@ jobs:
           wasm-bindgen --target web --no-typescript --out-dir web/editor/pkg \
             target/wasm32-unknown-unknown/release/newera_editor_web.wasm
           cp target/wasm32-unknown-unknown/release/newera_web.wasm web/
+          mkdir -p web/editor/assets && cp -r crates/newera-catalog/assets/seating web/editor/assets/
+      # The site's host takes no file over 25 MiB; the publish run found out
+      # for a month before anyone did.
+      - name: The editor fits the host
+        run: |
+          size=$(stat -c %s web/editor/pkg/newera_editor_web_bg.wasm)
+          echo "editor wasm: $((size / 1048576)) MiB"
+          [ "$size" -le $((25 * 1048576)) ]
       - name: Draw a wall in the browser
         run: |
           python3 -m http.server 8790 --bind 127.0.0.1 --directory web &

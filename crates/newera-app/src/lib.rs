@@ -152,6 +152,7 @@ pub async fn start_web(
                 }
                 let mut app = app::NewEraApp::new(cc, document, None);
                 app.ask_support();
+                wasm_bindgen_futures::spawn_local(fetch_bundled(cc.egui_ctx.clone()));
                 // The demo home is what a first visit opens on; someone who
                 // was already drawing here gets their own work back instead —
                 // unless the address asked for a project (a link from their
@@ -163,6 +164,45 @@ pub async fn start_web(
             }),
         )
         .await
+}
+
+/// Fetches the finished products' files from beside the page and mounts
+/// them where the native builds embed them; until they arrive those pieces
+/// are drawn from their catalog shape. All of them or none: a model without
+/// its textures is worse than the shape.
+#[cfg(target_arch = "wasm32")]
+async fn fetch_bundled(ctx: eframe::egui::Context) {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let mut files = Vec::new();
+    for name in newera_catalog::bundled_files() {
+        let url = format!("assets/seating/{name}");
+        let fetched = async {
+            let response: web_sys::Response = JsFuture::from(window.fetch_with_str(&url))
+                .await?
+                .dyn_into()?;
+            if !response.ok() {
+                return Err(wasm_bindgen::JsValue::from_str(&format!(
+                    "HTTP {}",
+                    response.status()
+                )));
+            }
+            let buffer = JsFuture::from(response.array_buffer()?).await?;
+            Ok(js_sys::Uint8Array::new(&buffer).to_vec())
+        };
+        match fetched.await {
+            Ok(bytes) => files.push(((*name).to_owned(), bytes)),
+            Err(e) => {
+                web_sys::console::warn_1(&format!("{url} did not load: {e:?}").into());
+                return;
+            }
+        }
+    }
+    newera_catalog::mount_bundled(files);
+    ctx.request_repaint();
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

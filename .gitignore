@@ -17,6 +17,7 @@ __pycache__/
 # Built by `make web`
 web/newera_web.wasm
 web/editor/pkg/
+web/editor/assets/
 web/*.newera
 # except the home the browser editor opens on, which ships with the page
 !web/demo.newera

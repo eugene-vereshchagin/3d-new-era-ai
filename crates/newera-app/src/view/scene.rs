@@ -423,7 +423,7 @@ pub(crate) fn sun_light(home: &Home, hour: f64) -> (Vec3, f32) {
 
 /// Revision, selection, cutaway, and which pieces with a lighter far file
 /// were drawn with it.
-type BuiltFor = (u64, Vec<ElementId>, Option<Cutaway>, Vec<bool>);
+type BuiltFor = (u64, Vec<ElementId>, Option<Cutaway>, Vec<bool>, u64);
 
 pub(crate) struct SceneView {
     camera: OrbitCamera,
@@ -568,6 +568,8 @@ impl SceneView {
             selection.iter().copied().collect::<Vec<_>>(),
             cutaway,
             far,
+            // Product files fetched after the page opened.
+            newera_catalog::bundled_generation(),
         );
         if self.built_for.as_ref() != Some(&key) {
             // The same cache as photos: a file replaced under the same path

@@ -1,9 +1,15 @@
-//! Finished product assets embedded in native and browser builds.
+//! Finished product assets: embedded in the native builds and the viewer,
+//! fetched beside the page by the browser editor (feature `external-assets`).
 use crate::{Mesh, load_model, rgb};
 use newera_core::{Furniture, PieceInfo};
+#[cfg(not(all(feature = "external-assets", target_arch = "wasm32")))]
+use std::sync::Once;
 use std::{
     path::{Path, PathBuf},
-    sync::{Once, OnceLock},
+    sync::{
+        OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 #[cfg(windows)]
@@ -19,6 +25,33 @@ fn slug(id: &str) -> Option<&'static str> {
     }
 }
 
+/// The files of the finished products, under `seating/`: what the native
+/// builds embed and the browser editor fetches beside its page.
+const FILES: [&str; 12] = [
+    "win/madeira-foto-normal.png",
+    "win/madeira-foto.png",
+    "win/model.mtl",
+    "win/model.obj",
+    "win/tecido-foto-normal.png",
+    "win/tecido-foto.png",
+    "ares/madeira-foto-normal.png",
+    "ares/madeira-foto.png",
+    "ares/model.mtl",
+    "ares/model.obj",
+    "ares/tecido-foto-normal.png",
+    "ares/tecido-foto.png",
+];
+
+/// Whether this build leaves the files out of the binary. The browser
+/// editor does: embedded, they took its WebAssembly past the 25 MiB a static
+/// host takes per file. The page fetches them instead (see [`mount_fetched`]).
+const EXTERNAL: bool = cfg!(all(feature = "external-assets", target_arch = "wasm32"));
+
+/// How many times fetched files were mounted: a view built before they
+/// arrived is built again.
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(not(all(feature = "external-assets", target_arch = "wasm32")))]
 fn mount() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
@@ -72,6 +105,7 @@ fn mount() {
                 include_bytes!("../assets/seating/ares/tecido-foto.png"),
             ),
         ];
+        debug_assert!(files.iter().map(|(name, _)| *name).eq(FILES));
         newera_core::vfs::mount(
             Path::new(ROOT),
             files
@@ -79,6 +113,26 @@ fn mount() {
                 .map(|(name, bytes)| ((*name).to_owned(), bytes.to_vec())),
         );
     });
+}
+
+#[cfg(all(feature = "external-assets", target_arch = "wasm32"))]
+fn mount() {}
+
+/// The files a build without them has to fetch, relative to `seating/`.
+pub fn files() -> &'static [&'static str] {
+    &FILES
+}
+
+/// Makes the fetched files readable where the embedded ones would be, and
+/// tells the views built without them to build again.
+pub fn mount_fetched(files: Vec<(String, Vec<u8>)>) {
+    newera_core::vfs::mount(Path::new(ROOT), files);
+    GENERATION.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Changes each time fetched files arrive.
+pub fn generation() -> u64 {
+    GENERATION.load(Ordering::Relaxed)
 }
 
 fn path(id: &str) -> Option<PathBuf> {
@@ -106,6 +160,10 @@ pub(crate) fn mesh(piece: &Furniture) -> Option<Mesh> {
     static WIN: OnceLock<Mesh> = OnceLock::new();
     static ARES: OnceLock<Mesh> = OnceLock::new();
     let path = path(&piece.catalog)?;
+    // Not fetched yet: the piece is drawn from its catalog shape meanwhile.
+    if EXTERNAL && !newera_core::vfs::exists(&path) {
+        return None;
+    }
     let cache = if piece.catalog == "win" { &WIN } else { &ARES };
     let mut mesh = cache
         .get_or_init(|| load_model(&path).expect("validated bundled model").mesh)

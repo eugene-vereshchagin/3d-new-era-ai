@@ -101,6 +101,7 @@ web-editor: ## Builds the full browser editor into web/editor/
 	@command -v wasm-bindgen >/dev/null || cargo install wasm-bindgen-cli --version 0.2.128 --locked
 	$(CARGO) build -p newera-editor-web --release --target wasm32-unknown-unknown
 	wasm-bindgen --target web --no-typescript --out-dir web/editor/pkg target/wasm32-unknown-unknown/release/newera_editor_web.wasm
+	rm -rf web/editor/assets && mkdir -p web/editor/assets && cp -r crates/newera-catalog/assets/seating web/editor/assets/
 
 .PHONY: web-serve
 web-serve: web web-editor ## Serves the viewer (/) and the editor (/editor/) at http://127.0.0.1:8790
