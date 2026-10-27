@@ -163,6 +163,11 @@ impl NewEraMcp {
             reply.push_str(" welded=");
             reply.push_str(&created.welded.join(","));
         }
+        if !created.short.is_empty() {
+            reply.push_str(" short=");
+            reply.push_str(&created.short.join(","));
+            reply.push_str(" (shorter than thick: coordinates are cm, metres ×100?)");
+        }
         Ok(reply)
     }
     #[tool(

@@ -263,6 +263,12 @@ pub(crate) struct SolidSpec {
     pub name: Option<String>,
 }
 
+/// Why a polygon enclosing under 1 cm² is refused: almost always one
+/// written in metres.
+fn too_small(what: &str, area: f64) -> String {
+    format!("the {what} encloses {area:.2} cm², under 1 cm²; coordinates are cm (metres ×100?)")
+}
+
 /// A piece built from a polygon.
 fn solid(doc: &mut Document, spec: &SolidSpec) -> EditResult<newera_core::Furniture> {
     use newera_core::SolidShape;
@@ -289,8 +295,12 @@ fn solid(doc: &mut Document, spec: &SolidSpec) -> EditResult<newera_core::Furnit
     };
     match (&spec.pts, &spec.profile) {
         (Some(pts), None) => {
-            if pts.len() < 3 || newera_core::polygon_area(pts) < 1.0 {
+            if pts.len() < 3 {
                 return Err("a solid outline needs at least 3 points enclosing an area".into());
+            }
+            let area = newera_core::polygon_area(pts);
+            if area < 1.0 {
+                return Err(too_small("solid outline", area));
             }
             let (lo, hi) = bounds(pts);
             let center = Point2::new(f64::midpoint(lo.x, hi.x), f64::midpoint(lo.y, hi.y));
@@ -309,8 +319,12 @@ fn solid(doc: &mut Document, spec: &SolidSpec) -> EditResult<newera_core::Furnit
             let (Some(a), Some(b)) = (spec.a, spec.b) else {
                 return Err("a profile solid needs `a` and `b` (the path it runs along)".into());
             };
-            if profile.len() < 3 || newera_core::polygon_area(profile) < 1.0 {
+            if profile.len() < 3 {
                 return Err("a profile needs at least 3 points enclosing an area".into());
+            }
+            let area = newera_core::polygon_area(profile);
+            if area < 1.0 {
+                return Err(too_small("profile", area));
             }
             let (dx, dy) = (b.x - a.x, b.y - a.y);
             let length = dx.hypot(dy);
@@ -396,7 +410,14 @@ fn weld(doc: &Document, walls: &mut [Wall]) -> Vec<String> {
         .filter(|w| !walls.iter().any(|edited| edited.id == w.id))
         .collect();
     all.extend(walls.iter().cloned());
-    let ids: Vec<newera_core::WallId> = walls.iter().map(|w| w.id).collect();
+    // A wall shorter than it is thick (a plan typed in metres) is left where
+    // it was written: pulling its ends onto its neighbours' corners would
+    // collapse it to nothing, and `create` points it out instead.
+    let ids: Vec<newera_core::WallId> = walls
+        .iter()
+        .filter(|w| w.start.distance(w.end) >= w.thickness)
+        .map(|w| w.id)
+        .collect();
     let mut moved = Vec::new();
     for (id, at_start, to) in newera_core::weld_ends(&all, &ids) {
         if let Some(wall) = walls.iter_mut().find(|w| w.id == id) {
@@ -418,6 +439,9 @@ fn weld(doc: &Document, walls: &mut [Wall]) -> Vec<String> {
 pub(crate) struct Created {
     pub ids: Vec<String>,
     pub welded: Vec<String>,
+    /// Walls shorter than they are thick, `w3`: most often a plan typed in
+    /// metres, which draws a house of 4 × 3 cm.
+    pub short: Vec<String>,
 }
 
 /// Creates everything in one undoable step.
@@ -476,6 +500,11 @@ pub(crate) fn create(doc: &mut Document, params: CreateParams) -> EditResult<Cre
     } else {
         weld(doc, &mut new_walls)
     };
+    let short = new_walls
+        .iter()
+        .filter(|w| w.start.distance(w.end) < w.thickness)
+        .map(|w| w.id.to_string())
+        .collect();
     commands.extend(new_walls.iter().cloned().map(Command::insert));
 
     // Dividers already on this storey plus the ones created now.
@@ -628,7 +657,7 @@ pub(crate) fn create(doc: &mut Document, params: CreateParams) -> EditResult<Cre
         return Err("nothing to create".into());
     }
     doc.execute(Command::Batch { commands }).map_err(core)?;
-    Ok(Created { ids, welded })
+    Ok(Created { ids, welded, short })
 }
 
 /// Fields to change; each applies only to the kinds that have it, any other
@@ -1898,6 +1927,37 @@ mod tests {
             doc.home().furniture[0].is_stairs(),
             "a flight built by hand"
         );
+    }
+
+    #[test]
+    fn a_plan_typed_in_metres_is_pointed_out() {
+        let mut doc = Document::default();
+        let m = |c: &[(f64, f64)]| c.iter().map(|&(x, y)| Point2::new(x, y)).collect();
+        let err = create(
+            &mut doc,
+            CreateParams {
+                solids: vec![SolidSpec {
+                    pts: Some(m(&[(0.0, 0.0), (1.4, 0.0), (1.4, 0.7), (0.0, 0.7)])),
+                    ..SolidSpec::default()
+                }],
+                ..CreateParams::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("encloses 0.98 cm²"), "{err}");
+        assert!(err.contains("metres ×100"), "{err}");
+        let created = create(
+            &mut doc,
+            CreateParams {
+                walls: vec![WallPath {
+                    pts: m(&[(0.0, 0.0), (4.0, 0.0), (4.0, 300.0)]),
+                    ..WallPath::default()
+                }],
+                ..CreateParams::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(created.short, [created.ids[0].clone()]);
     }
 
     #[test]
