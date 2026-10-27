@@ -699,7 +699,7 @@ pub(crate) fn create(doc: &mut Document, params: CreateParams) -> EditResult<Cre
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateSpec {
-    /// Declared room program, independent of name; auto restores inference.
+    /// Room program.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub room_use: Option<newera_core::RoomUse>,
     /// The element to change.
@@ -726,8 +726,8 @@ pub(crate) struct UpdateSpec {
     /// Room polygon.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pts: Option<Vec<Point2>>,
-    /// The piece a note is about (e.g. `f1185`), checked by `annotations`
-    /// stale; `""` unties it.
+    /// The piece a note is about, checked by `annotations` stale; `""`
+    /// unties it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub about: Option<String>,
     /// Room floor visible.
@@ -736,8 +736,8 @@ pub(crate) struct UpdateSpec {
     /// Room ceiling visible.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ceiling: Option<bool>,
-    /// Room ceiling flat at storey height (true) or following the wall
-    /// profiles (false).
+    /// Room ceiling flat at storey height (true) or following the walls
+    /// (false).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ceiling_flat: Option<bool>,
     /// Label text.
@@ -764,7 +764,7 @@ pub(crate) struct UpdateSpec {
     /// Elevation cm (furniture, level, 3D label/dimension).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elev: Option<f64>,
-    /// Room follows its walls (re-detected when they change); `pts` turns it off.
+    /// Room follows its walls (re-detected); `pts` turns it off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto: Option<bool>,
     /// Polyline is a room divider.
@@ -810,6 +810,9 @@ pub(crate) struct UpdateSpec {
     /// Door hinge on the right.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hinge_right: Option<bool>,
+    /// Door: a point on the side it swings into.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub into: Option<Point2>,
     /// Glass of a guard or a closure.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(extend("enum" = ["laminated", "tempered", "tempered-laminated", "wired"]))]
@@ -978,6 +981,7 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<U
                 "layer",
                 "visible",
                 "hinge_right",
+                "into",
                 "glass",
                 "gap",
                 "fixed",
@@ -1231,6 +1235,12 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<U
                 }
                 if let (Some(right), Some(opening)) = (spec.hinge_right, f.opening.as_mut()) {
                     opening.hinge_right = right;
+                }
+                if let Some(into) = spec.into {
+                    if newera_core::door_swing(&f).is_none() {
+                        return Err(format!("`into` is for a door with a leaf; {id} has none"));
+                    }
+                    swing_into(&mut f, into);
                 }
                 if let Some(glass) = &spec.glass {
                     let glass = glass.trim().to_lowercase();
@@ -3657,6 +3667,91 @@ mod place_tests {
             .find(|f| f.id.to_string() == ids[0])
             .unwrap();
         assert!((door.position.y - 300.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn update_turns_a_door_to_swing_into_the_other_side() {
+        let mut doc = Document::default();
+        create(
+            &mut doc,
+            CreateParams {
+                walls: vec![WallPath {
+                    pts: vec![Point2::new(0.0, 0.0), Point2::new(500.0, 0.0)],
+                    ..WallPath::default()
+                }],
+                ..CreateParams::default()
+            },
+        )
+        .unwrap();
+        let ids = place(
+            &mut doc,
+            vec![PlaceSpec {
+                cat: "door".into(),
+                wall: Some("w1".into()),
+                along: Some(200.0),
+                into: Some(Point2::new(200.0, 100.0)),
+                ..PlaceSpec::default()
+            }],
+        )
+        .unwrap();
+        let door = |doc: &Document| {
+            doc.home()
+                .furniture
+                .iter()
+                .find(|f| f.id.to_string() == ids[0])
+                .unwrap()
+                .clone()
+        };
+        let swing_y = |door: &newera_core::Furniture| {
+            let swing = newera_core::door_swing(door).unwrap();
+            #[allow(clippy::cast_precision_loss)]
+            let n = swing.len() as f64;
+            swing.iter().map(|p| p.y).sum::<f64>() / n
+        };
+        let before = door(&doc);
+        assert!(swing_y(&before) > 0.0);
+        let jambs = |d: &newera_core::Furniture| {
+            let mut xs: Vec<f64> = d.footprint().iter().map(|p| p.x).collect();
+            xs.sort_by(f64::total_cmp);
+            (xs[0], xs[xs.len() - 1])
+        };
+        update(
+            &mut doc,
+            vec![UpdateSpec {
+                id: ids[0].clone(),
+                into: Some(Point2::new(200.0, -100.0)),
+                ..UpdateSpec::default()
+            }],
+        )
+        .unwrap();
+        let after = door(&doc);
+        assert!(swing_y(&after) < 0.0, "swings into -y now");
+        assert_eq!(after.position, before.position, "same opening");
+        let (a, b) = (jambs(&before), jambs(&after));
+        assert!((a.0 - b.0).abs() < 1e-6 && (a.1 - b.1).abs() < 1e-6);
+        // Hinged on the same jamb: the swing starts from the same point x.
+        let hinge = |d: &newera_core::Furniture| newera_core::door_swing(d).unwrap()[0].x;
+        assert!((hinge(&before) - hinge(&after)).abs() < 1e-6);
+        // A piece without a leaf is told.
+        let bed = place(
+            &mut doc,
+            vec![PlaceSpec {
+                cat: "bed-double".into(),
+                at: Some(Point2::new(200.0, 200.0)),
+                ..PlaceSpec::default()
+            }],
+        )
+        .unwrap();
+        let err = update(
+            &mut doc,
+            vec![UpdateSpec {
+                id: bed[0].clone(),
+                into: Some(Point2::new(0.0, 0.0)),
+                ..UpdateSpec::default()
+            }],
+        )
+        .unwrap_err();
+        assert!(err.contains("`into` is for a door"), "{err}");
     }
 
     #[test]

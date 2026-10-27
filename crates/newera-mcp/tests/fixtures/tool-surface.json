@@ -5381,7 +5381,7 @@
               "description": "Start point (wall, dimension)"
             },
             "about": {
-              "description": "The piece a note is about (e.g. `f1185`), checked by `annotations` stale; `\"\"` unties it",
+              "description": "The piece a note is about, checked by `annotations` stale; `\"\"` unties it",
               "type": "string"
             },
             "align": {
@@ -5405,7 +5405,7 @@
               "description": "Position (label, furniture center)"
             },
             "auto": {
-              "description": "Room follows its walls (re-detected when they change); `pts` turns it off",
+              "description": "Room follows its walls (re-detected); `pts` turns it off",
               "type": "boolean"
             },
             "b": {
@@ -5429,7 +5429,7 @@
               "type": "boolean"
             },
             "ceiling_flat": {
-              "description": "Room ceiling flat at storey height (true) or following the wall profiles (false)",
+              "description": "Room ceiling flat at storey height (true) or following the walls (false)",
               "type": "boolean"
             },
             "color": {
@@ -5568,7 +5568,7 @@
             },
             "room_use": {
               "$ref": "#/$defs/RoomUse",
-              "description": "Declared room program, independent of name; auto restores inference"
+              "description": "Room program"
             },
             "sides": {
               "description": "Wall finish on both sides",
@@ -5612,6 +5612,10 @@
             "w": {
               "description": "Furniture width cm",
               "type": "number"
+            },
+            "into": {
+              "$ref": "#/$defs/Point2",
+              "description": "Door: a point on the side it swings into"
             }
           },
           "required": [
