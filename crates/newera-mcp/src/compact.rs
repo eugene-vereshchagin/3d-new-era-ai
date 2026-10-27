@@ -274,6 +274,11 @@ pub(crate) fn piece(
     if let Some(mat) = &f.texture {
         v["mat"] = json!(mat.to_string());
     }
+    // To the hundredth, as it is given (0.15 for glass): `num` would round
+    // it to a tenth and hide the change.
+    if let Some(opacity) = f.opacity {
+        v["opacity"] = json!((opacity * 100.0).round() / 100.0);
+    }
     if f.mirrored {
         v["mirror"] = json!(true);
     }
@@ -349,6 +354,11 @@ pub(crate) fn wall(w: &Wall) -> Value {
     }
     if (w.height - Wall::DEFAULT_HEIGHT).abs() > f64::EPSILON {
         v["h"] = num(w.height);
+    }
+    // A sloping wall's height at `b`: without it `update h_end` read back as
+    // a write that changed nothing.
+    if let Some(h_end) = w.height_at_end {
+        v["h_end"] = num(h_end);
     }
     if let Some(arc) = w.arc_extent.filter(|_| w.is_arc()) {
         v["arc"] = num(arc);
@@ -754,27 +764,35 @@ pub(crate) fn warnings(home: &Home) -> Vec<String> {
 /// the compact view before and after says it in a line: which elements
 /// appeared, which went, and exactly which fields moved.
 pub(crate) fn diff(before: &Home, after: &Home) -> Value {
+    // The rows leave out the storey (reads are already split by it), so it
+    // is added here: a move to another level is a change, not a no-op.
+    let on = |mut row: Value, level: Option<newera_core::LevelId>| {
+        if let Some(level) = level {
+            row["level"] = json!(level.to_string());
+        }
+        row
+    };
     let index = |home: &Home| -> std::collections::BTreeMap<String, Value> {
         let cuts = home.wall_cuts();
         let mut map = std::collections::BTreeMap::new();
         for wall in &home.walls {
-            map.insert(wall.id.to_string(), self::wall(wall));
+            map.insert(wall.id.to_string(), on(self::wall(wall), wall.level));
         }
         for r in &home.rooms {
-            map.insert(r.id.to_string(), room(r));
+            map.insert(r.id.to_string(), on(room(r), r.level));
         }
         for d in &home.dimensions {
-            map.insert(d.id.to_string(), dimension(d));
+            map.insert(d.id.to_string(), on(dimension(d), d.level));
         }
         for l in &home.labels {
-            map.insert(l.id.to_string(), label(l));
+            map.insert(l.id.to_string(), on(label(l), l.level));
         }
         for pl in &home.polylines {
-            map.insert(pl.id.to_string(), polyline(pl));
+            map.insert(pl.id.to_string(), on(polyline(pl), pl.level));
         }
         for top in &home.furniture {
             for f in top.flatten() {
-                map.insert(f.id.to_string(), piece(home, &cuts, f));
+                map.insert(f.id.to_string(), on(piece(home, &cuts, f), f.level));
             }
         }
         map

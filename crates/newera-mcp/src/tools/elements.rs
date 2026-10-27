@@ -99,19 +99,20 @@ fn unchanged(
         .filter_map(|c| c.as_str().or_else(|| c["id"].as_str()).map(str::to_owned))
         .collect();
     // The compact form leaves out what it does not draw (a piece's
-    // properties, like `piece:fixed`): the piece itself says if it changed.
-    let piece = |home: &newera_core::Home, id: newera_core::ElementId| match id {
+    // properties, like `piece:fixed`): the element itself says if it changed.
+    let full = |home: &newera_core::Home, id: newera_core::ElementId| match id {
         newera_core::ElementId::Furniture(f) => home
             .find_piece(f)
-            .and_then(|p| serde_json::to_value(p).ok()),
-        _ => None,
+            .cloned()
+            .map(newera_core::Element::Furniture),
+        _ => home.element(id),
     };
     asked
         .iter()
         .filter(|id| !moved.contains(*id))
         .filter_map(|raw| {
             let id: newera_core::ElementId = raw.parse().ok()?;
-            if piece(before, id) != piece(after, id) {
+            if full(before, id) != full(after, id) {
                 return None;
             }
             let now = crate::compact::element(after, id)?;
@@ -1048,6 +1049,46 @@ mod tests {
             !s.document.read().home().cameras.observer_active,
             "undo restores the aerial view"
         );
+    }
+    #[test]
+    fn a_slope_a_storey_and_an_opacity_are_said_as_changes() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(r#"{"walls":[{"pts":[[0,0],[400,0]]}]}"#).unwrap(),
+        ))
+        .unwrap();
+        s.place(Parameters(
+            serde_json::from_str(r#"{"items":[{"cat":"box","at":[200,200]}]}"#).unwrap(),
+        ))
+        .unwrap();
+        let (wall, piece) = {
+            let doc = s.document.read();
+            (
+                doc.home().walls[0].id.to_string(),
+                doc.home().furniture[0].id.to_string(),
+            )
+        };
+        let upper = newera_core::ops::add_level(&mut s.document.write(), None, None).unwrap();
+        let update = |item: String| {
+            let reply = s
+                .update(Parameters(UpdateParams {
+                    items: serde_json::from_str(&format!("[{item}]")).unwrap(),
+                    rename: None,
+                    v: None,
+                    dry: None,
+                }))
+                .unwrap();
+            assert!(!reply.contains("unchanged"), "{item}: {reply}");
+            let diff: serde_json::Value =
+                serde_json::from_str(&reply[reply.find('{').expect("a diff")..]).unwrap();
+            diff["changed"][0]["to"].clone()
+        };
+        let to = update(format!(r#"{{"id":"{wall}","h_end":300}}"#));
+        assert_eq!(to["h_end"], 300.0, "{to}");
+        let to = update(format!(r#"{{"id":"{wall}","level":"{upper}"}}"#));
+        assert_eq!(to["level"], upper.to_string(), "{to}");
+        let to = update(format!(r#"{{"id":"{piece}","opacity":0.15}}"#));
+        assert_eq!(to["opacity"], 0.15, "{to}");
     }
     #[test]
     fn sloping_walls_and_tilted_pieces() {
