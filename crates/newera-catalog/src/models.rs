@@ -166,6 +166,7 @@ pub(crate) fn build(model: Model, piece: &Furniture, color: Rgb) -> Mesh {
             &mut ctx,
             opening.map_or(1, |o| o.leaves),
             opening.is_some_and(|o| o.sliding),
+            opening.is_some_and(|o| o.hinge_right),
         ),
         Model::Window { panes } => window(
             &mut ctx,
@@ -1270,7 +1271,9 @@ fn bathtub(ctx: &mut Ctx) {
     );
 }
 
-fn door(ctx: &mut Ctx, leaves: u8, sliding: bool) {
+/// A door in its frame; a single leaf has its handle away from the hinges
+/// (on the left with `hinge_right`, as the plan draws the swing).
+fn door(ctx: &mut Ctx, leaves: u8, sliding: bool, hinge_right: bool) {
     let (w, d, h, c) = (ctx.w, ctx.d, ctx.h, ctx.c);
     let frame = 5.0;
     let trim = if sliding {
@@ -1325,7 +1328,8 @@ fn door(ctx: &mut Ctx, leaves: u8, sliding: bool) {
                 [-2.0, 2.0],
                 c,
             );
-            let hx = if i == 0 {
+            // Two leaves meet in the middle; one leaf is hinged on one jamb.
+            let hx = if i == 0 && !(leaves <= 1 && hinge_right) {
                 x0 + inner / n - 8.0
             } else {
                 x0 + 8.0
@@ -2273,6 +2277,39 @@ mod solid_tests {
             })
             .max_by(|a, b| a.0.total_cmp(&b.0))
             .expect("surface under sample")
+    }
+
+    #[test]
+    fn a_door_handle_is_on_the_side_away_from_the_hinges() {
+        let handle_x = |hinge_right: bool| {
+            let piece = Furniture {
+                width: 90.0,
+                depth: 12.0,
+                height: 210.0,
+                opening: Some(newera_core::Opening {
+                    kind: newera_core::OpeningKind::Door,
+                    hinge_right,
+                    ..newera_core::Opening::default()
+                }),
+                ..Furniture::default()
+            };
+            let mesh = super::build(crate::Model::Door, &piece, [0.6, 0.5, 0.4]);
+            // The handle and its plate are all there is 1 m up.
+            let xs: Vec<f32> = mesh
+                .positions
+                .iter()
+                .filter(|p| (p[1] - 100.0).abs() < 1.0)
+                .map(|p| p[0])
+                .collect();
+            assert!(!xs.is_empty());
+            #[allow(clippy::cast_precision_loss)]
+            {
+                xs.iter().sum::<f32>() / xs.len() as f32
+            }
+        };
+        // The plan swings the leaf from the left jamb (−x), or the right one.
+        assert!(handle_x(false) > 20.0, "{}", handle_x(false));
+        assert!(handle_x(true) < -20.0, "{}", handle_x(true));
     }
 
     #[test]
