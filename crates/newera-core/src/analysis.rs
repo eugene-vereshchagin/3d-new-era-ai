@@ -925,6 +925,13 @@ fn window_obstruction(window: &Furniture, piece: &Furniture) -> Option<[f64; 2]>
     if shared.unsigned_area() <= MIN_OVERLAP {
         return None;
     }
+    // A tilted plate — a roof slope over a door — spans a tall z range, most
+    // of it away from the opening: the slope itself must reach into it.
+    if (piece.pitch != 0.0 || piece.roll != 0.0)
+        && !crate::solid::hits_prism(piece, &zone, sill, |_| head)
+    {
+        return None;
+    }
     let mut min = f64::INFINITY;
     let mut max = f64::NEG_INFINITY;
     for c in shared.iter().flat_map(|p| p.exterior().coords()) {
@@ -1740,6 +1747,40 @@ mod tests {
                     .any(|i| matches!(i, Issue::BlocksWindow { .. }))
             );
         }
+    }
+
+    #[test]
+    fn a_roof_slope_blocks_a_window_only_where_it_comes_down_into_it() {
+        use crate::furniture::OpeningKind;
+        // A French window 210 cm high, along y from 145 to 255.
+        let mut window = piece(1, (200.0, 200.0), (110.0, 20.0, 210.0));
+        window.angle = 90.0;
+        window.opening = Some(Opening {
+            kind: OpeningKind::Window,
+            ..Opening::default()
+        });
+        // A 12 cm roof plate falling 37 cm per metre along y, 250 cm over
+        // the middle of the window: about 230 cm over its low jamb. (A plate
+        // 2 cm thick would be dismissed as flat before the slope is looked at.)
+        let mut roof = piece(2, (200.0, 200.0), (400.0, 400.0, 12.0));
+        roof.name = "Água do telhado".into();
+        roof.pitch = 0.3724_f64.atan().to_degrees();
+        roof.elevation = 250.0;
+        // Its z range reaches far below the head; the slope itself does not.
+        assert!(roof.height_range().0 < 210.0, "{:?}", roof.height_range());
+        assert!(window_obstruction(&window, &roof).is_none());
+        let mut home = Home::default();
+        home.furniture = vec![window.clone(), roof.clone()];
+        assert!(
+            !check_layout(&home)
+                .iter()
+                .any(|i| matches!(i, Issue::BlocksWindow { .. })),
+            "{:?}",
+            check_layout(&home)
+        );
+        // Lowered 40 cm, it comes down into the opening.
+        roof.elevation = 210.0;
+        assert!(window_obstruction(&window, &roof).is_some());
     }
 
     #[test]
