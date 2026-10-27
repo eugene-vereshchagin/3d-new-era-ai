@@ -140,6 +140,32 @@ jobs:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
 
+  # The Microsoft Store package, from the Windows build just made. Unsigned:
+  # the Store signs what it publishes, so no certificate is bought or kept.
+  msix:
+    name: Pack newera-windows-x64.msix
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: newera-windows-x64.zip
+          path: dist
+      - name: Pack
+        shell: bash
+        run: |
+          7z x -y dist/newera-windows-x64.zip -o"$RUNNER_TEMP/win" >/dev/null
+          python -m pip install --quiet pillow
+          version="${GITHUB_REF_NAME#v}"
+          # A run started by hand has no tag: pack the workspace's version.
+          case "$version" in [0-9]*.[0-9]*.[0-9]*) ;; *) version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1) ;; esac
+          python scripts/msix.py "$version" "$RUNNER_TEMP/win/3D New Era AI" newera-windows-x64.msix
+      - uses: actions/upload-artifact@v7
+        with:
+          name: newera-windows-x64.msix
+          path: newera-windows-x64.msix
+
   # One MCP Bundle for every platform, from the binaries just built: what Claude
   # Desktop installs with a double click, and the package the MCP Registry
   # lists. On macOS because that is where lipo makes the Apple binary
@@ -187,7 +213,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: [build, mcpb]
+    needs: [build, mcpb, msix]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -276,6 +302,50 @@ jobs:
             echo "::warning::winget did not take this release (${{ steps.send.outcome }}). The release itself is unaffected. If the package is not in microsoft/winget-pkgs yet, scripts/winget.sh writes the manifests for the first submission."
           fi
         shell: bash
+
+  # Microsoft Store (product 9MT55M4M7B76): the MSIX of this release, sent as a
+  # new submission through the Store's own CLI. Needs an Entra ID app with the
+  # Manager role in Partner Center: MSSTORE_TENANT_ID, MSSTORE_SELLER_ID,
+  # MSSTORE_CLIENT_ID and MSSTORE_CLIENT_SECRET. Like winget, a refusal is
+  # said on the run and does not fail the release.
+  store:
+    name: Send to the Microsoft Store
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    env:
+      MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+    steps:
+      - uses: actions/download-artifact@v8
+        if: env.MSSTORE_CLIENT_SECRET != ''
+        with:
+          name: newera-windows-x64.msix
+          path: dist
+      - uses: microsoft/setup-msstore-cli@v1
+        if: env.MSSTORE_CLIENT_SECRET != ''
+      - name: Submit
+        id: send
+        if: env.MSSTORE_CLIENT_SECRET != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          msstore reconfigure \
+            --tenantId "${{ secrets.MSSTORE_TENANT_ID }}" \
+            --sellerId "${{ secrets.MSSTORE_SELLER_ID }}" \
+            --clientId "${{ secrets.MSSTORE_CLIENT_ID }}" \
+            --clientSecret "$MSSTORE_CLIENT_SECRET"
+          msstore publish dist/newera-windows-x64.msix --appId 9MT55M4M7B76
+      - name: Say what the Store did
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "$MSSTORE_CLIENT_SECRET" ]; then
+            echo "::notice::No MSSTORE_* secrets: the MSIX is on the release but was not sent to the Store."
+          elif [ "${{ steps.send.outcome }}" = "success" ]; then
+            echo "The Store took this release; it goes live after certification."
+          else
+            echo "::warning::The Store did not take this release (${{ steps.send.outcome }}). The release itself is unaffected; the MSIX is on it for a manual submission."
+          fi
 
   # Homebrew: the cask in leandrodaf/homebrew-tap, rewritten with this
   # release's checksums. Needs HOMEBREW_TAP_TOKEN, allowed to push there.

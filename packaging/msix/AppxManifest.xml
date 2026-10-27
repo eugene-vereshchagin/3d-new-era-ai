@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Microsoft Store package. Identity comes from Partner Center (product
+     9MT55M4M7B76, "Product identity"); __VERSION__ is filled by scripts/msix.py.
+     The Store signs the package, so nothing here needs a certificate. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="3DNewEraAI.3DNewEraAI"
+    Publisher="CN=6820415D-45C4-41FC-9338-442060CFDE3C"
+    Version="__VERSION__"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>3D New Era AI</DisplayName>
+    <PublisherDisplayName>3D New Era AI</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="pt-br" />
+    <Resource Language="es-es" />
+    <Resource Language="fr-fr" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="newera-gui.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="3D New Era AI"
+        Description="Floor plans and interior design, drawn by hand or by your AI."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- `newera` on the PATH: what MCP clients start (`newera mcp`). -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="newera.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="newera.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="newera">
+            <uap:DisplayName>3D New Era AI project</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.newera</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <Capability Name="privateNetworkClientServer" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

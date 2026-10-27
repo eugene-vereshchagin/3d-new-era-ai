@@ -63,6 +63,7 @@ apart.
 | [Smithery](https://smithery.ai/servers/leandro-daf4/new-era-3d) | the hosted URL | nothing to update |
 | mcp.so, awesome-mcp-servers | listing | nothing to update |
 | winget (`LeandroFerreira.3DNewEraAI`) | manifests in [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) | `release.yml` job `winget` (winget-releaser); [`scripts/winget.sh`](../scripts/winget.sh) wrote the first submission |
+| Microsoft Store ([9MT55M4M7B76](https://apps.microsoft.com/detail/9MT55M4M7B76)) | MSIX (`newera-windows-x64.msix`), signed by the Store | `release.yml` jobs `msix` ([`scripts/msix.py`](../scripts/msix.py), [`packaging/msix/AppxManifest.xml`](../packaging/msix/AppxManifest.xml)) and `store` (Microsoft Store CLI; needs the `MSSTORE_*` secrets) |
 | Homebrew (`leandrodaf/tap/3d-new-era-ai`) | cask in [leandrodaf/homebrew-tap](https://github.com/leandrodaf/homebrew-tap) | `release.yml` job `homebrew` ([`scripts/homebrew.sh`](../scripts/homebrew.sh)) |
 | One-click install buttons (Cursor, VS Code, LM Studio) | links in the README and on the site | by hand when the URL changes |
 | Claude and ChatGPT custom connectors | `https://mcp.3dneweraai.com/mcp` | `deploy-vps.yml` on a release tag |

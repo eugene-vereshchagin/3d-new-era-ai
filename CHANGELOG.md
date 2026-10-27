@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A Microsoft Store package: each release also carries `newera-windows-x64.msix`, the package
+  the Store signs and publishes, with `newera` on the PATH for MCP clients and `.newera` files
+  opening in the app; the release sends it to the Store when its credentials are set.
 - The desktop app says when a newer release is out: at launch it asks GitHub for the latest
   release, and the status bar links to it ("Nova versão 3.2.0 disponível"). Installed copies kept
   running old versions without knowing.
