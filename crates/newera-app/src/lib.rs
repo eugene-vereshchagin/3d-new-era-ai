@@ -80,7 +80,8 @@ pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
 /// and the Metal compiler of older Intel Macs (macOS 12) fails on it, which
 /// loses the device and closes the editor at launch. Nothing here draws
 /// indirectly, so the check guards nothing; `WGPU_VALIDATION_INDIRECT_CALL=1`
-/// still turns it back on.
+/// still turns it back on. The device also asks for the adapter's largest
+/// buffer.
 ///
 /// `backends`, when given, replaces wgpu's own list: see [`gpu`].
 #[cfg(not(target_arch = "wasm32"))]
@@ -92,6 +93,15 @@ fn wgpu_options(backends: Option<eframe::wgpu::Backends>) -> eframe::egui_wgpu::
         *flags = flags
             .difference(InstanceFlags::VALIDATION_INDIRECT_CALL)
             .with_env();
+        // The largest buffer this GPU takes rather than wgpu's portable
+        // 256 MiB, so a big scene goes up in as few parts as it can.
+        let base = std::sync::Arc::clone(&setup.device_descriptor);
+        setup.device_descriptor = std::sync::Arc::new(move |adapter| {
+            let mut descriptor = base(adapter);
+            let limits = &mut descriptor.required_limits;
+            limits.max_buffer_size = limits.max_buffer_size.max(adapter.limits().max_buffer_size);
+            descriptor
+        });
         if let Some(backends) = backends {
             setup.instance_descriptor.backends = backends;
         }

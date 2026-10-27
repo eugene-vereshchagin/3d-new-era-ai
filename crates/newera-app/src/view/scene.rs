@@ -292,12 +292,92 @@ struct Uniforms {
     sun: f32,
 }
 
+/// The scene on the GPU, in as many parts as its size needs.
 struct GpuMesh {
+    parts: Vec<GpuPart>,
+}
+
+/// Buffers no larger than the device takes in one.
+struct GpuPart {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     index_count: u32,
     /// Transparent triangles follow the opaque ones in `indices`.
     transparent_count: u32,
+}
+
+/// A piece of a mesh with its own vertices, small enough for one buffer.
+#[derive(Debug, Clone, PartialEq)]
+struct MeshPart<T> {
+    vertices: Vec<T>,
+    /// `opaque` indices, then `transparent` more.
+    indices: Vec<u32>,
+    opaque: usize,
+    transparent: usize,
+}
+
+/// Splits a mesh into parts whose vertices and indices each take at most
+/// `max_bytes`, indices renumbered into each part's own vertices. Triangles
+/// keep their order, opaque ones before transparent ones, so drawing every
+/// part's opaque triangles and then every part's transparent ones blends as
+/// the whole mesh would.
+fn split_mesh<T: Copy>(
+    vertices: &[T],
+    opaque: &[u32],
+    transparent: &[u32],
+    max_bytes: u64,
+) -> Vec<MeshPart<T>> {
+    let vertex_size = std::mem::size_of::<T>().max(1) as u64;
+    // A part always takes at least one triangle, however small the limit.
+    let max_vertices = (max_bytes / vertex_size).max(3);
+    let max_indices = (max_bytes / 4).max(3);
+    let empty = || MeshPart {
+        vertices: Vec::new(),
+        indices: Vec::new(),
+        opaque: 0,
+        transparent: 0,
+    };
+    let mut parts = Vec::new();
+    let mut part = empty();
+    // Where each vertex of the whole mesh is in the current part.
+    let mut slot = vec![u32::MAX; vertices.len()];
+    let mut taken: Vec<u32> = Vec::new();
+    for (glass, list) in [(false, opaque), (true, transparent)] {
+        for triangle in list.as_chunks::<3>().0 {
+            let fresh = triangle
+                .iter()
+                .enumerate()
+                .filter(|&(k, &i)| slot[i as usize] == u32::MAX && !triangle[..k].contains(&i))
+                .count();
+            if !part.indices.is_empty()
+                && ((part.vertices.len() + fresh) as u64 > max_vertices
+                    || (part.indices.len() + 3) as u64 > max_indices)
+            {
+                for i in taken.drain(..) {
+                    slot[i as usize] = u32::MAX;
+                }
+                parts.push(std::mem::replace(&mut part, empty()));
+            }
+            for &i in triangle {
+                if slot[i as usize] == u32::MAX {
+                    slot[i as usize] =
+                        u32::try_from(part.vertices.len()).expect("vertex count fits in u32");
+                    part.vertices.push(vertices[i as usize]);
+                    taken.push(i);
+                }
+                part.indices.push(slot[i as usize]);
+            }
+            if glass {
+                part.transparent += 3;
+            } else {
+                part.opaque += 3;
+            }
+        }
+    }
+    if !part.indices.is_empty() {
+        parts.push(part);
+    }
+    parts
 }
 
 struct Targets {
@@ -892,12 +972,41 @@ impl Gpu {
     }
 
     fn upload_mesh(&mut self, rs: &RenderState, mesh: &Mesh) {
+        // A scene larger than the device's biggest buffer goes up in parts.
+        let max = rs.device.limits().max_buffer_size;
+        let vertex_bytes = std::mem::size_of_val(mesh.vertices.as_slice()) as u64;
+        let index_bytes = 4 * (mesh.indices.len() + mesh.transparent.len()) as u64;
+        let parts = if vertex_bytes <= max && index_bytes <= max {
+            vec![Self::upload_part(
+                rs,
+                &mesh.vertices,
+                &mesh.indices,
+                &mesh.transparent,
+            )]
+        } else {
+            split_mesh(&mesh.vertices, &mesh.indices, &mesh.transparent, max)
+                .iter()
+                .map(|part| {
+                    let (opaque, glass) = part.indices.split_at(part.opaque);
+                    Self::upload_part(rs, &part.vertices, opaque, glass)
+                })
+                .collect()
+        };
+        self.mesh = Some(GpuMesh { parts });
+    }
+
+    fn upload_part(
+        rs: &RenderState,
+        vertices: &[Vertex],
+        opaque: &[u32],
+        glass: &[u32],
+    ) -> GpuPart {
         // WebGPU may reject mapped-at-creation buffers even below the device's
         // max_buffer_size. Upload through the queue instead: no JS mapping of
         // the whole scene and no second copy concatenating opaque/glass indices.
-        let vertex_bytes: &[u8] = bytemuck::cast_slice(&mesh.vertices);
-        let opaque_bytes: &[u8] = bytemuck::cast_slice(&mesh.indices);
-        let glass_bytes: &[u8] = bytemuck::cast_slice(&mesh.transparent);
+        let vertex_bytes: &[u8] = bytemuck::cast_slice(vertices);
+        let opaque_bytes: &[u8] = bytemuck::cast_slice(opaque);
+        let glass_bytes: &[u8] = bytemuck::cast_slice(glass);
         let buffer = |label, size: u64, usage| {
             rs.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(label),
@@ -906,12 +1015,12 @@ impl Gpu {
                 mapped_at_creation: false,
             })
         };
-        let vertices = buffer(
+        let vertex_buffer = buffer(
             "scene vertices",
             vertex_bytes.len() as u64,
             wgpu::BufferUsages::VERTEX,
         );
-        let indices = buffer(
+        let index_buffer = buffer(
             "scene indices",
             (opaque_bytes.len() + glass_bytes.len()) as u64,
             wgpu::BufferUsages::INDEX,
@@ -923,16 +1032,15 @@ impl Gpu {
                     .write_buffer(buffer, offset + (i * 64 * 1024) as u64, chunk);
             }
         };
-        upload(&vertices, 0, vertex_bytes);
-        upload(&indices, 0, opaque_bytes);
-        upload(&indices, opaque_bytes.len() as u64, glass_bytes);
-        self.mesh = Some(GpuMesh {
-            vertices,
-            indices,
-            index_count: u32::try_from(mesh.indices.len()).expect("index count fits in u32"),
-            transparent_count: u32::try_from(mesh.transparent.len())
-                .expect("index count fits in u32"),
-        });
+        upload(&vertex_buffer, 0, vertex_bytes);
+        upload(&index_buffer, 0, opaque_bytes);
+        upload(&index_buffer, opaque_bytes.len() as u64, glass_bytes);
+        GpuPart {
+            vertices: vertex_buffer,
+            indices: index_buffer,
+            index_count: u32::try_from(opaque.len()).expect("index count fits in u32"),
+            transparent_count: u32::try_from(glass.len()).expect("index count fits in u32"),
+        }
     }
 
     fn ensure_targets(&mut self, rs: &RenderState, size: [u32; 2]) {
@@ -1044,16 +1152,23 @@ impl Gpu {
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-            if mesh.transparent_count > 0 {
+            for part in &mesh.parts {
+                pass.set_vertex_buffer(0, part.vertices.slice(..));
+                pass.set_index_buffer(part.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..part.index_count, 0, 0..1);
+            }
+            // Glass after every opaque triangle, whichever part holds them.
+            if mesh.parts.iter().any(|part| part.transparent_count > 0) {
                 pass.set_pipeline(&self.transparent_pipeline);
-                pass.draw_indexed(
-                    mesh.index_count..mesh.index_count + mesh.transparent_count,
-                    0,
-                    0..1,
-                );
+                for part in mesh.parts.iter().filter(|part| part.transparent_count > 0) {
+                    pass.set_vertex_buffer(0, part.vertices.slice(..));
+                    pass.set_index_buffer(part.indices.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.draw_indexed(
+                        part.index_count..part.index_count + part.transparent_count,
+                        0,
+                        0..1,
+                    );
+                }
             }
         }
         rs.queue.submit([encoder.finish()]);
@@ -1063,6 +1178,48 @@ impl Gpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mesh_larger_than_a_buffer_splits_into_parts_that_fit() {
+        // A strip of quads sharing their edges, the last ones glass.
+        let vertices: Vec<[f32; 4]> = (0..40u16).map(|i| [f32::from(i), 0.0, 0.0, 1.0]).collect();
+        let quads = |range: std::ops::Range<u32>| -> Vec<u32> {
+            range
+                .flat_map(|q| {
+                    let a = 2 * q;
+                    [a, a + 1, a + 2, a + 2, a + 1, a + 3]
+                })
+                .collect()
+        };
+        let (opaque, glass) = (quads(0..14), quads(14..19));
+        let max = 64; // four vertices, sixteen indices
+        let parts = split_mesh(&vertices, &opaque, &glass, max);
+        assert!(parts.len() > 1);
+        let (mut drawn_opaque, mut drawn_glass) = (Vec::new(), Vec::new());
+        for part in &parts {
+            assert!(std::mem::size_of_val(part.vertices.as_slice()) as u64 <= max);
+            assert!(4 * part.indices.len() as u64 <= max);
+            assert_eq!(part.opaque + part.transparent, part.indices.len());
+            assert!(
+                part.indices
+                    .iter()
+                    .all(|&i| (i as usize) < part.vertices.len())
+            );
+            let corner = |&i: &u32| part.vertices[i as usize];
+            drawn_opaque.extend(part.indices[..part.opaque].iter().map(corner));
+            drawn_glass.extend(part.indices[part.opaque..].iter().map(corner));
+        }
+        // Every triangle, in its order, with its own corners.
+        let corners = |list: &[u32]| -> Vec<[f32; 4]> {
+            list.iter().map(|&i| vertices[i as usize]).collect()
+        };
+        assert_eq!(drawn_opaque, corners(&opaque));
+        assert_eq!(drawn_glass, corners(&glass));
+        // A limit the whole mesh fits in leaves it in one part.
+        let whole = split_mesh(&vertices, &opaque, &glass, 1 << 20);
+        assert_eq!(whole.len(), 1);
+        assert_eq!(whole[0].vertices.len(), vertices.len());
+    }
 
     /// Eases the camera all the way to the side it was sent to.
     fn arrive(camera: &mut OrbitCamera) {
