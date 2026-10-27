@@ -45,9 +45,13 @@ fn wall_type(raw: &str) -> EditResult<Option<&'static newera_core::WallType>> {
     if raw == "none" {
         return Ok(None);
     }
-    newera_core::wall_type(raw)
-        .map(Some)
-        .ok_or_else(|| format!("unknown wall type `{raw}` (see the materials tool)"))
+    newera_core::wall_type(raw).map(Some).ok_or_else(|| {
+        let ids: Vec<&str> = newera_core::WALL_TYPES.iter().map(|t| t.id).collect();
+        format!(
+            "unknown wall type `{raw}`: one of {}, or none to clear",
+            ids.join(", ")
+        )
+    })
 }
 
 #[derive(Debug, Default, Deserialize, JsonSchema)]
@@ -65,7 +69,7 @@ pub(crate) struct WallPath {
     pub hs: Option<Vec<f64>>,
     /// Arc extent in degrees applied to every segment (positive bulges left).
     pub arc: Option<f64>,
-    /// Wall type id, e.g. `drywall-95`; sets the thickness unless `t` is given.
+    /// Wall type id, e.g. `drywall-95`; sets thickness unless `t` given.
     #[serde(rename = "type")]
     pub kind: Option<String>,
     /// Finish on both sides, e.g. `#f2efe6` or `subway 20x10`.
@@ -86,7 +90,7 @@ pub(crate) struct RoomSpec {
     pub floor_mat: Option<String>,
     /// Ceiling finish.
     pub ceil_mat: Option<String>,
-    /// Flat ceiling at storey height (default) or following wall profiles (false).
+    /// Flat ceiling at storey height (default) or along wall profiles (false).
     pub ceiling_flat: Option<bool>,
 }
 
@@ -178,7 +182,7 @@ pub(crate) struct CreateParams {
     /// Solids: outlines raised by `h` (slabs) or sections swept `a`→`b` (gables, ramps).
     #[serde(default)]
     pub solids: Vec<SolidSpec>,
-    /// Plan version (tab) to write to; switches to it first.
+    /// `variants` index, 0-based (not a revision); made active.
     pub v: Option<usize>,
     /// Points are background-image pixels; lengths stay in cm.
     #[serde(default)]
@@ -627,8 +631,8 @@ pub(crate) fn create(doc: &mut Document, params: CreateParams) -> EditResult<Cre
     Ok(Created { ids, welded })
 }
 
-/// Fields to change; each applies only to the kinds that have it, and any
-/// other is refused.
+/// Fields to change; each applies only to the kinds that have it, any other
+/// is refused.
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateSpec {
@@ -743,15 +747,15 @@ pub(crate) struct UpdateSpec {
     /// Door hinge on the right.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hinge_right: Option<bool>,
-    /// Glass of a guard or a closure: `laminated`, `tempered`,
-    /// `tempered-laminated` or `wired`.
+    /// Glass of a guard or a closure.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("enum" = ["laminated", "tempered", "tempered-laminated", "wired"]))]
     pub glass: Option<String>,
     /// Clear gap between a railing's bars, cm.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gap: Option<f64>,
-    /// Furniture: `true` fixed joinery, `false` free-standing; `""` lets the
-    /// name decide.
+    /// Furniture: `true` built-in (not a lock), `false` free-standing; `""`
+    /// the name decides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed: Option<Fixed>,
     /// Move the element to this level id (e.g. `lv2`).
@@ -760,7 +764,7 @@ pub(crate) struct UpdateSpec {
     /// Level slab thickness cm.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slab: Option<f64>,
-    /// Wall type id (sets thickness unless `t` is given); `none` clears.
+    /// Wall type id (sets thickness unless `t` given); `none` clears.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
     /// Wall finish on the left of a→b; `none` clears.
@@ -1742,11 +1746,13 @@ mod tests {
         assert_eq!(wall.right_side.as_ref().unwrap().to_string(), "brick");
 
         let bad: UpdateSpec = serde_json::from_str(r#"{"id":"w1","type":"papelao"}"#).unwrap();
-        assert!(
-            update(&mut doc, vec![bad])
-                .unwrap_err()
-                .contains("unknown wall type")
-        );
+        let why = update(&mut doc, vec![bad]).unwrap_err();
+        assert!(why.contains("unknown wall type"), "{why}");
+        // The refusal names the types there are, instead of sending the
+        // agent to another tool to find them.
+        for id in newera_core::WALL_TYPES.iter().map(|t| t.id) {
+            assert!(why.contains(id), "{id} missing: {why}");
+        }
         let bad: UpdateSpec = serde_json::from_str(r#"{"id":"r5","floor_mat":"lava"}"#).unwrap();
         assert!(update(&mut doc, vec![bad]).is_err());
     }
@@ -1993,8 +1999,8 @@ pub(crate) struct PlaceSpec {
     pub mirror: Option<bool>,
     /// Doors: hinge on the right.
     pub hinge_right: Option<bool>,
-    /// Glass of a guard or a balcony closure: `laminated`, `tempered`,
-    /// `tempered-laminated` or `wired`.
+    /// Glass of a guard or a balcony closure.
+    #[schemars(extend("enum" = ["laminated", "tempered", "tempered-laminated", "wired"]))]
     pub glass: Option<String>,
     /// Clear gap between a railing's bars, cm.
     pub gap: Option<f64>,

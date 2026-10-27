@@ -418,14 +418,19 @@ fn shared_definitions_are_described_in_a_line() {
 /// Arguments that pick one of a few things. Their choices belong in the
 /// schema as an `enum`, where a client validates them and a search finds them.
 const CHOICE_ARGUMENTS: &[&str] = &[
-    "action", "kind", "view", "format", "what", "mode", "quality",
+    "action", "kind", "view", "format", "what", "mode", "quality", "glass",
 ];
 
 fn open_choices(value: &Value, path: &str, out: &mut BTreeSet<String>) {
     let Value::Object(map) = value else { return };
     if let Some(Value::Object(props)) = map.get("properties") {
         for (key, schema) in props {
-            let text = schema["type"] == "string" && schema.get("enum").is_none();
+            // `["string", "null"]` is free text too: an optional one.
+            let string = schema["type"] == "string"
+                || schema["type"]
+                    .as_array()
+                    .is_some_and(|t| t.iter().any(|t| t == "string"));
+            let text = string && schema.get("enum").is_none();
             if CHOICE_ARGUMENTS.contains(&key.as_str()) && text {
                 out.insert(format!("{path}.{key}"));
             }
@@ -434,6 +439,19 @@ fn open_choices(value: &Value, path: &str, out: &mut BTreeSet<String>) {
     for (key, inner) in map {
         open_choices(inner, &format!("{path}.{key}"), out);
     }
+}
+
+/// An optional argument may keep `["string", "null"]` as its type; it is
+/// free text all the same.
+#[test]
+fn an_optional_choice_without_its_list_is_found() {
+    let schema = serde_json::json!({"properties": {
+        "glass": {"type": ["string", "null"]},
+        "view": {"type": ["string", "null"], "enum": ["front", "back"]},
+    }});
+    let mut found = BTreeSet::new();
+    open_choices(&schema, "t", &mut found);
+    assert_eq!(found, BTreeSet::from(["t.glass".to_owned()]));
 }
 
 #[test]

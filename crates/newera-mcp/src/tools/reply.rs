@@ -58,7 +58,7 @@ pub(super) fn on_variant(doc: &mut Document, v: Option<usize>) -> Result<(), Err
     }
 }
 
-/// How much of a dry run to answer with: `true` everything it would change,
+/// How much of a dry run to answer: `true` everything it would change,
 /// `"summary"` the decision — pieces moved, roots, clearances, findings, score.
 // The summary exists because a group that rebuilds lists ninety-seven parts
 // for a choice that fits in five lines.

@@ -24,7 +24,7 @@ pub(crate) struct UpdateParams {
     /// Rename in bulk by a regex, in one step.
     #[serde(default)]
     pub(crate) rename: Option<edit::RenameSpec>,
-    /// Plan version (tab) to write to; switches to it first.
+    /// `variants` index, 0-based (not a revision); made active.
     pub(crate) v: Option<usize>,
     /// Answer what it would change, without writing.
     pub(crate) dry: Option<Dry>,

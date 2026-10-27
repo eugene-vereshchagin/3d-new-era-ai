@@ -20,7 +20,7 @@ pub(crate) struct PlaceParams {
     /// Coordinates (`at`, `into`, `a`, `b`, `along`) are pixels of the background image.
     #[serde(default)]
     px: bool,
-    /// Plan version (tab) to write to; switches to it first.
+    /// `variants` index, 0-based (not a revision); made active.
     v: Option<usize>,
     /// Try it without applying; see `update`. `"summary"` answers short.
     dry: Option<crate::tools::reply::Dry>,

@@ -103,9 +103,9 @@ pub(crate) struct Render3dParams {
     view: Option<String>,
     /// Stored point of view index (see cameras).
     cam: Option<usize>,
-    /// Aerial turn, degrees.
+    /// Aerial turn, degrees; not with piece.
     yaw: Option<f32>,
-    /// Aerial height angle, degrees.
+    /// Aerial height angle, degrees; not with piece.
     pitch: Option<f32>,
     /// Aerial distance factor: 1 frames the building, 2 twice as far.
     zoom: Option<f32>,

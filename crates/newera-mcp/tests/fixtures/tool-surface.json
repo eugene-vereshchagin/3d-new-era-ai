@@ -742,7 +742,7 @@
               "type": "string"
             },
             "ceiling_flat": {
-              "description": "Flat ceiling at storey height (default) or following wall profiles (false)",
+              "description": "Flat ceiling at storey height (default) or along wall profiles (false)",
               "type": "boolean"
             },
             "floor_mat": {
@@ -903,7 +903,7 @@
               "type": "number"
             },
             "type": {
-              "description": "Wall type id, e.g. `drywall-95`; sets the thickness unless `t` is given",
+              "description": "Wall type id, e.g. `drywall-95`; sets thickness unless `t` given",
               "type": "string"
             }
           },
@@ -965,7 +965,7 @@
           "type": "array"
         },
         "v": {
-          "description": "Plan version (tab) to write to; switches to it first",
+          "description": "`variants` index, 0-based (not a revision); made active",
           "type": "integer"
         },
         "walls": {
@@ -4192,7 +4192,7 @@
               "type": "string"
             }
           ],
-          "description": "How much of a dry run to answer with: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
+          "description": "How much of a dry run to answer: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
         },
         "Point2": {
           "description": "[x, y] cm",
@@ -4351,7 +4351,7 @@
               "type": "string"
             }
           ],
-          "description": "How much of a dry run to answer with: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
+          "description": "How much of a dry run to answer: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
         },
         "Facing": {
           "anyOf": [
@@ -4485,7 +4485,13 @@
               "type": "number"
             },
             "glass": {
-              "description": "Glass of a guard or a balcony closure: `laminated`, `tempered`, `tempered-laminated` or `wired`",
+              "description": "Glass of a guard or a balcony closure",
+              "enum": [
+                "laminated",
+                "tempered",
+                "tempered-laminated",
+                "wired"
+              ],
               "type": "string"
             },
             "h": {
@@ -4582,7 +4588,7 @@
           "type": "boolean"
         },
         "v": {
-          "description": "Plan version (tab) to write to; switches to it first",
+          "description": "`variants` index, 0-based (not a revision); made active",
           "type": "integer"
         }
       },
@@ -4805,7 +4811,7 @@
           "type": "string"
         },
         "pitch": {
-          "description": "Aerial height angle, degrees",
+          "description": "Aerial height angle, degrees; not with piece",
           "type": "number"
         },
         "ref": {
@@ -4834,7 +4840,7 @@
           "type": "string"
         },
         "yaw": {
-          "description": "Aerial turn, degrees",
+          "description": "Aerial turn, degrees; not with piece",
           "type": "number"
         },
         "zoom": {
@@ -5238,7 +5244,7 @@
               "type": "string"
             }
           ],
-          "description": "How much of a dry run to answer with: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
+          "description": "How much of a dry run to answer: `true` everything it would change, `\"summary\"` the decision — pieces moved, roots, clearances, findings, score"
         },
         "Fixed": {
           "anyOf": [
@@ -5368,7 +5374,7 @@
         },
         "UpdateSpec": {
           "additionalProperties": false,
-          "description": "Fields to change; each applies only to the kinds that have it, and any other is refused",
+          "description": "Fields to change; each applies only to the kinds that have it, any other is refused",
           "properties": {
             "a": {
               "$ref": "#/$defs/Point2",
@@ -5449,7 +5455,7 @@
             },
             "fixed": {
               "$ref": "#/$defs/Fixed",
-              "description": "Furniture: `true` fixed joinery, `false` free-standing; `\"\"` lets the name decide"
+              "description": "Furniture: `true` built-in (not a lock), `false` free-standing; `\"\"` the name decides"
             },
             "floor": {
               "description": "Room floor visible",
@@ -5464,7 +5470,13 @@
               "type": "number"
             },
             "glass": {
-              "description": "Glass of a guard or a closure: `laminated`, `tempered`, `tempered-laminated` or `wired`",
+              "description": "Glass of a guard or a closure",
+              "enum": [
+                "laminated",
+                "tempered",
+                "tempered-laminated",
+                "wired"
+              ],
               "type": "string"
             },
             "h": {
@@ -5586,7 +5598,7 @@
               "type": "string"
             },
             "type": {
-              "description": "Wall type id (sets thickness unless `t` is given); `none` clears",
+              "description": "Wall type id (sets thickness unless `t` given); `none` clears",
               "type": "string"
             },
             "url": {
@@ -5625,7 +5637,7 @@
           "description": "Rename in bulk by a regex, in one step"
         },
         "v": {
-          "description": "Plan version (tab) to write to; switches to it first",
+          "description": "`variants` index, 0-based (not a revision); made active",
           "type": "integer"
         }
       },
