@@ -900,6 +900,16 @@ impl NewEraMcp {
         let preloaded = self.preload(&p.ids, |_| Ok(None))?;
         let mut doc = self.document.write();
         at_revision(&doc, p.rev)?;
+        // An image that cannot be read would be drawn as nothing at all.
+        if let Some(image) = texture
+            .as_ref()
+            .and_then(Option::as_ref)
+            .and_then(|m| m.image.as_deref())
+        {
+            let path = doc.resolve_asset(image);
+            image::image_dimensions(&path)
+                .map_err(|e| invalid(format!("mat: cannot read image {}: {e}", path.display())))?;
+        }
         let pieces = model_pieces(&doc, &p.ids)?;
         let mut commands = Vec::with_capacity(pieces.len());
         for mut piece in pieces {
@@ -1619,13 +1629,30 @@ mod tests {
             (1, Some([20, 60, 40]), Some(2.0))
         );
         assert_eq!(size(), before, "the weave changes, the chair does not");
-        edit(r#"{"action":"material","ids":["f1"],"material":"tecido","mat":"img:trama.png 5x5"}"#)
-            .unwrap();
+        // An image that is not there is refused, naming where it was looked for.
+        let revision = s.document.read().revision();
+        let missing = dir.join("trama.png");
+        let gone = edit(&format!(
+            r#"{{"action":"material","ids":["f1"],"material":"tecido","mat":"img:{} 5x5"}}"#,
+            path(&missing)
+        ))
+        .unwrap_err();
+        assert!(
+            gone.message.contains("cannot read image") && gone.message.contains(&path(&missing)),
+            "{gone:?}"
+        );
+        assert_eq!(s.document.read().revision(), revision, "nothing changed");
+        image::RgbImage::new(2, 2).save(&missing).unwrap();
+        edit(&format!(
+            r#"{{"action":"material","ids":["f1"],"material":"tecido","mat":"img:{} 5x5"}}"#,
+            path(&missing)
+        ))
+        .unwrap();
         assert!(
             overrides()[0]
                 .texture
                 .as_ref()
-                .is_some_and(|t| t.image.as_deref() == Some("trama.png"))
+                .is_some_and(|t| t.image.as_deref() == Some(path(&missing).as_str()))
         );
         assert_eq!(
             overrides()[0].color,
