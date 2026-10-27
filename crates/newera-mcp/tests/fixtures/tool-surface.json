@@ -2093,7 +2093,7 @@
       "readOnlyHint": false,
       "title": "Change storeys"
     },
-    "description": "Change the storeys. add {name?,h?,elev?} adds one on top (or at elev cm) and selects it; select {id}; delete {id} removes it and its content. update {id, elev?|h?|name?|reference?}: elev raises a storey with its walls, floors and openings (houses on stilts); reference=true marks it a tracing layer (imported plan, older version) that checks and ergonomics skip, which is what you want when two storeys share an elevation. Other tools act on the selected storey. The list is the levels tool.",
+    "description": "Change the storeys. add {name?,h?,elev?} adds one on top (or at elev cm) and selects it; select {id}; delete {id} removes it and its content. update {id, elev?|h?|name?|reference?}: elev raises a storey with its walls, floors and openings (houses on stilts); reference=true marks it a tracing layer (imported plan, older version) that checks and ergonomics skip, which is what you want when two storeys share an elevation. Other tools act on the selected storey. Storeys belong to each plan version (variants): a change applies to the active one. The list is the levels tool.",
     "inputSchema": {
       "properties": {
         "action": {

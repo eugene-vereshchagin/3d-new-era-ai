@@ -680,6 +680,33 @@ pub fn add_level(
     Ok(id)
 }
 
+/// The storey an agent asks for: [`add_level`], except on an empty project
+/// (no storeys, nothing drawn), where there is nothing for a ground storey
+/// to hold — the one asked for is the only one, at the ground (default name
+/// "Térreo"). Returns its id.
+pub fn add_storey(
+    doc: &mut Document,
+    name: Option<String>,
+    height: Option<f64>,
+) -> CoreResult<crate::ids::LevelId> {
+    use crate::elements::Level;
+    if !doc.home().levels.is_empty() || doc.home().elements().next().is_some() {
+        return add_level(doc, name, height);
+    }
+    let level = Level {
+        id: doc.new_level_id(),
+        name: name.unwrap_or_else(|| "Térreo".to_owned()),
+        elevation: 0.0,
+        height: height.unwrap_or(Level::DEFAULT_HEIGHT),
+        floor_thickness: Level::DEFAULT_FLOOR_THICKNESS,
+        ..Level::default()
+    };
+    let id = level.id;
+    doc.execute(Command::insert(level))?;
+    doc.select_level(Some(id));
+    Ok(id)
+}
+
 /// Updates that give the lowest storey's elements it by name.
 ///
 /// An element with no storey of its own is on "the lowest storey", whichever
@@ -908,6 +935,22 @@ mod tests {
         move_wall_point(&mut doc, a, false, Point2::new(450.0, 20.0)).unwrap();
         assert_eq!(doc.home().wall(a).unwrap().end, Point2::new(450.0, 20.0));
         assert_eq!(doc.home().wall(b).unwrap().start, Point2::new(450.0, 20.0));
+    }
+
+    #[test]
+    fn the_first_storey_of_an_empty_project_is_the_only_one() {
+        let mut doc = Document::default();
+        let first = add_storey(&mut doc, Some("Ground".into()), Some(300.0)).unwrap();
+        let home = doc.home();
+        assert_eq!(home.levels.len(), 1, "no implicit ground beside it");
+        let level = home.level(first).unwrap();
+        assert_eq!(level.name, "Ground");
+        assert!(level.elevation.abs() < 1e-9 && (level.height - 300.0).abs() < 1e-9);
+        assert_eq!(home.selected_level, Some(first));
+        // Over a plan already drawn, the ground storey is made for it.
+        let (mut doc, ..) = doc_with_l();
+        add_storey(&mut doc, None, None).unwrap();
+        assert_eq!(doc.home().levels.len(), 2);
     }
 
     #[test]

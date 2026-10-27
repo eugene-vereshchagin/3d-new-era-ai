@@ -3,6 +3,8 @@
 //! A reference storey is a drawing to trace over, not a floor: it stays out
 //! of the layout checks.
 
+use std::fmt::Write as _;
+
 use newera_core::{Command, ops};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::{ErrorData, tool, tool_router};
@@ -45,7 +47,7 @@ impl NewEraMcp {
         self.levels(Parameters(LevelsParams::default()))
     }
     #[tool(
-        description = "Change the storeys. add {name?,h?,elev?} adds one on top (or at elev cm) and selects it; select {id}; delete {id} removes it and its content. update {id, elev?|h?|name?|reference?}: elev raises a storey with its walls, floors and openings (houses on stilts); reference=true marks it a tracing layer (imported plan, older version) that checks and ergonomics skip, which is what you want when two storeys share an elevation. Other tools act on the selected storey. The list is the levels tool."
+        description = "Change the storeys. add {name?,h?,elev?} adds one on top (or at elev cm) and selects it; select {id}; delete {id} removes it and its content. update {id, elev?|h?|name?|reference?}: elev raises a storey with its walls, floors and openings (houses on stilts); reference=true marks it a tracing layer (imported plan, older version) that checks and ergonomics skip, which is what you want when two storeys share an elevation. Other tools act on the selected storey. Storeys belong to each plan version (variants): a change applies to the active one. The list is the levels tool."
     )]
     pub(crate) fn edit_levels(
         &self,
@@ -70,10 +72,24 @@ impl NewEraMcp {
                 .parse()
                 .map_err(|e| invalid(format!("{e}")))
         };
+        // Storeys belong to each plan version: with several, the reply says
+        // which one changed, so the others are not taken for done.
+        let scoped = |doc: &newera_core::Document, reply: String| {
+            if doc.variant_count() > 1 {
+                format!(
+                    "{reply}\nstoreys are per version: this changed v={} only",
+                    doc.active_variant()
+                )
+            } else {
+                reply
+            }
+        };
         match p.action.as_deref().unwrap_or("list") {
             "list" => Ok(compact::levels(doc.home()).to_string()),
             "add" => {
-                let level = ops::add_level(&mut doc, p.name.clone(), p.h).map_err(core)?;
+                let before: Vec<newera_core::LevelId> =
+                    doc.home().levels.iter().map(|l| l.id).collect();
+                let level = ops::add_storey(&mut doc, p.name.clone(), p.h).map_err(core)?;
                 if let Some(elev) = p.elev
                     && let Some(mut raised) = doc.home().level(level).cloned()
                 {
@@ -82,7 +98,24 @@ impl NewEraMcp {
                     commands.push(Command::update(raised));
                     doc.execute(Command::Batch { commands }).map_err(core)?;
                 }
-                Ok(ok(&doc, &[level.to_string()]))
+                // The first storey added over a drawn plan comes with a
+                // ground storey for what is already there: both are named.
+                let made: Vec<&newera_core::Level> = doc
+                    .home()
+                    .sorted_levels()
+                    .into_iter()
+                    .filter(|l| !before.contains(&l.id))
+                    .collect();
+                let ids: Vec<String> = made.iter().map(|l| l.id.to_string()).collect();
+                let mut reply = ok(&doc, &ids);
+                for ground in made.iter().filter(|l| l.id != level) {
+                    let _ = write!(
+                        reply,
+                        "\n{} \"{}\" was added under it, holding what was already drawn",
+                        ground.id, ground.name
+                    );
+                }
+                Ok(scoped(&doc, reply))
             }
             "select" => {
                 let level = id()?;
@@ -90,7 +123,7 @@ impl NewEraMcp {
                     return Err(invalid(format!("{level} not found")));
                 }
                 doc.select_level(Some(level));
-                Ok(ok(&doc, &[]))
+                Ok(scoped(&doc, ok(&doc, &[])))
             }
             "update" => {
                 let level = id()?;
@@ -120,11 +153,11 @@ impl NewEraMcp {
                 };
                 commands.push(Command::update(updated));
                 doc.execute(Command::Batch { commands }).map_err(core)?;
-                Ok(ok(&doc, &[]))
+                Ok(scoped(&doc, ok(&doc, &[])))
             }
             "delete" => {
                 ops::delete_level(&mut doc, id()?).map_err(core)?;
-                Ok(ok(&doc, &[]))
+                Ok(scoped(&doc, ok(&doc, &[])))
             }
             other => Err(invalid(format!("unknown action `{other}`"))),
         }
@@ -463,5 +496,63 @@ mod tests {
             .map(|v| v.position[1])
             .fold(f32::MIN, f32::max);
         assert!((top - 3.05).abs() < 0.02, "wall top at 55 + 250 cm: {top}");
+    }
+    /// The first storey of an empty project came with an empty "Térreo" at
+    /// the same elevation, and the reply named only the one asked for.
+    #[test]
+    fn adding_storeys_names_every_one_made_and_says_which_version() {
+        let add = |s: &NewEraMcp, name: &str| {
+            s.edit_levels(Parameters(LevelsParams {
+                action: Some("add".into()),
+                name: Some(name.into()),
+                elev: Some(0.0),
+                h: Some(300.0),
+                ..LevelsParams::default()
+            }))
+            .unwrap()
+        };
+        let empty = server();
+        let reply = add(&empty, "Ground");
+        let doc = empty.document.read();
+        assert_eq!(doc.home().levels.len(), 1, "{reply}");
+        let only = doc.home().levels[0].id;
+        assert_eq!(reply, format!("ok rev={} ids={only}", doc.revision()));
+        drop(doc);
+
+        let drawn = server();
+        let params: CreateParams =
+            serde_json::from_str(r#"{"walls":[{"pts":[[0,0],[300,0]]}]}"#).unwrap();
+        drawn.create(Parameters(params)).unwrap();
+        let reply = add(&drawn, "Superior");
+        let ids: Vec<String> = drawn
+            .document
+            .read()
+            .home()
+            .sorted_levels()
+            .iter()
+            .map(|l| l.id.to_string())
+            .collect();
+        assert_eq!(ids.len(), 2);
+        assert!(reply.contains(&format!("ids={}", ids.join(","))), "{reply}");
+        assert!(
+            reply.contains(&format!("{} \"Térreo\" was added under it", ids[0])),
+            "{reply}"
+        );
+        assert!(!reply.contains("per version"), "one version: {reply}");
+
+        // With several versions, the reply says only the active one changed.
+        drawn.document.write().add_variant(None, true);
+        let reply = drawn
+            .edit_levels(Parameters(LevelsParams {
+                action: Some("update".into()),
+                id: Some(ids[1].clone()),
+                elev: Some(320.0),
+                ..LevelsParams::default()
+            }))
+            .unwrap();
+        assert!(
+            reply.ends_with("\nstoreys are per version: this changed v=1 only"),
+            "{reply}"
+        );
     }
 }
