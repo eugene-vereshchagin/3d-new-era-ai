@@ -185,12 +185,12 @@ impl NewEraMcp {
         let apply = |doc: &mut newera_core::Document,
                      items: Vec<UpdateSpec>,
                      rename: Option<&edit::RenameSpec>|
-         -> Result<Vec<String>, ErrorData> {
+         -> Result<edit::Updated, ErrorData> {
             if let Some(rule) = rename {
                 edit::rename(doc, rule).map_err(invalid)?;
             }
             if items.is_empty() {
-                return Ok(Vec::new());
+                return Ok(edit::Updated::default());
             }
             edit::update(doc, items).map_err(invalid)
         };
@@ -210,12 +210,16 @@ impl NewEraMcp {
         let mut doc = self.document.write();
         on_variant(&mut doc, p.v)?;
         let before = doc.home().clone();
-        let left = apply(&mut doc, p.items, p.rename.as_ref())?;
+        let updated = apply(&mut doc, p.items, p.rename.as_ref())?;
         let still = unchanged(&before, doc.home(), &asked);
         let mut reply = with_unchanged(&applied(&doc, &before), &still);
-        if !left.is_empty() {
+        if !updated.welded.is_empty() {
+            reply.push_str(" welded=");
+            reply.push_str(&updated.welded.join(","));
+        }
+        if !updated.left.is_empty() {
             reply.push_str(" openings_left=");
-            reply.push_str(&left.join("; "));
+            reply.push_str(&updated.left.join("; "));
         }
         Ok(reply)
     }
