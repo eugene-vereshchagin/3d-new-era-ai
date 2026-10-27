@@ -274,6 +274,15 @@ pub fn init(_mode: &str) -> Guard {
     Guard {}
 }
 
+/// Tags every report from here on, e.g. with the GPU backend in use.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn set_tag(key: &str, value: &str) {
+    sentry::configure_scope(|scope| scope.set_tag(key, value));
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn set_tag(_key: &str, _value: &str) {}
+
 /// Sends one event that says it is a test, and returns its id.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn test_event() -> String {

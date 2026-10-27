@@ -2682,6 +2682,8 @@ impl eframe::App for NewEraApp {
         self.web_files(&ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.collect_plugin();
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::gpu::drew_frame();
         self.follow_document_camera();
         crate::ai::announce(self);
         if self

@@ -11,6 +11,8 @@ mod cabinets;
 mod dialogs;
 mod ergonomics;
 mod files;
+#[cfg(not(target_arch = "wasm32"))]
+mod gpu;
 mod i18n;
 mod jobs;
 mod panels;
@@ -50,15 +52,19 @@ pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
     if let Some(icon) = app_icon() {
         viewport = viewport.with_icon(icon);
     }
+    gpu::watch_panics();
     let native = eframe::NativeOptions {
         viewport,
-        wgpu_options: wgpu_options(),
+        wgpu_options: wgpu_options(gpu::launch()),
         ..Default::default()
     };
     eframe::run_native(
         "3D New Era AI",
         native,
         Box::new(move |cc| {
+            if let Some(state) = &cc.wgpu_render_state {
+                gpu::watch_device(state);
+            }
             let mut app = app::NewEraApp::new(cc, document, options.mcp_url);
             if let Some(path) = options.open {
                 app.open_path(&path);
@@ -75,8 +81,10 @@ pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
 /// loses the device and closes the editor at launch. Nothing here draws
 /// indirectly, so the check guards nothing; `WGPU_VALIDATION_INDIRECT_CALL=1`
 /// still turns it back on.
+///
+/// `backends`, when given, replaces wgpu's own list: see [`gpu`].
 #[cfg(not(target_arch = "wasm32"))]
-fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
+fn wgpu_options(backends: Option<eframe::wgpu::Backends>) -> eframe::egui_wgpu::WgpuConfiguration {
     use eframe::{egui_wgpu::WgpuSetup, wgpu::InstanceFlags};
     let mut options = eframe::egui_wgpu::WgpuConfiguration::default();
     if let WgpuSetup::CreateNew(setup) = &mut options.wgpu_setup {
@@ -84,6 +92,9 @@ fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
         *flags = flags
             .difference(InstanceFlags::VALIDATION_INDIRECT_CALL)
             .with_env();
+        if let Some(backends) = backends {
+            setup.instance_descriptor.backends = backends;
+        }
     }
     options
 }
@@ -148,12 +159,25 @@ mod tests {
 
     #[test]
     fn the_editor_does_not_validate_indirect_draws() {
-        let WgpuSetup::CreateNew(setup) = super::wgpu_options().wgpu_setup else {
+        let WgpuSetup::CreateNew(setup) = super::wgpu_options(None).wgpu_setup else {
             panic!("the editor creates its own wgpu instance");
         };
         let flags = setup.instance_descriptor.flags;
         if std::env::var_os("WGPU_VALIDATION_INDIRECT_CALL").is_none() {
             assert!(!flags.contains(InstanceFlags::VALIDATION_INDIRECT_CALL));
         }
+    }
+
+    #[test]
+    fn a_fallback_backend_replaces_wgpus_list() {
+        let WgpuSetup::CreateNew(setup) =
+            super::wgpu_options(Some(eframe::wgpu::Backends::GL)).wgpu_setup
+        else {
+            panic!("the editor creates its own wgpu instance");
+        };
+        assert_eq!(
+            setup.instance_descriptor.backends,
+            eframe::wgpu::Backends::GL
+        );
     }
 }
