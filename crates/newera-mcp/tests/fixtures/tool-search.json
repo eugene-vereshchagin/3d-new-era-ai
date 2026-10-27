@@ -114,7 +114,6 @@
     ["library", "edit_library", "a read and the write that changes it: separate tools so a client runs the read without asking"],
     ["annotations", "edit_annotations", "a read and the write that changes it: separate tools so a client runs the read without asking"],
     ["cameras", "edit_cameras", "a read and the write that changes it: separate tools so a client runs the read without asking"],
-    ["history", "edit_history", "a read and the write that changes it: separate tools so a client runs the read without asking"],
     ["disciplines", "edit_disciplines", "a read and the write that changes it: separate tools so a client runs the read without asking"],
     ["levels", "edit_levels", "a read and the write that changes it: separate tools so a client runs the read without asking"],
     ["variants", "edit_variants", "a read and the write that changes it: separate tools so a client runs the read without asking"],

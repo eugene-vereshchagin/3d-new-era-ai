@@ -1856,7 +1856,7 @@
       "readOnlyHint": false,
       "title": "Undo, redo, checkpoints"
     },
-    "description": "Undo, redo, or name where the plan is now and come back to it. undo and redo step through changes, whoever made them, and the reply names what changed. checkpoint {label} remembers this point; revert {label} undoes back down to it, keeping every id — which duplicating a version cannot do, since a copy renumbers. A checkpoint lives with the project and survives saving; `history` lists them.",
+    "description": "Undo, redo, or name where the plan is now and come back to it. undo and redo step through changes, whoever made them, and the reply names what changed. checkpoint {label} remembers this point; revert {label} undoes back down to it, keeping every id — which duplicating a version cannot do, since a copy renumbers. revert reaches a checkpoint only while the project stays open; `history` lists them.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -3431,7 +3431,7 @@
       "readOnlyHint": true,
       "title": "List checkpoints"
     },
-    "description": "The checkpoints `edit_history` remembered: rows [label, changes ago]. A checkpoint lives with the project and survives saving.",
+    "description": "The checkpoints `edit_history` remembered: rows [label, changes ago, restorable]. A checkpoint set before the project was opened shows restorable false.",
     "inputSchema": {
       "additionalProperties": false,
       "type": "object"

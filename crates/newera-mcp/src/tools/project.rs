@@ -421,7 +421,7 @@ impl NewEraMcp {
     }
     #[tool(
         name = "history",
-        description = "The checkpoints `edit_history` remembered: rows [label, changes ago]. A checkpoint lives with the project and survives saving."
+        description = "The checkpoints `edit_history` remembered: rows [label, changes ago, restorable]. A checkpoint set before the project was opened shows restorable false."
     )]
     pub(crate) fn list_checkpoints(
         &self,
@@ -433,7 +433,7 @@ impl NewEraMcp {
         }))
     }
     #[tool(
-        description = "Undo, redo, or name where the plan is now and come back to it. undo and redo step through changes, whoever made them, and the reply names what changed. checkpoint {label} remembers this point; revert {label} undoes back down to it, keeping every id — which duplicating a version cannot do, since a copy renumbers. A checkpoint lives with the project and survives saving; `history` lists them."
+        description = "Undo, redo, or name where the plan is now and come back to it. undo and redo step through changes, whoever made them, and the reply names what changed. checkpoint {label} remembers this point; revert {label} undoes back down to it, keeping every id — which duplicating a version cannot do, since a copy renumbers. revert reaches a checkpoint only while the project stays open; `history` lists them."
     )]
     pub(crate) fn edit_history(
         &self,
@@ -483,12 +483,18 @@ impl NewEraMcp {
         let mut properties = doc.home().properties.clone();
         match action {
             "list" => {
+                // A checkpoint set before the project was opened is in the
+                // file, but its depth counts changes of a history that is gone.
                 let rows: Vec<serde_json::Value> = properties
                     .iter()
                     .filter_map(|(key, value)| {
                         let label = key.strip_prefix(KEY)?;
                         let at: usize = value.parse().ok()?;
-                        Some(serde_json::json!([label, depth.saturating_sub(at)]))
+                        Some(if doc.marked(label) == Some(at) {
+                            serde_json::json!([label, depth.saturating_sub(at), true])
+                        } else {
+                            serde_json::json!([label, null, false])
+                        })
                     })
                     .collect();
                 Ok(serde_json::json!({ "checkpoints": rows }).to_string())
@@ -501,6 +507,7 @@ impl NewEraMcp {
                 properties.insert(format!("{KEY}{label}"), (depth + 1).to_string());
                 doc.execute(Command::SetProperties { properties })
                     .map_err(core)?;
+                doc.mark(&label, depth + 1);
                 Ok(ok(&doc, &[]))
             }
             "revert" => {
@@ -509,6 +516,11 @@ impl NewEraMcp {
                     .get(&format!("{KEY}{label}"))
                     .and_then(|v| v.parse().ok())
                     .ok_or_else(|| invalid(format!("no checkpoint `{label}`")))?;
+                if doc.marked(&label) != Some(at) {
+                    return Err(invalid(format!(
+                        "`{label}` was set before the project was opened, or on another version: the changes since are not in this undo history, so it cannot be reverted to; nothing changed"
+                    )));
+                }
                 if at > depth {
                     return Err(invalid(format!(
                         "`{label}` is ahead of where the plan is: nothing to undo"
@@ -887,5 +899,53 @@ mod tests {
         // And the checkpoint is still there to come back to again.
         let listed = checkpoint(r#"{"action":"list"}"#);
         assert_eq!(listed["checkpoints"][0][0], "banheiros", "{listed}");
+    }
+
+    /// A checkpoint is saved with the project, but the undo history it counts
+    /// changes of is not: after reopening, "0 changes ago" was a lie, and a
+    /// revert undid whatever the new session had done.
+    #[test]
+    fn a_checkpoint_from_before_the_project_was_opened_is_not_reverted_to() {
+        let s = server();
+        let wall = |x: u32| {
+            s.create(Parameters(
+                serde_json::from_str(&format!(r#"{{"walls":[{{"pts":[[{x},0],[{x},300]]}}]}}"#))
+                    .unwrap(),
+            ))
+            .unwrap();
+        };
+        wall(0);
+        s.set_checkpoint(Parameters(CheckpointParams {
+            action: Some("checkpoint".to_owned()),
+            label: Some("antes".to_owned()),
+        }))
+        .unwrap();
+        // Saved and opened again: the same home, a new history.
+        {
+            let mut doc = s.document.write();
+            let home = doc.home().clone();
+            doc.load(home);
+        }
+        for x in [100, 200, 300] {
+            wall(x);
+        }
+        let listed: serde_json::Value = serde_json::from_str(
+            &s.list_checkpoints(Parameters(crate::tools::Nothing {}))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            listed["checkpoints"][0],
+            serde_json::json!(["antes", null, false]),
+            "{listed}"
+        );
+        let refused = s
+            .set_checkpoint(Parameters(CheckpointParams {
+                action: Some("revert".to_owned()),
+                label: Some("antes".to_owned()),
+            }))
+            .unwrap_err();
+        assert!(refused.message.contains("before the project was opened"));
+        assert_eq!(s.document.read().home().walls.len(), 4, "nothing undone");
     }
 }
