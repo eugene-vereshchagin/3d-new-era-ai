@@ -1102,7 +1102,7 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<V
                 f.mirrored = spec.mirror.unwrap_or(f.mirrored);
                 f.visible = spec.visible.unwrap_or(f.visible);
                 if let Some(light) = &spec.light {
-                    apply_light(&mut f, light);
+                    apply_light(&mut f, light)?;
                 }
                 let text = |v: Option<String>, old: Option<String>| match v {
                     Some(v) if v.is_empty() => None,
@@ -2187,7 +2187,17 @@ pub(crate) struct LightSpec {
 }
 
 /// Applies a light spec over the piece's current light.
-pub(crate) fn apply_light(piece: &mut newera_core::Furniture, spec: &LightSpec) {
+///
+/// A `z` outside 0..1 is refused rather than clamped: 268.5 is a height in
+/// cm, and clamped to 1 it put the source on the top face without a word.
+pub(crate) fn apply_light(piece: &mut newera_core::Furniture, spec: &LightSpec) -> EditResult<()> {
+    if let Some(z) = spec.z
+        && !(0.0..=1.0).contains(&z)
+    {
+        return Err(format!(
+            "light.z {z}: z is a fraction of the piece's height (0 = bottom face), not cm"
+        ));
+    }
     let mut light = piece
         .light
         .clone()
@@ -2198,7 +2208,7 @@ pub(crate) fn apply_light(piece: &mut newera_core::Furniture, spec: &LightSpec) 
     if spec.on == Some(false) {
         light.lumens = Some(0.0);
         piece.light = Some(light);
-        return;
+        return Ok(());
     }
     if spec.on == Some(true) && light.lumens == Some(0.0) {
         light.lumens = newera_catalog::light_for(piece).and_then(|l| l.lumens);
@@ -2225,12 +2235,13 @@ pub(crate) fn apply_light(piece: &mut newera_core::Furniture, spec: &LightSpec) 
         light.sources = vec![newera_core::LightSource {
             x: 0.5,
             y: 0.5,
-            z: z.clamp(0.0, 1.0),
+            z,
             color: [255, 255, 255],
             diameter: None,
         }];
     }
     piece.light = Some(light);
+    Ok(())
 }
 
 /// Shortens a beam from `a` toward `b` to where its top would
@@ -2855,7 +2866,7 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
             piece.light = newera_catalog::light_for(&piece);
         }
         if let Some(light) = &spec.light {
-            apply_light(&mut piece, light);
+            apply_light(&mut piece, light)?;
         }
         if let (Some(right), Some(opening)) = (spec.hinge_right, piece.opening.as_mut()) {
             opening.hinge_right = right;
@@ -3140,6 +3151,39 @@ mod place_tests {
         let repainted = piece(&doc, &ids[1]);
         assert_eq!(repainted.color, Some([0x44, 0x55, 0x66]));
         assert_eq!(repainted.texture, None, "the wood is gone");
+    }
+
+    #[test]
+    fn a_light_height_in_cm_is_refused_not_clamped() {
+        let mut doc = Document::default();
+        let lamp = |z: f64| PlaceSpec {
+            cat: "wardrobe".into(),
+            at: Some(Point2::new(100.0, 100.0)),
+            light: Some(LightSpec {
+                z: Some(z),
+                ..LightSpec::default()
+            }),
+            ..PlaceSpec::default()
+        };
+        let why = place(&mut doc, vec![lamp(268.5)]).unwrap_err();
+        assert!(why.contains("fraction of the piece's height"), "{why}");
+        assert!(doc.home().furniture.is_empty());
+        let ids = place(&mut doc, vec![lamp(1.0)]).unwrap();
+        let why = update(
+            &mut doc,
+            vec![UpdateSpec {
+                id: ids[0].clone(),
+                light: Some(LightSpec {
+                    z: Some(-0.2),
+                    ..LightSpec::default()
+                }),
+                ..UpdateSpec::default()
+            }],
+        )
+        .unwrap_err();
+        assert!(why.contains("not cm"), "{why}");
+        let light = doc.home().furniture[0].light.clone().unwrap();
+        assert!((light.sources[0].z - 1.0).abs() < 1e-9, "left as it was");
     }
 
     #[test]
