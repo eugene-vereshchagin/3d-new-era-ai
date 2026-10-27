@@ -332,7 +332,34 @@ pub fn embed(doc: &mut Document, request: &EmbedRequest) -> Result<Value, String
                 .existing
                 .then_some(item.elevation - host.elevation)
                 .filter(|z| *z >= floor && *z + item.height <= cabinet.h - t);
-            let bottom = request.z.or(from_item).unwrap_or(default_bottom);
+            // `z` is above the room floor; the niche is measured in the cabinet.
+            let asked = request
+                .z
+                .map(|z| z - host.elevation)
+                .or(from_item)
+                .unwrap_or(default_bottom);
+            // Where the cabinet has room for it: the item sits on the niche
+            // that is built, not on the one that was asked.
+            let lowest = floor
+                + if cabinet.door == crate::DoorType::Drawers {
+                    0.0
+                } else {
+                    f64::from(cabinet.drawers) * 18.0
+                };
+            let highest = cabinet.h - t - (item.height + 2.0);
+            let bottom = if highest >= lowest {
+                asked.clamp(lowest, highest)
+            } else {
+                asked
+            };
+            if (bottom - asked).abs() > 0.05 {
+                notes.push(format!(
+                    "Com z = {} {} não cabe no armário: fica a {} cm do chão, onde há lugar para o nicho.",
+                    num(asked + host.elevation),
+                    kind.label(),
+                    num(bottom + host.elevation)
+                ));
+            }
             // A couple of centimeters of air above the appliance.
             // Niches this one would overlap make way, unless something is in them.
             let top_of = bottom + item.height + 2.0;
@@ -375,7 +402,7 @@ pub fn embed(doc: &mut Document, request: &EmbedRequest) -> Result<Value, String
             );
             let detail = json!({
                 "niche": [val(inner_w), val(item.height + 2.0)],
-                "bottom": val(bottom),
+                "bottom": val(host.elevation + bottom),
             });
             (Build::Cabinet(CabinetParams { ..cabinet }), place, detail)
         }
@@ -943,6 +970,67 @@ mod tests {
                 .any(|note| note.as_str().is_some_and(|text| text.contains("w = 134")))),
             "{err}"
         );
+    }
+
+    #[test]
+    fn z_on_a_raised_cabinet_is_above_the_room_floor() {
+        let mut doc = Document::default();
+        let wall = host(
+            &mut doc,
+            &Build::Cabinet(CabinetParams {
+                w: 60.0,
+                h: 100.0,
+                d: 40.0,
+                plinth: 0.0,
+                ..CabinetParams::default()
+            }),
+        );
+        let mut raised = doc
+            .home()
+            .furniture
+            .iter()
+            .find(|f| f.id == wall)
+            .unwrap()
+            .clone();
+        // Hung on the wall: its pieces follow the group up.
+        raised.elevation = 150.0;
+        doc.execute(Command::update(raised)).unwrap();
+        let micro = piece(&mut doc, "microwave", "Micro-ondas", [50.0, 35.0, 30.0]);
+        let reply = embed(
+            &mut doc,
+            &EmbedRequest {
+                item: micro.clone(),
+                existing: false,
+                host: wall,
+                at: None,
+                z: Some(160.0),
+                dry: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(reply["bottom"], 160, "{reply}");
+        let group = doc.home().furniture.iter().find(|f| f.id == wall).unwrap();
+        let inside = group.children.iter().find(|c| c.id == micro.id).unwrap();
+        assert!(
+            (inside.elevation - 160.0).abs() < 1e-9,
+            "{}",
+            inside.elevation
+        );
+        // Past the top of the cabinet: in the highest niche it has, and said.
+        let other = piece(&mut doc, "microwave", "Micro-ondas", [50.0, 35.0, 30.0]);
+        let high = embed(
+            &mut doc,
+            &EmbedRequest {
+                item: other,
+                existing: false,
+                host: wall,
+                at: None,
+                z: Some(240.0),
+                dry: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(high["bottom"], 216.2, "{high}");
     }
 
     #[test]
