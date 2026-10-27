@@ -849,6 +849,14 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<(
             rename_part(doc.home(), id, spec, &mut commands)?;
             continue;
         };
+        // A piece already changed earlier in this call — a part of it
+        // renamed — is changed further from that copy, not from the plan.
+        let element = match element {
+            Element::Furniture(f) => {
+                Element::Furniture(take_pending(&mut commands, f.id).unwrap_or(f))
+            }
+            other => other,
+        };
         let allowed: &[&str] = match element {
             Element::Polyline(_) => &["pts", "t", "color", "level", "divider"],
             Element::Wall(_) => &[
@@ -1137,6 +1145,12 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<(
                     }
                     None => {}
                 }
+                // A group's pieces follow its new box here rather than when
+                // the batch is applied, so a part renamed in the same call
+                // is renamed on the pieces that moved.
+                if spec.stretch.is_none() && f.is_group() && f.children == before.children {
+                    f.follow_group_change(&before);
+                }
                 Element::Furniture(f)
             }
         };
@@ -1276,6 +1290,23 @@ fn set_layer(piece: &mut newera_core::Furniture, raw: &str) -> EditResult<()> {
 /// A part's name is where a joiner writes its size ("tampo aberto 110 × 30"),
 /// and after the group is resized it is the part's name that is wrong — the
 /// one thing `stale` rightly reports and nobody could fix.
+/// The piece an earlier item of this call already changed, taken out of
+/// `commands` to be changed further.
+fn take_pending(
+    commands: &mut Vec<Command>,
+    id: newera_core::FurnitureId,
+) -> Option<newera_core::Furniture> {
+    let at = commands.iter().position(
+        |c| matches!(c, Command::Update { element: Element::Furniture(f) } if f.id == id),
+    )?;
+    match commands.remove(at) {
+        Command::Update {
+            element: Element::Furniture(f),
+        } => Some(f),
+        _ => unreachable!("matched above"),
+    }
+}
+
 fn rename_part(
     home: &newera_core::Home,
     id: ElementId,
@@ -1326,18 +1357,7 @@ fn rename_part(
         ));
     }
     // Two parts of one group in one call edit the same copy of the group.
-    let at = commands.iter().position(
-        |c| matches!(c, Command::Update { element: Element::Furniture(f) } if f.id == owner.id),
-    );
-    let mut group = match at {
-        Some(k) => match commands.remove(k) {
-            Command::Update {
-                element: Element::Furniture(f),
-            } => f,
-            _ => unreachable!("matched above"),
-        },
-        None => owner.clone(),
-    };
+    let mut group = take_pending(commands, owner.id).unwrap_or_else(|| owner.clone());
     let piece = find(&mut group, part).ok_or_else(|| missing(home, id))?;
     let text = |v: Option<String>, old: Option<String>| match v {
         Some(v) if v.is_empty() => None,

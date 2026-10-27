@@ -754,6 +754,56 @@ mod tests {
     }
 
     #[test]
+    fn a_group_resized_and_a_part_renamed_in_one_update_moves_its_parts() {
+        let s = server();
+        let part = |id: u64, name: &str, x: f64, w: f64| newera_core::Furniture {
+            id: newera_core::FurnitureId(id),
+            catalog: "box".into(),
+            name: name.to_owned(),
+            position: newera_core::Point2::new(x, 30.0),
+            width: w,
+            depth: 30.0,
+            height: 3.0,
+            elevation: 75.0,
+            ..newera_core::Furniture::default()
+        };
+        {
+            let mut doc = s.document.write();
+            let mut group = part(1, "mesa", 60.0, 120.0);
+            group.height = 78.0;
+            group.elevation = 0.0;
+            group.children = vec![part(2, "tampo", 60.0, 120.0), part(3, "pé", 3.0, 6.0)];
+            doc.execute(newera_core::Command::insert(group)).unwrap();
+        }
+        // Either order: the group twice as tall, its top renamed.
+        for items in [
+            r#"[{"id":"f1","h":156},{"id":"f2","name":"tampo de vidro"}]"#,
+            r#"[{"id":"f2","name":"tampo de vidro"},{"id":"f1","h":156}]"#,
+        ] {
+            s.update(Parameters(UpdateParams {
+                items: serde_json::from_str(items).unwrap(),
+                rename: None,
+                v: None,
+                dry: None,
+            }))
+            .unwrap();
+            {
+                let doc = s.document.read();
+                let home = doc.home();
+                assert!((home.furniture[0].height - 156.0).abs() < 1e-9, "{items}");
+                let top = home.find_piece("f2".parse().unwrap()).unwrap();
+                assert_eq!(top.name, "tampo de vidro", "{items}");
+                assert!(
+                    top.elevation > 140.0,
+                    "{items}: the top stayed at {}",
+                    top.elevation
+                );
+            }
+            s.document.write().undo().unwrap();
+        }
+    }
+
+    #[test]
     fn a_dry_move_says_what_kind_of_clash_it_trades_for() {
         let s = server();
         // Two stones of a peninsula that touch, end to end.
