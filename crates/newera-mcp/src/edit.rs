@@ -2701,9 +2701,19 @@ pub(crate) fn with_defaults(
     items
         .into_iter()
         .map(|item| {
+            // `unit` and `stretch` are about a model file: a catalog piece in
+            // a batch of imports does not take them (it would be refused).
+            let model = item
+                .model
+                .as_deref()
+                .or(defaults.model.as_deref())
+                .is_some_and(|m| !m.is_empty());
             let mut value = serde_json::to_value(&item).map_err(|e| e.to_string())?;
             if let (Some(target), Some(base)) = (value.as_object_mut(), base.as_object()) {
                 for (key, default) in base {
+                    if !model && (key == "unit" || key == "stretch") {
+                        continue;
+                    }
                     let missing = match target.get(key) {
                         None | Some(serde_json::Value::Null) => true,
                         Some(serde_json::Value::String(s)) => s.is_empty(),
@@ -3277,6 +3287,53 @@ mod place_tests {
         let repainted = piece(&doc, &ids[1]);
         assert_eq!(repainted.color, Some([0x44, 0x55, 0x66]));
         assert_eq!(repainted.texture, None, "the wood is gone");
+    }
+
+    #[test]
+    fn a_default_unit_is_left_off_catalog_items() {
+        let defaults = PlaceSpec {
+            unit: Some("m".into()),
+            stretch: Some(true),
+            color: Some([1, 2, 3]),
+            ..PlaceSpec::default()
+        };
+        let items = with_defaults(
+            vec![
+                PlaceSpec {
+                    cat: "wardrobe".into(),
+                    at: Some(Point2::new(100.0, 100.0)),
+                    ..PlaceSpec::default()
+                },
+                PlaceSpec {
+                    model: Some("chair.obj".into()),
+                    at: Some(Point2::new(300.0, 100.0)),
+                    ..PlaceSpec::default()
+                },
+            ],
+            Some(&defaults),
+        )
+        .unwrap();
+        assert_eq!((items[0].unit.as_deref(), items[0].stretch), (None, None));
+        assert_eq!(items[0].color, Some([1, 2, 3]), "the rest still applies");
+        assert_eq!(
+            (items[1].unit.as_deref(), items[1].stretch),
+            (Some("m"), Some(true))
+        );
+        // The catalog piece is placed, not refused.
+        let mut doc = Document::default();
+        place(&mut doc, vec![items[0].clone()]).unwrap();
+        // Set on the item itself, it is still a mistake worth saying.
+        let why = place(
+            &mut doc,
+            vec![PlaceSpec {
+                cat: "wardrobe".into(),
+                at: Some(Point2::new(100.0, 300.0)),
+                unit: Some("m".into()),
+                ..PlaceSpec::default()
+            }],
+        )
+        .unwrap_err();
+        assert!(why.contains("unit and stretch are for model"), "{why}");
     }
 
     #[test]
