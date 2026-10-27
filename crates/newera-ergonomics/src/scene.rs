@@ -442,7 +442,7 @@ impl<'a> Scene<'a> {
             return true;
         }
         let bedroom_shape = polygon(&bedroom.room.points);
-        let cuts = newera_core::wall_cuts(&self.home.walls, &self.home.furniture);
+        let cuts = self.home.wall_cuts_of(&self.home.furniture);
         self.spaces
             .iter()
             .filter(|s| s.is_closet() && has_wardrobe(s))

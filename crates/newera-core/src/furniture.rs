@@ -940,7 +940,8 @@ pub struct WallCut {
 
 /// Openings cut into each straight wall, in `walls` order. A door or window
 /// cuts every wall it is aligned with and lies in: one that sits where a
-/// gable is split in two walls opens both halves.
+/// gable is split in two walls opens both halves. Storeys are not looked at:
+/// give the walls of one, or use [`crate::Home::wall_cuts`].
 pub fn wall_cuts(walls: &[Wall], furniture: &[Furniture]) -> Vec<Vec<WallCut>> {
     let mut cuts = vec![Vec::new(); walls.len()];
     for piece in furniture.iter().filter(|f| f.is_opening() && f.visible) {

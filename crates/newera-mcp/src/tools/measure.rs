@@ -19,7 +19,7 @@ pub(super) fn opening_measure(
     home: &newera_core::Home,
     piece: &newera_core::Furniture,
 ) -> serde_json::Value {
-    let cuts = newera_core::wall_cuts(&home.walls, &home.furniture);
+    let cuts = home.wall_cuts_of(&home.furniture);
     let hosts: Vec<_> = home.walls.iter().zip(cuts).filter_map(|(wall, cuts)| {
         let cut = cuts.iter().find(|cut| cut.furniture == piece.id)?;
         let adjacent = |before: bool| {

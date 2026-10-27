@@ -567,15 +567,52 @@ impl Home {
         out
     }
 
-    /// Door and window holes in each wall, in `walls` order.
+    /// Door and window holes in each wall, in `walls` order. Openings inside
+    /// a group belong to the group's storey.
     pub fn wall_cuts(&self) -> Vec<Vec<WallCut>> {
         let pieces: Vec<Furniture> = self
             .furniture
             .iter()
-            .flat_map(Furniture::flatten)
-            .cloned()
+            .flat_map(|top| {
+                top.flatten().into_iter().map(|f| Furniture {
+                    level: top.level,
+                    ..f.clone()
+                })
+            })
             .collect();
-        wall_cuts(&self.walls, &pieces)
+        self.wall_cuts_of(&pieces)
+    }
+
+    /// The holes `pieces` cut in each wall, in `walls` order. A door only
+    /// cuts the walls of its own storey: the same wall drawn again on the
+    /// floor above, right over it, is not opened too, nor named its host.
+    pub fn wall_cuts_of(&self, pieces: &[Furniture]) -> Vec<Vec<WallCut>> {
+        let mut cuts = vec![Vec::new(); self.walls.len()];
+        let mut levels: Vec<Option<LevelId>> = Vec::new();
+        for wall in &self.walls {
+            let level = self.resolve_level(wall.level);
+            if !levels.contains(&level) {
+                levels.push(level);
+            }
+        }
+        for level in levels {
+            let here: Vec<Furniture> = pieces
+                .iter()
+                .filter(|f| self.resolve_level(f.level) == level)
+                .cloned()
+                .collect();
+            if here.is_empty() {
+                continue;
+            }
+            let at: Vec<usize> = (0..self.walls.len())
+                .filter(|&i| self.resolve_level(self.walls[i].level) == level)
+                .collect();
+            let walls: Vec<Wall> = at.iter().map(|&i| self.walls[i].clone()).collect();
+            for (i, list) in at.into_iter().zip(wall_cuts(&walls, &here)) {
+                cuts[i] = list;
+            }
+        }
+        cuts
     }
 
     /// Bounds of what is built (walls, rooms, furniture), ignoring texts,
@@ -628,6 +665,53 @@ impl Home {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_door_only_cuts_the_walls_of_its_storey() {
+        let mut home = Home {
+            levels: vec![
+                Level {
+                    id: LevelId(1),
+                    ..Level::default()
+                },
+                Level {
+                    id: LevelId(2),
+                    elevation: 262.0,
+                    elevation_index: 1,
+                    ..Level::default()
+                },
+            ],
+            ..Home::default()
+        };
+        // The same wall on both storeys, the upper one listed first.
+        let wall = |id: u64, level: u64| Wall {
+            level: Some(LevelId(level)),
+            ..Wall::new(WallId(id), Point2::new(0.0, 0.0), Point2::new(400.0, 0.0))
+        };
+        home.walls = vec![wall(1, 2), wall(2, 1)];
+        let mut door = Furniture {
+            id: FurnitureId(3),
+            catalog: "door".into(),
+            width: 80.0,
+            depth: 15.0,
+            height: 210.0,
+            opening: Some(crate::Opening::default()),
+            level: Some(LevelId(1)),
+            ..Furniture::default()
+        };
+        crate::align_to_wall(&mut door, &home.walls[1], 200.0);
+        home.furniture.push(door);
+
+        let cuts = home.wall_cuts();
+        assert!(cuts[0].is_empty(), "the wall upstairs is not opened");
+        assert_eq!(cuts[1].len(), 1, "the one downstairs is");
+        // Hosts are read as the first wall that has the cut.
+        assert_eq!(
+            cuts.iter()
+                .position(|c| c.iter().any(|cut| cut.furniture == FurnitureId(3))),
+            Some(1)
+        );
+    }
 
     #[test]
     fn reading_asset_paths_matches_the_relocation_visitor_for_every_surface() {
