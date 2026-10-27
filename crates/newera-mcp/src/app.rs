@@ -80,6 +80,24 @@ fn meta() -> Value {
     json!({ "ui": { "csp": { "connectDomains": [], "resourceDomains": [] }, "prefersBorder": true } })
 }
 
+/// The extension a client names at `initialize` when it can display the
+/// viewer.
+pub const EXTENSION: &str = "io.modelcontextprotocol/ui";
+
+/// Whether a client that said `capabilities` at `initialize` displays the
+/// viewer. One that does not gets no drawing: a CLI would hand the whole SVG
+/// to the model instead.
+pub(crate) fn shows_apps(capabilities: &rmcp::model::ClientCapabilities) -> bool {
+    capabilities
+        .extensions
+        .as_ref()
+        .is_some_and(|e| e.contains_key(EXTENSION))
+        || capabilities
+            .experimental
+            .as_ref()
+            .is_some_and(|e| e.contains_key(EXTENSION))
+}
+
 /// Links `show_plan` to the viewer. Every other tool is left alone, and
 /// stays callable by the viewer as well as the model, which is the default.
 pub(crate) fn link(tool: &mut rmcp::model::Tool) {
@@ -129,6 +147,29 @@ mod tests {
         let shown = crate::call(document, VIEWER_TOOL, serde_json::json!({})).unwrap();
         let text = shown.content[0].as_text().unwrap().text.clone();
         assert!(text.contains(" 0 m²") && !text.contains("-0"), "{text}");
+    }
+
+    #[test]
+    fn only_a_client_with_a_viewer_gets_the_drawing() {
+        let caps = |v: serde_json::Value| -> rmcp::model::ClientCapabilities {
+            serde_json::from_value(v).unwrap()
+        };
+        assert!(shows_apps(&caps(json!({"extensions": {
+            "io.modelcontextprotocol/ui": {"mimeTypes": [MIME]}
+        }}))));
+        assert!(!shows_apps(&caps(json!({}))));
+        assert!(!shows_apps(&caps(json!({"roots": {}}))));
+        let document = newera_core::SharedDocument::new(newera_core::Document::default());
+        let server = crate::NewEraMcp::new(document);
+        let viewer = server.shown_plan(true);
+        assert!(viewer.structured_content.unwrap()["svg"].is_string());
+        // Without a viewer: the summary and the editor link, and no SVG.
+        let cli = server.shown_plan(false);
+        let fields = cli.structured_content.unwrap();
+        assert!(fields.get("svg").is_none(), "{fields}");
+        assert!(fields["editor"].is_string() && fields["summary"].is_object());
+        let text = cli.content[0].as_text().unwrap().text.clone();
+        assert!(text.contains("no viewer"), "{text}");
     }
 
     #[test]

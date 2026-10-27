@@ -5194,7 +5194,7 @@
       "readOnlyHint": true,
       "title": "Show the plan"
     },
-    "description": "Show the plan to the user as an interactive viewer (pan, zoom, 3D view, open in the editor) where the chat client can display one. Reply: a one-line summary for you; the drawing goes to the viewer. To look at the plan yourself use render_plan.",
+    "description": "Show the plan to the user as an interactive viewer (pan, zoom, 3D view, open in the editor) where the chat client can display one. Reply: a one-line summary for you; the drawing goes to the viewer (none to a client without one). To look at the plan yourself use render_plan.",
     "inputSchema": {
       "properties": {},
       "type": "object"
@@ -5217,7 +5217,6 @@
       },
       "required": [
         "name",
-        "svg",
         "summary",
         "editor"
       ],

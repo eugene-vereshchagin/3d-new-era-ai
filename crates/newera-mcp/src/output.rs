@@ -814,11 +814,11 @@ pub(crate) fn schema(name: &str) -> Option<Value> {
         "show_plan" => shape(
             &[
                 ("name", text("Project name")),
-                ("svg", text("The plan as SVG")),
+                ("svg", text("The plan as SVG, to a client with a viewer")),
                 ("summary", object("{rooms, area, walls, pieces}")),
                 ("editor", text("Link that opens the project in the editor")),
             ],
-            &["name", "svg", "summary", "editor"],
+            &["name", "summary", "editor"],
         ),
         // Writes answering an `ok` line.
         "create" | "edit_walls" | "edit_background" | "edit_levels" | "edit_cameras"

@@ -284,7 +284,7 @@ fn run(
         "edit_home" => Ok(said(
             server.set_home(Parameters(params(args)?)).map_err(reason)?,
         )),
-        "show_plan" => Ok(server.show_plan()),
+        "show_plan" => Ok(server.shown_plan(true)),
         "plugins" => Ok(said(
             server
                 .list_plugins(Parameters(params(args)?))

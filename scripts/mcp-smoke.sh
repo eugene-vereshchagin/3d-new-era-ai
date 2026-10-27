@@ -127,8 +127,20 @@ check "tools carry read/write hints" "$reply" '"readOnlyHint":true'
 check "show_plan opens the viewer" "$reply" '"resourceUri":"ui://newera/plan-viewer.html"'
 reply=$(rpc '{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"ui://newera/plan-viewer.html"}}')
 check "the viewer page is served" "$reply" '"mimeType":"text/html;profile=mcp-app"'
+# This client declared no viewer: it gets the summary, not the SVG.
+reply=$(call show_plan '{}')
+check "show_plan without a viewer says so" "$reply" 'no viewer in this client'
+[[ "$reply" != *'"svg":'* ]] || { echo "  ✗ show_plan sent the SVG to a client without a viewer"; exit 1; }
+echo "  ✓ and sends no SVG"
+# A client that names the apps extension gets the drawing for its viewer.
+CLI_SESSION="$SESSION"
+SESSION=""
+rpc '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"'"$PROTOCOL"'","capabilities":{"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}}},"clientInfo":{"name":"smoke-app","version":"1"}}}' >/dev/null
+SESSION=$(grep -i '^mcp-session-id:' "$LOG.headers" | awk '{print $2}' | tr -d '\r')
+rpc '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
 reply=$(call show_plan '{}')
 check "show_plan hands the drawing to the viewer" "$reply" '"svg":"<svg'
+SESSION="$CLI_SESSION"
 
 # `newera mcp` with the window open edits that window, not a project of its own.
 reply=$({
