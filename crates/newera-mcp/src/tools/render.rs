@@ -275,7 +275,7 @@ impl NewEraMcp {
 #[tool_router(router = render_router, vis = "pub(crate)")]
 impl NewEraMcp {
     #[tool(
-        description = "PNG of the floor plan, exactly as the user sees it. region=[[minx,miny],[maxx,maxy]] frames a place — it is fitted to the image's aspect by growing the short side, never by cropping, so everything asked for is in the picture — or room=<id|name> with pad cm (default 30) frames a room without working the rectangle out. bg=0..1 overlays the background image to compare with the reference. Keep w/h small to save tokens."
+        description = "PNG of the floor plan, exactly as the user sees it. region=[[minx,miny],[maxx,maxy]] frames a place — it is fitted to the image's aspect by growing the short side, never by cropping, so everything asked for is in the picture — or room=<id|name> with pad cm (default 30) frames a room without working the rectangle out. bg=0..1 overlays the background image to compare with the reference. Keep w/h small to save tokens. One render runs at a time; this waits its turn."
     )]
     pub(crate) fn render_plan(
         &self,
@@ -354,7 +354,7 @@ impl NewEraMcp {
         result
     }
     #[tool(
-        description = "PNG of the home in 3D (software render with outlines, no GPU needed). view: front|back|left|right|top orthographic elevations — front looks from the plan's bottom edge (large y) toward y=0, back from y=0 toward large y, left from x=0, right from large x; cut=cm makes a section keeping only what is beyond that plane from the viewer (front cut=200 keeps y<200, so the wall at y=0 stays as the backdrop; to remove it look from back), aerial (default; frames the whole building; yaw degrees: 0 from east/+x, 90 from south/plan bottom (default 60); pitch down; zoom >1 farther), visitor (current visitor camera) or cam=i (stored point of view). walls=cutaway drops the walls between the eye and a room to 40 cm, walls=down drops them all; either hides ceilings, roofs and the doors, windows and wall pieces of lowered walls, to see the furniture from the side. piece=<id> draws it alone, seen from its own side (view; aerial is three-quarter), framed the same wherever it stands; part=<name> frames one part of its model; ref=i puts its reference photo beside it, from the photo's side. Keep w/h small."
+        description = "PNG of the home in 3D (software render with outlines, no GPU needed). view: front|back|left|right|top orthographic elevations — front looks from the plan's bottom edge (large y) toward y=0, back from y=0 toward large y, left from x=0, right from large x; cut=cm makes a section keeping only what is beyond that plane from the viewer (front cut=200 keeps y<200, so the wall at y=0 stays as the backdrop; to remove it look from back), aerial (default; frames the whole building; yaw degrees: 0 from east/+x, 90 from south/plan bottom (default 60); pitch down; zoom >1 farther), visitor (current visitor camera) or cam=i (stored point of view). walls=cutaway drops the walls between the eye and a room to 40 cm, walls=down drops them all; either hides ceilings, roofs and the doors, windows and wall pieces of lowered walls, to see the furniture from the side. piece=<id> draws it alone, seen from its own side (view; aerial is three-quarter), framed the same wherever it stands; part=<name> frames one part of its model; ref=i puts its reference photo beside it, from the photo's side. Keep w/h small. One render runs at a time; this waits its turn."
     )]
     pub(crate) fn render_3d(
         &self,

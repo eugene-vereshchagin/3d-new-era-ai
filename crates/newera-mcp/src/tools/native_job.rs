@@ -130,12 +130,8 @@ pub(super) async fn run(
             rmcp::model::CallToolResult::success(vec![rmcp::model::ContentBlock::text(text)]),
         ));
     }
-    let permit = RENDER.try_acquire().map_err(|_| {
-        invalid(
-            "A render is already running (`sessions` shows how far it is); wait for it or stop it with render_photo cancel=true.",
-        )
-    })?;
     let tool = request.name.to_string();
+    let permit = take_turn(&RENDER, &tool, &context.ct).await?;
     // A photo shares one slot with heavy plugins (a modeler): the budget is
     // the machine's, not each caller's.
     let slot = if tool == "render_photo" {
@@ -172,6 +168,36 @@ pub(super) async fn run(
         },
     )
     .await
+}
+
+/// How long a plan or a 3D view waits for the render ahead of it.
+const QUEUE_WAIT: Duration = Duration::from_secs(240);
+
+/// The render slot for `tool`. A plan or a 3D view is quick, so it waits
+/// for the render ahead of it (until its caller cancels, or for
+/// [`QUEUE_WAIT`]); a photo or a video takes minutes, so it is refused while
+/// another render runs instead of queuing behind it unseen.
+async fn take_turn<'a>(
+    slot: &'a tokio::sync::Semaphore,
+    tool: &str,
+    ct: &CancellationToken,
+) -> Result<tokio::sync::SemaphorePermit<'a>, ErrorData> {
+    let busy = || {
+        invalid(
+            "A render is already running (`sessions` shows how far it is); wait for it or stop it with render_photo cancel=true.",
+        )
+    };
+    if matches!(tool, "render_plan" | "render_3d") {
+        tokio::select! {
+            permit = slot.acquire() => permit.map_err(|_| busy()),
+            () = ct.cancelled() => Err(invalid(newera_core::progress::CANCELLED)),
+            // Nothing is sent while it waits, and an idle HTTP session ends
+            // after five minutes: past this it says busy instead.
+            () = tokio::time::sleep(QUEUE_WAIT) => Err(busy()),
+        }
+    } else {
+        slot.try_acquire().map_err(|_| busy())
+    }
 }
 
 /// A ping on its way, until it is answered or times out; `true` when it
@@ -487,6 +513,36 @@ mod tests {
             .expect("a finished render is no longer listed");
             assert!(!cancel_running());
         }
+    }
+    #[tokio::test]
+    async fn a_second_plan_waits_for_the_render_ahead_and_a_photo_is_refused() {
+        let slot = tokio::sync::Semaphore::new(1);
+        let ct = CancellationToken::new();
+        let first = take_turn(&slot, "render_plan", &ct).await.unwrap();
+        // A photo is refused while another render runs.
+        let refused = take_turn(&slot, "render_photo", &ct).await.unwrap_err();
+        assert!(refused.message.contains("already running"));
+        // A second plan waits for its turn instead of being refused.
+        let second = take_turn(&slot, "render_3d", &ct);
+        tokio::pin!(second);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut second)
+                .await
+                .is_err(),
+            "the second render waits while the first runs"
+        );
+        drop(first);
+        let second = tokio::time::timeout(Duration::from_secs(1), second)
+            .await
+            .expect("the second render runs once the first ends");
+        assert!(second.is_ok());
+        // A caller that gives up while waiting is answered at once.
+        let waiting = take_turn(&slot, "render_plan", &ct);
+        ct.cancel();
+        let gave_up = tokio::time::timeout(Duration::from_secs(1), waiting)
+            .await
+            .expect("a cancelled wait ends");
+        assert!(gave_up.is_err());
     }
     #[tokio::test]
     async fn a_running_render_is_listed_and_stopped_from_another_call() {
