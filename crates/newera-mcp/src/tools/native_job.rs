@@ -174,6 +174,10 @@ pub(super) async fn run(
     .await
 }
 
+/// A ping on its way, until it is answered or times out; `true` when it
+/// could not be sent at all, because the client is gone.
+type Ping = std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>;
+
 async fn supervise(
     tool: Option<String>,
     context: RequestContext<RoleServer>,
@@ -215,31 +219,43 @@ async fn supervise(
     let mut poll = tokio::time::interval(Duration::from_millis(250));
     let mut next_ping = tokio::time::Instant::now() + heartbeat;
     let mut next_progress = tokio::time::Instant::now();
+    let mut ping: Option<Ping> = None;
     loop {
         tokio::select! {
             result = &mut worker => return result.map_err(|e| invalid(format!("The render failed: {e}")))?,
             () = cancel.cancelled() => return Err(invalid(newera_core::progress::CANCELLED)),
+            gone = async { ping.as_mut().expect("guarded").await }, if ping.is_some() => {
+                if gone { return Err(invalid("The client disconnected; the render was cancelled.")); }
+                ping = None;
+            }
             _ = poll.tick() => {
                 if context.peer.is_transport_closed() { return Err(invalid("The client disconnected; the render was cancelled.")); }
                 let now = tokio::time::Instant::now();
-                if now >= next_ping {
+                if now >= next_ping && ping.is_none() {
                     // Ping is part of MCP even when no progress token was
-                    // supplied. Require a reply: notifications alone could
-                    // keep an abandoned HTTP session alive indefinitely.
-                    let ping = async {
-                        context.peer.send_request_with_option(
-                            ServerRequest::PingRequest(PingRequest { method: rmcp::model::PingRequestMethod, extensions: rmcp::model::Extensions::default() }),
-                            PeerRequestOptions::with_timeout(response_timeout),
-                        ).await?.await_response().await
-                    };
-                    tokio::select! {
-                        result = &mut worker => return result.map_err(|e| invalid(format!("The render failed: {e}")))?,
-                        () = cancel.cancelled() => return Err(invalid(newera_core::progress::CANCELLED)),
-                        result = tokio::time::timeout(response_timeout, ping) => {
-                            if !matches!(result, Ok(Ok(_))) { return Err(invalid("The client stopped answering; the render was cancelled.")); }
-                        }
-                    }
-                    next_ping = tokio::time::Instant::now() + heartbeat;
+                    // supplied, and it keeps an HTTP session from idling out.
+                    // An answer is not required: many clients never answer a
+                    // ping while a call is open, and a render must not die
+                    // for that. A gone client closes the transport or cancels
+                    // the call; a photo also stops at its max_s. The ping is
+                    // awaited here, alongside the rest, so it goes out on
+                    // this call's own stream.
+                    let peer = context.peer.clone();
+                    ping = Some(Box::pin(async move {
+                        let answer = async {
+                            peer.send_request_with_option(
+                                ServerRequest::PingRequest(PingRequest { method: rmcp::model::PingRequestMethod, extensions: rmcp::model::Extensions::default() }),
+                                PeerRequestOptions::with_timeout(response_timeout),
+                            ).await?.await_response().await
+                        };
+                        // Unanswered is fine; only a ping that could not
+                        // go out at all says the client is gone.
+                        matches!(
+                            tokio::time::timeout(response_timeout, answer).await,
+                            Ok(Err(rmcp::ServiceError::TransportSend(_) | rmcp::ServiceError::TransportClosed))
+                        )
+                    }));
+                    next_ping = now + heartbeat;
                 }
                 if now >= next_progress {
                     if let Some(token) = &token {
@@ -254,7 +270,11 @@ async fn supervise(
                             return Err(invalid("Progress could not be sent; the render was cancelled."));
                         }
                     }
-                    next_progress = now + Duration::from_secs(1);
+                    // A deleted HTTP session shows only here while its
+                    // transport drains: a ping there goes unanswered like
+                    // any other, but progress can no longer be sent. So a
+                    // short heartbeat (the tests') also checks it often.
+                    next_progress = now + heartbeat.min(Duration::from_secs(1));
                 }
             }
         }
@@ -436,12 +456,15 @@ mod tests {
                 }
             }
         }
-        if mode == "success" {
+        if mode == "success" || mode == "unresponsive" {
             assert!(
                 pings >= 2,
                 "long request must heartbeat without a progress token"
             );
-            assert!(result.unwrap().get("result").is_some());
+            assert!(
+                result.unwrap().get("result").is_some(),
+                "a client that never answers a ping still gets its render"
+            );
         } else {
             assert!(progress > 0);
             assert!(result.as_ref().is_none_or(|r| r.get("error").is_some()));
@@ -452,7 +475,7 @@ mod tests {
             }
         })
         .await
-        .expect("worker must stop after its client cancels/disconnects/fails ping");
+        .expect("worker must stop after it ends or its client cancels/disconnects");
         if mode == "stop" {
             // `stopped` is set inside the worker, just before it returns.
             tokio::time::timeout(Duration::from_secs(1), async {
@@ -482,7 +505,7 @@ mod tests {
         exercise("disconnect").await;
     }
     #[tokio::test]
-    async fn http_unresponsive_client_stops_worker() {
+    async fn http_client_that_never_answers_pings_gets_its_render() {
         exercise("unresponsive").await;
     }
 }
