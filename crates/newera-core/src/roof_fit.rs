@@ -23,11 +23,13 @@ pub const ROOF_FIT_KEY: &str = "roof:fit";
 pub const ROOF_FIT_ABOVE: f64 = 5.0;
 
 /// Sloped surfaces that can be over something: tilted pieces (roof panels,
-/// rafters) of the home.
+/// rafters) of the home. Hidden ones count too: hiding a roof to look under
+/// it is a display change, and walls fitted to it must keep their shape.
 fn slopes(home: &Home) -> Vec<&Furniture> {
     home.furniture
         .iter()
-        .flat_map(Furniture::visible_leaves)
+        .flat_map(Furniture::flatten)
+        .filter(|f| f.children.is_empty())
         // Roof panels, not rafters or braces: a surface is wide both ways.
         .filter(|f| {
             !f.is_opening() && (f.pitch != 0.0 || f.roll != 0.0) && f.width.min(f.depth) >= 30.0
@@ -496,6 +498,33 @@ mod tests {
             ))
             .is_empty()
         );
+    }
+
+    #[test]
+    fn hiding_the_roof_leaves_the_walls_fitted_to_it_alone() {
+        let mut home = Home::default();
+        home.furniture
+            .push(slope(1, 300.0, (0.0, 0.0), (200.0, 400.0), 600.0));
+        home.furniture
+            .push(slope(2, 300.0, (400.0, 0.0), (200.0, 400.0), 600.0));
+        let mut wall = Wall::new(
+            WallId(10),
+            Point2::new(100.0, 50.0),
+            Point2::new(100.0, 350.0),
+        );
+        wall.height = 250.0;
+        home.walls.push(wall);
+        let mut doc = crate::Document::new(home);
+        fit_to_roof(&mut doc, &[ElementId::Wall(WallId(10))], 10.0).unwrap();
+        let walls = doc.home().walls.clone();
+        assert_eq!(walls.len(), 2, "{walls:?}");
+        // Hidden, the roof is still there: nothing is refitted or split.
+        let mut hidden = doc.home().furniture[1].clone();
+        hidden.visible = false;
+        doc.execute(Command::update(hidden)).unwrap();
+        assert_eq!(doc.home().walls, walls);
+        // Where it hides, it still reads as a roof above.
+        assert!(roof_height_at(doc.home(), Point2::new(300.0, 300.0), 10.0).is_some());
     }
 
     #[test]
