@@ -867,7 +867,7 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<V
             other => other,
         };
         let allowed: &[&str] = match element {
-            Element::Polyline(_) => &["pts", "t", "color", "level", "divider"],
+            Element::Polyline(_) => &["pts", "t", "color", "level", "divider", "layer"],
             Element::Wall(_) => &[
                 "a", "b", "t", "h", "h_end", "arc", "level", "type", "left", "right", "sides",
             ],
@@ -886,7 +886,7 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<V
             Element::Dimension(_) => &["a", "b", "off", "level", "in3d", "elev", "pitch"],
             Element::Label(_) => &[
                 "text", "at", "size", "angle", "level", "bold", "italic", "align", "color", "in3d",
-                "elev", "pitch", "about",
+                "elev", "pitch", "about", "layer",
             ],
             Element::Level(_) => &["name", "elev", "h", "slab"],
             Element::Furniture(_) => &[
@@ -948,6 +948,9 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<V
                 }
                 if let Some(divider) = spec.divider {
                     p.room_divider = divider;
+                }
+                if let Some(raw) = &spec.layer {
+                    p.discipline = discipline(raw)?;
                 }
                 Element::Polyline(p)
             }
@@ -1059,6 +1062,9 @@ pub(crate) fn update(doc: &mut Document, items: Vec<UpdateSpec>) -> EditResult<V
                     (Some(true), None) => l.pitch.or(Some(90.0)),
                     (None, None) => l.pitch.or(spec.elev.map(|_| 90.0)),
                 };
+                if let Some(raw) = &spec.layer {
+                    l.discipline = discipline(raw)?;
+                }
                 Element::Label(l)
             }
             Element::Furniture(mut f) => {
@@ -1316,6 +1322,19 @@ fn set_layer(piece: &mut newera_core::Furniture, raw: &str) -> EditResult<()> {
         }
     }
     Ok(())
+}
+
+/// The project a label or line belongs to, as `home` shows it in `layer`:
+/// `electrical`, `plumbing`, or empty (or `none`) for the architectural plan.
+fn discipline(raw: &str) -> EditResult<Option<newera_core::Discipline>> {
+    match raw.trim() {
+        "" | "none" => Ok(None),
+        "electrical" => Ok(Some(newera_core::Discipline::Electrical)),
+        "plumbing" => Ok(Some(newera_core::Discipline::Plumbing)),
+        other => Err(format!(
+            "layer of a label or line: electrical, plumbing, or empty (not {other})"
+        )),
+    }
 }
 
 /// Renames a part of a group, or says why it cannot be edited alone.
@@ -1907,6 +1926,56 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("does not apply"), "{err}");
+    }
+
+    #[test]
+    fn labels_and_lines_take_the_layer_home_shows() {
+        let mut doc = Document::default();
+        let ids = create(
+            &mut doc,
+            CreateParams {
+                labels: vec![LabelSpec {
+                    text: "QD".into(),
+                    at: Point2::new(10.0, 10.0),
+                    ..LabelSpec::default()
+                }],
+                polylines: vec![PolylineSpec {
+                    pts: vec![Point2::new(0.0, 0.0), Point2::new(100.0, 0.0)],
+                    ..PolylineSpec::default()
+                }],
+                ..CreateParams::default()
+            },
+        )
+        .unwrap()
+        .ids;
+        let layer = |id: &str, layer: &str| UpdateSpec {
+            id: id.into(),
+            layer: Some(layer.into()),
+            ..UpdateSpec::default()
+        };
+        update(
+            &mut doc,
+            vec![layer(&ids[0], "electrical"), layer(&ids[1], "plumbing")],
+        )
+        .unwrap();
+        let home = doc.home();
+        assert_eq!(
+            home.labels[0].discipline,
+            Some(newera_core::Discipline::Electrical)
+        );
+        assert_eq!(
+            home.polylines[0].discipline,
+            Some(newera_core::Discipline::Plumbing)
+        );
+        assert_eq!(
+            crate::compact::label(&home.labels[0])["layer"],
+            serde_json::json!("electrical"),
+            "the same word home shows"
+        );
+        update(&mut doc, vec![layer(&ids[0], "")]).unwrap();
+        assert_eq!(doc.home().labels[0].discipline, None);
+        let err = update(&mut doc, vec![layer(&ids[1], "lighting")]).unwrap_err();
+        assert!(err.contains("electrical, plumbing"), "{err}");
     }
 
     #[test]
