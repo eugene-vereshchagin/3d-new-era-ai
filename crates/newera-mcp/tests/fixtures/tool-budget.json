@@ -1,5 +1,5 @@
 {
-  "total": 122814,
+  "total": 122864,
   "tools": {
     "accept": {
       "total": 1360,
@@ -44,9 +44,9 @@
       "output": 163
     },
     "create": {
-      "total": 9367,
+      "total": 9359,
       "description": 505,
-      "input": 8437,
+      "input": 8429,
       "output": 203
     },
     "cut_list": {
@@ -98,8 +98,8 @@
       "output": 785
     },
     "edit_history": {
-      "total": 1266,
-      "description": 394,
+      "total": 1272,
+      "description": 400,
       "input": 248,
       "output": 403
     },
@@ -200,8 +200,8 @@
       "output": 231
     },
     "history": {
-      "total": 440,
-      "description": 126,
+      "total": 466,
+      "description": 152,
       "input": 46,
       "output": 90
     },
@@ -260,15 +260,15 @@
       "output": 666
     },
     "move": {
-      "total": 2219,
+      "total": 2214,
       "description": 223,
-      "input": 1008,
+      "input": 1003,
       "output": 793
     },
     "place": {
-      "total": 7769,
+      "total": 7770,
       "description": 1043,
-      "input": 5593,
+      "input": 5594,
       "output": 896
     },
     "plugins": {
@@ -284,9 +284,9 @@
       "output": 274
     },
     "render_3d": {
-      "total": 2817,
+      "total": 2849,
       "description": 1101,
-      "input": 1451,
+      "input": 1483,
       "output": 85
     },
     "render_photo": {
@@ -326,9 +326,9 @@
       "output": 181
     },
     "update": {
-      "total": 9755,
+      "total": 9753,
       "description": 1001,
-      "input": 7696,
+      "input": 7694,
       "output": 857
     },
     "variants": {

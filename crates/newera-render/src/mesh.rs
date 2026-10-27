@@ -146,7 +146,9 @@ impl Surface {
         let kind = if let Some(image) = &material.image {
             IMAGE_BASE + mesh.image_layer(image)
         } else {
-            material.pattern.map_or(0, newera_core::Pattern::index)
+            material
+                .pattern
+                .map_or(0, |p| crate::patterns::kind_of(p, material.color.is_some()))
         };
         let color = match (material.color, &material.image) {
             (Some(color), _) => srgb_to_linear(color),
@@ -1239,7 +1241,9 @@ impl Mesh {
                 let texture = over_texture
                     .and_then(|t| t.image.clone())
                     .or_else(|| m.texture.as_ref().map(|p| p.display().to_string()));
-                let layer = if color.is_some() {
+                // A colour alone repaints the model's own image; given with
+                // an image of its own, it tints that image.
+                let layer = if color.is_some() && over_texture.is_none() {
                     None
                 } else {
                     texture.map(|t| IMAGE_BASE + self.image_layer(&t))
@@ -1303,7 +1307,7 @@ impl Mesh {
                         .or(piece.color)
                         .unwrap_or_else(|| pattern.default_color()),
                 );
-                kind = pattern.index();
+                kind = crate::patterns::kind_of(pattern, texture.color.or(piece.color).is_some());
             } else if let (Some(layer), Some(texture)) =
                 (texture_layer.filter(|_| finishable), piece_texture)
             {
@@ -1329,10 +1333,8 @@ impl Mesh {
                 color = [1.0; 3];
                 kind = layer;
             } else if let Some((over, layer, _, planar, repeat)) = look {
-                if let Some(c) = over {
-                    color = *c;
-                } else if let Some(layer) = layer {
-                    color = [1.0; 3];
+                if let Some(layer) = layer {
+                    color = over.unwrap_or([1.0; 3]);
                     kind = *layer;
                     if let Some(cutoff) = local.material_of(k).and_then(|m| m.cutoff) {
                         kind = masked(kind, cutoff);
@@ -1345,6 +1347,8 @@ impl Mesh {
                             .get(k)
                             .map_or([0.0, 0.0], |uv| tiled(*uv, *repeat)),
                     };
+                } else if let Some(c) = over {
+                    color = *c;
                 }
             }
             if highlight {
@@ -2278,6 +2282,65 @@ mod material_tests {
         let span = us.iter().copied().fold(f32::MIN, f32::max)
             - us.iter().copied().fold(f32::MAX, f32::min);
         assert!((span - 8.0).abs() < 1e-3, "{us:?}");
+    }
+
+    #[test]
+    fn an_image_given_with_a_colour_is_tinted_not_replaced() {
+        // A sofa fabric that has its own image in the file.
+        let model = ModelMesh {
+            positions: vec![[0.0, 4.0, 0.0], [60.0, 4.0, 0.0], [60.0, 4.0, 50.0]],
+            normals: vec![[0.0, 1.0, 0.0]; 3],
+            colors: vec![[1.0; 3]; 3],
+            finishable: vec![],
+            indices: vec![0, 2, 1],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+            vertex_materials: vec![0; 3],
+            materials: vec![MeshMaterial {
+                name: "fabric".into(),
+                color: [1.0; 3],
+                alpha: 1.0,
+                texture: Some("old.png".into()),
+                shininess: 0.0,
+                cutoff: None,
+                double_sided: false,
+            }],
+            parts: vec![],
+        };
+        let mut piece = Furniture {
+            width: 60.0,
+            depth: 50.0,
+            height: 4.0,
+            ..Furniture::default()
+        };
+        let ivory = [224, 217, 203];
+        piece.materials.push(ModelMaterial {
+            name: "fabric".into(),
+            key: None,
+            color: Some(ivory),
+            texture: Some(Material {
+                image: Some("ivory.png".into()),
+                ..Material::default()
+            }),
+            shininess: None,
+            repeat: None,
+        });
+        let mesh = Mesh::piece_alone(&piece, &model);
+        // The new image is drawn, tinted by the colour.
+        assert_eq!(mesh.images, ["ivory.png"]);
+        assert!(mesh.vertices.iter().all(|v| v.kind == IMAGE_BASE));
+        let tint = srgb_to_linear(ivory);
+        assert!(
+            mesh.vertices.iter().all(|v| v.color[..3]
+                .iter()
+                .zip(tint)
+                .all(|(a, b)| (a - b).abs() < 1e-6)),
+            "{:?}",
+            mesh.vertices[0].color
+        );
+        // A colour alone still repaints the file's own image.
+        piece.materials[0].texture = None;
+        let mesh = Mesh::piece_alone(&piece, &model);
+        assert!(mesh.vertices.iter().all(|v| v.kind == 0));
     }
 
     #[test]

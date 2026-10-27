@@ -586,6 +586,59 @@ fn crossings(outline: &[Point2], axis: Axis, at: f64) -> Vec<(f64, f64)> {
         .collect()
 }
 
+/// The parts of a probe's crossing `(a, b)` of `wall` that are wall, not one
+/// of its openings `holes` (distances along the wall).
+fn outside_openings(
+    wall: &Wall,
+    axis: Axis,
+    at: f64,
+    (a, b): (f64, f64),
+    holes: &[(f64, f64)],
+) -> Vec<(f64, f64)> {
+    let len = wall.start.distance(wall.end).max(1e-9);
+    let along = |s: f64| {
+        let p = match axis {
+            Axis::X => Point2::new(s, at),
+            Axis::Y => Point2::new(at, s),
+        };
+        ((p.x - wall.start.x) * (wall.end.x - wall.start.x)
+            + (p.y - wall.start.y) * (wall.end.y - wall.start.y))
+            / len
+    };
+    let (ta, tb) = (along(a), along(b));
+    // Straight through the wall: in an opening or not.
+    if (tb - ta).abs() < 1e-6 {
+        return if holes.iter().any(|&(from, to)| from < ta && ta < to) {
+            Vec::new()
+        } else {
+            vec![(a, b)]
+        };
+    }
+    // Along the wall: the openings, mapped onto the probe, are left out.
+    let to_probe = |t: f64| a + (t - ta) * (b - a) / (tb - ta);
+    let mut gaps: Vec<(f64, f64)> = holes
+        .iter()
+        .map(|&(from, to)| {
+            let (x, y) = (to_probe(from), to_probe(to));
+            (x.min(y), x.max(y))
+        })
+        .collect();
+    gaps.sort_by(|x, y| x.0.total_cmp(&y.0));
+    let mut out = Vec::new();
+    let mut cursor = a;
+    for (g0, g1) in gaps {
+        if g0 > cursor {
+            out.push((cursor, g0.min(b)));
+        }
+        cursor = cursor.max(g1);
+    }
+    if cursor < b {
+        out.push((cursor, b));
+    }
+    out.retain(|(x, y)| y > x);
+    out
+}
+
 /// What a straight probe runs into, in order.
 ///
 /// The probe runs along `axis` at `at` (the other axis' coordinate), between
@@ -609,11 +662,34 @@ pub fn free_span(
         return Vec::new();
     }
     let mut hits: Vec<Span> = Vec::new();
+    let cuts = home.wall_cuts();
     for o in obstacles(home, &|_| false) {
         if o.z.1 <= z.0 || o.z.0 >= z.1 {
             continue;
         }
-        for (a, b) in crossings(&o.outline, axis, at) {
+        // A door or passage through a wall is free where it opens over the
+        // whole height probed; a lintel or a sill in that height is wall.
+        let opened = match o.what {
+            Solid::Wall(id) => home.walls.iter().position(|w| w.id == id).map(|i| {
+                let holes: Vec<(f64, f64)> = cuts[i]
+                    .iter()
+                    .filter(|c| c.bottom <= z.0 + 0.05 && c.top >= z.1 - 0.05)
+                    .map(|c| (c.from, c.to))
+                    .collect();
+                (&home.walls[i], holes)
+            }),
+            Solid::Piece(_) => None,
+        };
+        let parts =
+            crossings(&o.outline, axis, at)
+                .into_iter()
+                .flat_map(|crossing| match &opened {
+                    Some((wall, holes)) if !holes.is_empty() => {
+                        outside_openings(wall, axis, at, crossing, holes)
+                    }
+                    _ => vec![crossing],
+                });
+        for (a, b) in parts {
             let (a, b) = (a.max(lo), b.min(hi));
             if b - a > 0.05 {
                 hits.push(Span {
@@ -1225,6 +1301,49 @@ mod tests {
         );
         assert!((c.cm - 5.0).abs() < 0.5, "{c:?}");
         assert!(matches!(c.against, Some(Solid::Wall(_))), "{c:?}");
+    }
+
+    #[test]
+    fn a_probe_through_a_passage_finds_no_wall_there() {
+        use crate::furniture::{Opening, OpeningKind};
+        let mut home = Home::default();
+        room(&mut home, 400.0, 300.0);
+        // A 180 cm passage, 210 high, in the wall along y = 0.
+        let opening = |id: u64, elevation: f64, kind: OpeningKind| Furniture {
+            elevation,
+            opening: Some(Opening {
+                kind,
+                ..Opening::default()
+            }),
+            ..piece(id, (200.0, 0.0), (180.0, 20.0, 210.0), 0.0)
+        };
+        home.furniture.push(opening(20, 0.0, OpeningKind::Passage));
+        let walls = |spans: &[Span]| {
+            spans
+                .iter()
+                .filter(|s| matches!(s.what, Some(Solid::Wall(WallId(1)))))
+                .count()
+        };
+        // Through the passage: free floor up to the far wall.
+        let through = free_span(&home, Axis::Y, 150.0, Some((-50.0, 100.0)), (0.0, 200.0));
+        assert_eq!(walls(&through), 0, "{through:#?}");
+        // Beside it, the wall is there; over the lintel too.
+        let beside = free_span(&home, Axis::Y, 50.0, Some((-50.0, 100.0)), (0.0, 200.0));
+        assert_eq!(walls(&beside), 1, "{beside:#?}");
+        let lintel = free_span(&home, Axis::Y, 150.0, Some((-50.0, 100.0)), (0.0, 240.0));
+        assert_eq!(walls(&lintel), 1, "{lintel:#?}");
+        // Along the wall, only the opening's width is open.
+        let along = free_span(&home, Axis::X, 0.0, Some((0.0, 400.0)), (0.0, 200.0));
+        let open = along
+            .iter()
+            .filter(|s| s.is_free())
+            .map(Span::cm)
+            .fold(0.0, f64::max);
+        assert!((open - 180.0).abs() < 0.5, "{along:#?}");
+        // A window's sill is in the way of a probe from the floor.
+        home.furniture[0] = opening(20, 100.0, OpeningKind::Window);
+        let sill = free_span(&home, Axis::Y, 150.0, Some((-50.0, 100.0)), (0.0, 200.0));
+        assert_eq!(walls(&sill), 1, "{sill:#?}");
     }
 
     #[test]

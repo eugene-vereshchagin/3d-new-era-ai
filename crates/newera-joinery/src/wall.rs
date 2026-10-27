@@ -41,8 +41,8 @@ pub struct CabinetRunParams {
     /// Room the fronts face, by id or name (default: toward the house middle).
     pub room: Option<String>,
     /// Flat choices, all optional: row base|wall|tall, h, d, elev, t (mm), front,
-    /// color [r,g,b], handle bar|profile|knob|cava|none (bar), `handle_color` [r,g,b] or
-    /// "#hex", drawers (drawer units), max (widest module, 90), target (60),
+    /// color and `handle_color` [r,g,b] or "#hex", handle bar|profile|knob|cava|none (bar),
+    /// drawers (drawer units), max (widest module, 90), target (60),
     /// top (base countertop, true), `top_material`, sink / cooktop (center cm along
     /// the wall: cabinet under it and the countertop cutout), `sink_w` (80), `cooktop_w` (60),
     /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom).
@@ -219,8 +219,10 @@ fn brazilian(v: f64) -> String {
     }
 }
 
-/// Which wall, which face, which choices.
-fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
+/// Which wall, which face, which choices, and a note saying which face when
+/// a room chose it.
+#[allow(clippy::too_many_lines)]
+fn resolve(home: &Home, p: &CabinetRunParams) -> Result<(Request, Option<String>), String> {
     let near = match &p.near {
         Some(id) => Some(
             home.furniture
@@ -279,7 +281,16 @@ fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
         wall.start.x.midpoint(wall.end.x),
         wall.start.y.midpoint(wall.end.y),
     );
-    let facing = match (&p.room, near) {
+    // The side whose half-plane holds `facing`.
+    let toward = |facing: Point2| {
+        if -u.1 * (facing.x - mid.x) + u.0 * (facing.y - mid.y) >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        }
+    };
+    let mut said = None;
+    let side = match (&p.room, near) {
         (Some(room), _) => {
             // By id or by name, as the user calls it: `r2` or `Cozinha`.
             let level = home.resolve_level(wall.level);
@@ -302,17 +313,56 @@ fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
                         .copied()
                 })
                 .ok_or_else(|| format!("no room `{room}`: give its id or its name"))?;
-            newera_core::polygon_centroid(&found.points).unwrap_or(mid)
+            // The face the room is on, looked for just past the wall along
+            // the stretch being filled: an L-shaped room's centroid can lie
+            // on the other side of one of its own walls.
+            let (a, b) = (
+                p.from.unwrap_or(0.0).clamp(0.0, length),
+                p.to.unwrap_or(length).clamp(0.0, length),
+            );
+            let reach = wall.thickness / 2.0 + 1.0;
+            let mut hits = [0_u32; 2];
+            for k in 0..9 {
+                let along = a + (b - a) * (f64::from(k) + 0.5) / 9.0;
+                let at = Point2::new(wall.start.x + u.0 * along, wall.start.y + u.1 * along);
+                for (hit, sign) in hits.iter_mut().zip([1.0, -1.0]) {
+                    let probe = Point2::new(at.x - u.1 * sign * reach, at.y + u.0 * sign * reach);
+                    if inside(&found.points, probe) {
+                        *hit += 1;
+                    }
+                }
+            }
+            let label = if found.name.trim().is_empty() {
+                found.id.to_string()
+            } else {
+                format!("{} ({})", found.name.trim(), found.id)
+            };
+            let side = match hits {
+                [0, 0] => {
+                    return Err(format!(
+                        "{label} não encosta em {wall_id}: dê o cômodo de um dos lados dela, ou nenhum."
+                    ));
+                }
+                [l, r] if l > r => 1.0,
+                [l, r] if r > l => -1.0,
+                _ => toward(newera_core::polygon_centroid(&found.points).unwrap_or(mid)),
+            };
+            let center = a.midpoint(b);
+            let front = Point2::new(
+                wall.start.x + u.0 * center - u.1 * side * 60.0,
+                wall.start.y + u.1 * center + u.0 * side * 60.0,
+            );
+            said = Some(format!(
+                "Frentes para {label}: no lado de {wall_id} voltado para [{}, {}].",
+                num(front.x),
+                num(front.y)
+            ));
+            side
         }
-        (None, Some(at)) => at,
-        (None, None) => home.bounds().map_or(mid, |(a, b)| {
+        (None, Some(at)) => toward(at),
+        (None, None) => toward(home.bounds().map_or(mid, |(a, b)| {
             Point2::new(a.x.midpoint(b.x), a.y.midpoint(b.y))
-        }),
-    };
-    let side = if -u.1 * (facing.x - mid.x) + u.0 * (facing.y - mid.y) >= 0.0 {
-        1.0
-    } else {
-        -1.0
+        })),
     };
     // Tall cabinets facing a bedroom are a wardrobe.
     let mut params = params;
@@ -337,7 +387,7 @@ fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
             params.interior = Some(crate::Interior::Wardrobe);
         }
     }
-    Ok(Request {
+    let request = Request {
         wall: wall_id,
         side,
         params,
@@ -345,7 +395,8 @@ fn resolve(home: &Home, p: &CabinetRunParams) -> Result<Request, String> {
         from: p.from,
         to: p.to,
         keep: p.keep.clone().unwrap_or_default(),
-    })
+    };
+    Ok((request, said))
 }
 
 /// Plans one run against `home` without changing it.
@@ -1037,8 +1088,11 @@ fn summary(planned: &Planned, modules: Value) -> Value {
 /// # Errors
 /// Unknown walls or pieces, curved walls, and parameters no module can satisfy.
 pub fn cabinet_run(doc: &mut Document, p: &CabinetRunParams) -> Result<Value, String> {
-    let request = resolve(doc.home(), p)?;
-    let planned = plan(doc.home(), &request)?;
+    let (request, said) = resolve(doc.home(), p)?;
+    let mut planned = plan(doc.home(), &request)?;
+    if let Some(said) = said {
+        planned.notes.insert(0, said);
+    }
     if p.dry {
         let rows: Vec<Value> = planned
             .modules

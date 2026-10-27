@@ -38,12 +38,20 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            strip: none
+            split: "off"
           - os: macos-latest
             target: aarch64-apple-darwin
+            strip: symbols
+            split: packed
           - os: macos-latest
             target: x86_64-apple-darwin
+            strip: symbols
+            split: packed
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            strip: none
+            split: packed
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -56,3 +64,7 @@ jobs:
         with:
           shared-key: release-${{ matrix.target }}
       - run: cargo build -p newera --release --locked --target ${{ matrix.target }}
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+          CARGO_PROFILE_RELEASE_STRIP: ${{ matrix.strip }}
+          CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: ${{ matrix.split }}

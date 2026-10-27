@@ -13,6 +13,10 @@ pub struct Variant {
     home: Home,
     undo_stack: Vec<Command>,
     redo_stack: Vec<Command>,
+    /// Checkpoints set on this history while it is open, by label: the undo
+    /// depth each names. Not saved — a reopened project starts a new history,
+    /// where a depth written before means nothing.
+    marks: std::collections::BTreeMap<String, usize>,
 }
 
 impl Variant {
@@ -22,6 +26,7 @@ impl Variant {
             home,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            marks: std::collections::BTreeMap::new(),
         }
     }
 
@@ -138,6 +143,20 @@ impl Document {
         self.current().undo_stack.len()
     }
 
+    /// Remembers that `label` names undo depth `depth` of the active
+    /// variant's history, for as long as that history lasts.
+    pub fn mark(&mut self, label: &str, depth: usize) {
+        self.current_mut().marks.insert(label.to_owned(), depth);
+    }
+
+    /// The undo depth `label` was marked at on the active variant's history,
+    /// or `None` when it was set on another (before the project was opened,
+    /// or on the version this one was copied from).
+    #[must_use]
+    pub fn marked(&self, label: &str) -> Option<usize> {
+        self.current().marks.get(label).copied()
+    }
+
     /// Allocates a fresh wall id. Ids are never reused, even after undo.
     pub fn new_wall_id(&mut self) -> WallId {
         self.current_mut().home.new_wall_id()
@@ -158,6 +177,17 @@ impl Document {
 
     pub fn new_furniture_id(&mut self) -> FurnitureId {
         self.current_mut().home.new_furniture_id()
+    }
+
+    /// See [`Home::id_mark`].
+    #[must_use]
+    pub fn id_mark(&self) -> u64 {
+        self.home().id_mark()
+    }
+
+    /// See [`Home::rewind_ids`]: only for ids that never reached the plan.
+    pub fn rewind_ids(&mut self, mark: u64) {
+        self.current_mut().home.rewind_ids(mark);
     }
 
     pub fn new_polyline_id(&mut self) -> PolylineId {

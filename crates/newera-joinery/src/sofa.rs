@@ -32,7 +32,9 @@ pub struct SofaParams {
     pub arms: ArmType,
     /// Seat modules (default: one per ~75 cm).
     pub modules: Option<u32>,
-    /// Fabric color `[r,g,b]`.
+    /// Fabric color `[r,g,b]` or `#rrggbb`.
+    #[serde(deserialize_with = "crate::cabinet::rgb_or_hex")]
+    #[schemars(with = "Option<crate::HandleColor>")]
     pub color: Option<[u8; 3]>,
 }
 

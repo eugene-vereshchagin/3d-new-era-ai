@@ -219,6 +219,59 @@ pub fn merged(stored: &str, patch: &serde_json::Value) -> Result<Build, String> 
     parse_params(&value)
 }
 
+/// Makes `build` — the stored parameters with a change merged in — keep the
+/// size the group has now (`width, depth, height`) where it was resized by
+/// other means than joinery (`update w=…`) and the change doesn't give that
+/// size again. Without it, the next change rebuilt the group at the size the
+/// parameters remembered. Returns a note when a size was taken.
+pub fn follow_resize(
+    stored: &str,
+    build: &mut Build,
+    actual: [f64; 3],
+    patch: &serde_json::Value,
+) -> Option<String> {
+    let before = merged(stored, &serde_json::json!({}))
+        .and_then(|b| generate(&b))
+        .ok()?
+        .size;
+    let given = |key: &str| patch.get(key).is_some();
+    // Each axis's parameter, and the axis of the group's box it sets.
+    let mut taken = Vec::new();
+    let mut follow = |key: &'static str, value: &mut f64, axis: usize| {
+        let change = actual[axis] - before[axis];
+        if change.abs() > 0.05 && !given(key) {
+            *value += change;
+            taken.push(format!("{key} = {}", num(*value)));
+        }
+    };
+    match build {
+        Build::Cabinet(p) => {
+            follow("w", &mut p.w, 0);
+            follow("d", &mut p.d, 1);
+            follow("h", &mut p.h, 2);
+        }
+        Build::Slats(p) => {
+            follow("w", &mut p.w, 0);
+            follow("h", &mut p.h, 2);
+        }
+        Build::Countertop(p) => {
+            follow("length", &mut p.length, 0);
+            follow("depth", &mut p.depth, 1);
+        }
+        Build::Sofa(p) => {
+            follow("length", &mut p.length, 0);
+            follow("depth", &mut p.depth, 1);
+        }
+        _ => {}
+    }
+    (!taken.is_empty()).then(|| {
+        format!(
+            "Medidas atuais da peça mantidas ({}): ela foi redimensionada fora do joinery.",
+            taken.join(", ")
+        )
+    })
+}
+
 /// Reads parameters, naming the field that does not fit.
 ///
 /// serde says `invalid type: boolean true, expected u32` and not where: in a

@@ -179,6 +179,25 @@ pub(crate) fn material_editor(
     material: &mut Option<Material>,
 ) -> bool {
     let before = material.clone();
+    // An image picked in the dialog opened by an earlier frame.
+    #[cfg(not(target_arch = "wasm32"))]
+    let image_dialog = egui::Id::new((id, "image dialog"));
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(asked) = ui.data(|d| d.get_temp::<crate::files::Asked>(image_dialog)) {
+        match asked.take() {
+            crate::files::Answer::Waiting => {}
+            crate::files::Answer::Chosen(path) => {
+                ui.data_mut(|d| d.remove::<crate::files::Asked>(image_dialog));
+                *material = Some(Material {
+                    image: Some(path.display().to_string()),
+                    ..Material::default()
+                });
+            }
+            crate::files::Answer::Cancelled => {
+                ui.data_mut(|d| d.remove::<crate::files::Asked>(image_dialog));
+            }
+        }
+    }
     ui.vertical(|ui| {
         let current = match material {
             None => crate::i18n::tr("Sem acabamento").to_owned(),
@@ -220,21 +239,26 @@ pub(crate) fn material_editor(
                 }
                 #[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
                 let image = material.as_ref().is_some_and(|m| m.image.is_some());
+                // The image arrives a few frames later; see above.
                 #[cfg(not(target_arch = "wasm32"))]
+                // One dialog at a time, across the whole app: a second one
+                // would replace the first one's unread answer.
                 if ui
                     .selectable_label(image, crate::i18n::tr("Imagem…"))
                     .clicked()
-                    && let Some(path) = rfd::FileDialog::new()
-                        .add_filter(
-                            crate::i18n::tr("Imagem"),
-                            &["png", "jpg", "jpeg", "webp", "bmp"],
-                        )
-                        .pick_file()
+                    && !crate::files::dialog_open()
+                    && ui
+                        .data(|d| d.get_temp::<crate::files::Asked>(image_dialog))
+                        .is_none()
                 {
-                    *material = Some(Material {
-                        image: Some(path.display().to_string()),
-                        ..Material::default()
-                    });
+                    let asked = crate::files::ask(
+                        crate::files::open_dialog(&[(
+                            crate::i18n::tr("Imagem"),
+                            &["png", "jpg", "jpeg", "webp", "bmp"][..],
+                        )]),
+                        Some(ui.ctx().clone()),
+                    );
+                    ui.data_mut(|d| d.insert_temp(image_dialog, asked));
                 }
             });
         let Some(m) = material else {

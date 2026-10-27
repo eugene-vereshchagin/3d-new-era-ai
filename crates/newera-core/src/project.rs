@@ -368,11 +368,27 @@ fn deflated() -> zip::write::SimpleFileOptions {
         .compression_level(Some(9))
 }
 
+/// What a save did to the files it bundled, for saying so.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SaveReport {
+    /// Big JPEGs stored recompressed: name in the bundle, bytes before and after.
+    pub recompressed: Vec<(String, usize, usize)>,
+    /// Files the project refers to that were not found: left out of the bundle.
+    pub missing: Vec<PathBuf>,
+}
+
 /// Saves a project as a bundle with every referenced file.
 ///
 /// The document's asset paths are left untouched; the bundle stores them
 /// renamed where needed.
 pub fn save_project(doc: &Document, path: &Path) -> Result<(), ProjectError> {
+    save_project_report(doc, path).map(|_| ())
+}
+
+/// [`save_project`], saying which images it recompressed and which files it
+/// could not find.
+pub fn save_project_report(doc: &Document, path: &Path) -> Result<SaveReport, ProjectError> {
+    let mut report = SaveReport::default();
     let files = bundle_files(doc);
     // The bundle's own JSON counts as one part, then a part per file.
     let parts = files.len() as u64 + 1;
@@ -412,20 +428,28 @@ pub fn save_project(doc: &Document, path: &Path) -> Result<(), ProjectError> {
                     } else {
                         deflated()
                     };
+                    let before = bytes.len();
                     let bytes = packed_asset(&name, bytes);
+                    if bytes.len() != before {
+                        report
+                            .recompressed
+                            .push((name.clone(), before, bytes.len()));
+                    }
                     zip.start_file(name, options)?;
                     std::io::Write::write_all(&mut zip, &bytes)?;
                 }
                 // A missing file is kept as a dangling reference rather than
-                // losing the whole save.
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                // losing the whole save, and said.
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                    report.missing.push(source);
+                }
                 Err(err) => return Err(err.into()),
             }
         }
         zip.finish()?;
     }
     std::fs::rename(tmp, path)?;
-    Ok(())
+    Ok(report)
 }
 
 /// Files packed in a bundle, by name.
@@ -697,6 +721,42 @@ mod tests {
             ))
             .unwrap();
         out
+    }
+
+    #[test]
+    fn a_save_says_which_images_it_recompressed_and_which_files_are_missing() {
+        let root = std::env::temp_dir().join(format!("newera-save-report-{}", std::process::id()));
+        let assets = root.join("assets");
+        std::fs::create_dir_all(assets.join("tex")).unwrap();
+        let heavy = noisy_jpeg(1024, 1024, 100);
+        std::fs::write(assets.join("tex/marble.jpg"), &heavy).unwrap();
+        let mut home = Home::default();
+        for image in ["tex/marble.jpg", "tex/gone.jpg"] {
+            let mut room = crate::Room::new(
+                home.new_room_id(),
+                "Sala",
+                vec![
+                    Point2::new(0.0, 0.0),
+                    Point2::new(100.0, 0.0),
+                    Point2::new(0.0, 100.0),
+                ],
+            );
+            room.floor_material = Some(crate::Material {
+                image: Some(image.into()),
+                ..crate::Material::default()
+            });
+            home.rooms.push(room);
+        }
+        let mut doc = Document::new(home);
+        doc.set_asset_dir(Some(assets.clone()));
+        let report = save_project_report(&doc, &root.join("casa.newera")).unwrap();
+        let [(name, before, after)] = report.recompressed.as_slice() else {
+            panic!("{report:?}")
+        };
+        assert_eq!((name.as_str(), *before), ("tex/marble.jpg", heavy.len()));
+        assert!(after < before, "{report:?}");
+        assert_eq!(report.missing, [assets.join("tex/gone.jpg")]);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

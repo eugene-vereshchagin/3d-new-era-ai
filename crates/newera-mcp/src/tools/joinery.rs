@@ -78,6 +78,7 @@ impl NewEraMcp {
         let mut doc = self.document.write();
         let patch = serde_json::Value::Object(p.p.clone().unwrap_or_default());
         // What to build: a new kind, or an existing group's parameters with changes.
+        let mut resized = None;
         let (build, existing) = match (&p.id, &p.kind) {
             (Some(id), _) => {
                 let id: newera_core::FurnitureId =
@@ -102,10 +103,14 @@ impl NewEraMcp {
                             ))
                         },
                     )?;
-                (
-                    newera_joinery::merged(stored, &patch).map_err(invalid)?,
-                    Some(group),
-                )
+                let mut build = newera_joinery::merged(stored, &patch).map_err(invalid)?;
+                resized = newera_joinery::follow_resize(
+                    stored,
+                    &mut build,
+                    [group.width, group.depth, group.height],
+                    &patch,
+                );
+                (build, Some(group))
             }
             (None, Some(kind)) => {
                 let mut value = patch.clone();
@@ -152,7 +157,8 @@ impl NewEraMcp {
                 origin = Some(Point2::new(lo_x, lo_y));
             }
         }
-        let output = newera_joinery::generate(&build).map_err(invalid)?;
+        let mut output = newera_joinery::generate(&build).map_err(invalid)?;
+        output.notes.extend(resized);
         let [w, d, h] = output.size;
         let summary = |id: &str| {
             serde_json::json!({
@@ -254,16 +260,21 @@ impl NewEraMcp {
             ..group
         };
         // Items embedded in it stay in their place on the host.
-        if let Some(old) = &existing {
-            newera_joinery::carry_embedded(old, &mut group);
-        }
+        let carried = existing
+            .as_ref()
+            .map(|old| newera_joinery::carry_embedded(old, &mut group))
+            .unwrap_or_default();
         let command = if existing.is_some() {
             Command::update(group)
         } else {
             Command::insert(group)
         };
         doc.execute(command).map_err(core)?;
-        Ok(summary(&group_id.to_string()).to_string())
+        let mut reply = summary(&group_id.to_string());
+        if let Some(notes) = reply["notes"].as_array_mut() {
+            notes.extend(carried.into_iter().map(serde_json::Value::String));
+        }
+        Ok(reply.to_string())
     }
     #[tool(
         name = "cut_list",
@@ -457,6 +468,38 @@ mod tests {
     use crate::edit::CreateParams;
     use crate::tools::server;
 
+    #[test]
+    fn a_change_after_update_resized_a_build_keeps_its_new_size() {
+        let s = server();
+        let joinery = |json: &str| -> serde_json::Value {
+            let p: JoineryParams = serde_json::from_str(json).unwrap();
+            serde_json::from_str(&s.joinery(Parameters(p)).unwrap()).unwrap()
+        };
+        let made = joinery(r#"{"kind":"cabinet","p":{"w":60,"d":35,"h":80},"at":[100,100]}"#);
+        let id = made["id"].as_str().unwrap().to_owned();
+        let update: crate::tools::elements::UpdateParams =
+            serde_json::from_str(&format!(r#"{{"items":[{{"id":"{id}","d":60,"h":45}}]}}"#))
+                .unwrap();
+        s.update(Parameters(update)).unwrap();
+        // Only the color changes: the size update gave it stays.
+        let changed = joinery(&format!(r#"{{"id":"{id}","p":{{"color":[200,180,150]}}}}"#));
+        assert_eq!(
+            changed["size"],
+            serde_json::json!([60, 60, 45]),
+            "{changed}"
+        );
+        assert!(
+            changed["notes"].to_string().contains("Medidas atuais"),
+            "{changed}"
+        );
+        // A size given in the change wins over the one the piece has.
+        let shallower = joinery(&format!(r#"{{"id":"{id}","p":{{"d":40}}}}"#));
+        assert_eq!(
+            shallower["size"],
+            serde_json::json!([60, 40, 45]),
+            "{shallower}"
+        );
+    }
     #[test]
     fn a_group_drawn_by_hand_is_cut_from_its_boards() {
         let s = server();

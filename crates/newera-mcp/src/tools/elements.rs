@@ -24,7 +24,7 @@ pub(crate) struct UpdateParams {
     /// Rename in bulk by a regex, in one step.
     #[serde(default)]
     pub(crate) rename: Option<edit::RenameSpec>,
-    /// Plan version (tab) to write to; switches to it first.
+    /// `variants` index, 0-based (not a revision); made active.
     pub(crate) v: Option<usize>,
     /// Answer what it would change, without writing.
     pub(crate) dry: Option<Dry>,
@@ -99,19 +99,20 @@ fn unchanged(
         .filter_map(|c| c.as_str().or_else(|| c["id"].as_str()).map(str::to_owned))
         .collect();
     // The compact form leaves out what it does not draw (a piece's
-    // properties, like `piece:fixed`): the piece itself says if it changed.
-    let piece = |home: &newera_core::Home, id: newera_core::ElementId| match id {
+    // properties, like `piece:fixed`): the element itself says if it changed.
+    let full = |home: &newera_core::Home, id: newera_core::ElementId| match id {
         newera_core::ElementId::Furniture(f) => home
             .find_piece(f)
-            .and_then(|p| serde_json::to_value(p).ok()),
-        _ => None,
+            .cloned()
+            .map(newera_core::Element::Furniture),
+        _ => home.element(id),
     };
     asked
         .iter()
         .filter(|id| !moved.contains(*id))
         .filter_map(|raw| {
             let id: newera_core::ElementId = raw.parse().ok()?;
-            if piece(before, id) != piece(after, id) {
+            if full(before, id) != full(after, id) {
                 return None;
             }
             let now = crate::compact::element(after, id)?;
@@ -162,6 +163,11 @@ impl NewEraMcp {
             reply.push_str(" welded=");
             reply.push_str(&created.welded.join(","));
         }
+        if !created.short.is_empty() {
+            reply.push_str(" short=");
+            reply.push_str(&created.short.join(","));
+            reply.push_str(" (shorter than thick: coordinates are cm, metres ×100?)");
+        }
         Ok(reply)
     }
     #[tool(
@@ -178,14 +184,15 @@ impl NewEraMcp {
         }
         let apply = |doc: &mut newera_core::Document,
                      items: Vec<UpdateSpec>,
-                     rename: Option<&edit::RenameSpec>| {
+                     rename: Option<&edit::RenameSpec>|
+         -> Result<edit::Updated, ErrorData> {
             if let Some(rule) = rename {
                 edit::rename(doc, rule).map_err(invalid)?;
             }
-            if !items.is_empty() {
-                edit::update(doc, items).map_err(invalid)?;
+            if items.is_empty() {
+                return Ok(edit::Updated::default());
             }
-            Ok(())
+            edit::update(doc, items).map_err(invalid)
         };
         let asked: Vec<String> = p.items.iter().map(|i| i.id.clone()).collect();
         if Dry::on(p.dry.as_ref()) {
@@ -196,16 +203,25 @@ impl NewEraMcp {
             apply(&mut scratch, items.clone(), rename.as_ref())?;
             let still = unchanged(&before, scratch.home(), &asked);
             let answer = reply::preview_with(&doc, Dry::brief(p.dry.as_ref()), move |scratch| {
-                apply(scratch, items, rename.as_ref())
+                apply(scratch, items, rename.as_ref()).map(|_| ())
             })?;
             return Ok(with_unchanged(&answer, &still));
         }
         let mut doc = self.document.write();
         on_variant(&mut doc, p.v)?;
         let before = doc.home().clone();
-        apply(&mut doc, p.items, p.rename.as_ref())?;
+        let updated = apply(&mut doc, p.items, p.rename.as_ref())?;
         let still = unchanged(&before, doc.home(), &asked);
-        Ok(with_unchanged(&applied(&doc, &before), &still))
+        let mut reply = with_unchanged(&applied(&doc, &before), &still);
+        if !updated.welded.is_empty() {
+            reply.push_str(" welded=");
+            reply.push_str(&updated.welded.join(","));
+        }
+        if !updated.left.is_empty() {
+            reply.push_str(" openings_left=");
+            reply.push_str(&updated.left.join("; "));
+        }
+        Ok(reply)
     }
     #[tool(
         description = "Delete (remove) walls, rooms, pieces or any element by id, atomically. Labels left pointing at a deleted piece — about it, or standing on it — are named in the reply as labels_left [[id, text]], since an index code over what is now another piece is found by nobody; labels=true deletes them in the same step."
@@ -754,6 +770,56 @@ mod tests {
     }
 
     #[test]
+    fn a_group_resized_and_a_part_renamed_in_one_update_moves_its_parts() {
+        let s = server();
+        let part = |id: u64, name: &str, x: f64, w: f64| newera_core::Furniture {
+            id: newera_core::FurnitureId(id),
+            catalog: "box".into(),
+            name: name.to_owned(),
+            position: newera_core::Point2::new(x, 30.0),
+            width: w,
+            depth: 30.0,
+            height: 3.0,
+            elevation: 75.0,
+            ..newera_core::Furniture::default()
+        };
+        {
+            let mut doc = s.document.write();
+            let mut group = part(1, "mesa", 60.0, 120.0);
+            group.height = 78.0;
+            group.elevation = 0.0;
+            group.children = vec![part(2, "tampo", 60.0, 120.0), part(3, "pé", 3.0, 6.0)];
+            doc.execute(newera_core::Command::insert(group)).unwrap();
+        }
+        // Either order: the group twice as tall, its top renamed.
+        for items in [
+            r#"[{"id":"f1","h":156},{"id":"f2","name":"tampo de vidro"}]"#,
+            r#"[{"id":"f2","name":"tampo de vidro"},{"id":"f1","h":156}]"#,
+        ] {
+            s.update(Parameters(UpdateParams {
+                items: serde_json::from_str(items).unwrap(),
+                rename: None,
+                v: None,
+                dry: None,
+            }))
+            .unwrap();
+            {
+                let doc = s.document.read();
+                let home = doc.home();
+                assert!((home.furniture[0].height - 156.0).abs() < 1e-9, "{items}");
+                let top = home.find_piece("f2".parse().unwrap()).unwrap();
+                assert_eq!(top.name, "tampo de vidro", "{items}");
+                assert!(
+                    top.elevation > 140.0,
+                    "{items}: the top stayed at {}",
+                    top.elevation
+                );
+            }
+            s.document.write().undo().unwrap();
+        }
+    }
+
+    #[test]
     fn a_dry_move_says_what_kind_of_clash_it_trades_for() {
         let s = server();
         // Two stones of a peninsula that touch, end to end.
@@ -992,6 +1058,46 @@ mod tests {
             !s.document.read().home().cameras.observer_active,
             "undo restores the aerial view"
         );
+    }
+    #[test]
+    fn a_slope_a_storey_and_an_opacity_are_said_as_changes() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(r#"{"walls":[{"pts":[[0,0],[400,0]]}]}"#).unwrap(),
+        ))
+        .unwrap();
+        s.place(Parameters(
+            serde_json::from_str(r#"{"items":[{"cat":"box","at":[200,200]}]}"#).unwrap(),
+        ))
+        .unwrap();
+        let (wall, piece) = {
+            let doc = s.document.read();
+            (
+                doc.home().walls[0].id.to_string(),
+                doc.home().furniture[0].id.to_string(),
+            )
+        };
+        let upper = newera_core::ops::add_level(&mut s.document.write(), None, None).unwrap();
+        let update = |item: String| {
+            let reply = s
+                .update(Parameters(UpdateParams {
+                    items: serde_json::from_str(&format!("[{item}]")).unwrap(),
+                    rename: None,
+                    v: None,
+                    dry: None,
+                }))
+                .unwrap();
+            assert!(!reply.contains("unchanged"), "{item}: {reply}");
+            let diff: serde_json::Value =
+                serde_json::from_str(&reply[reply.find('{').expect("a diff")..]).unwrap();
+            diff["changed"][0]["to"].clone()
+        };
+        let to = update(format!(r#"{{"id":"{wall}","h_end":300}}"#));
+        assert_eq!(to["h_end"], 300.0, "{to}");
+        let to = update(format!(r#"{{"id":"{wall}","level":"{upper}"}}"#));
+        assert_eq!(to["level"], upper.to_string(), "{to}");
+        let to = update(format!(r#"{{"id":"{piece}","opacity":0.15}}"#));
+        assert_eq!(to["opacity"], 0.15, "{to}");
     }
     #[test]
     fn sloping_walls_and_tilted_pieces() {

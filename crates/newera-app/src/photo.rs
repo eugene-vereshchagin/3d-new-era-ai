@@ -288,11 +288,35 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
                     image::ImageFormat::Png,
                 )
                 .map_err(|e| e.to_string())?;
-            Ok(bytes)
+            Ok::<_, String>(bytes)
         };
+        #[cfg(target_arch = "wasm32")]
         match crate::files::save_bytes("PNG", "png", "foto.png", png) {
             Ok(Some(path)) => app.set_status(crate::i18n::fill("Foto salva em {}", &[&path])),
             Ok(None) => {}
+            Err(err) => {
+                app.set_status(crate::i18n::fill("⚠ Não foi possível salvar: {}", &[&err]));
+            }
+        }
+        // Written once the dialog answers, a few frames later.
+        #[cfg(not(target_arch = "wasm32"))]
+        match png() {
+            Ok(bytes) => {
+                let dialog = crate::files::save_dialog("PNG", "png", "foto.png");
+                app.ask_file(dialog, move |app, path| {
+                    let Some(path) = path else {
+                        return;
+                    };
+                    match std::fs::write(&path, bytes) {
+                        Ok(()) => app
+                            .set_status(crate::i18n::fill("Foto salva em {}", &[&path.display()])),
+                        Err(err) => app.set_status(crate::i18n::fill(
+                            "⚠ Não foi possível salvar: {}",
+                            &[&err],
+                        )),
+                    }
+                });
+            }
             Err(err) => {
                 app.set_status(crate::i18n::fill("⚠ Não foi possível salvar: {}", &[&err]));
             }

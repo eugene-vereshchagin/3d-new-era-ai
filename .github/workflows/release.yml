@@ -17,19 +17,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Debug info for the crash reports, kept out of what ships: a dSYM
+        # next to a stripped binary on macOS, a .pdb on Windows (where the
+        # .exe never held it), and on Linux a binary stripped in Package after
+        # its symbols were uploaded. `strip` / `split` override the release
+        # profile here only, so a local `cargo build --release` stays as it was.
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             asset: newera-linux-x64.tar.gz
+            strip: none
+            split: "off"
           - os: macos-latest
             target: aarch64-apple-darwin
             asset: newera-macos-apple-silicon.zip
+            strip: symbols
+            split: packed
           - os: macos-latest
             target: x86_64-apple-darwin
             asset: newera-macos-intel.zip
+            strip: symbols
+            split: packed
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             asset: newera-windows-x64.zip
+            strip: none
+            split: packed
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -52,6 +65,38 @@ jobs:
       - run: cargo build -p newera --release --locked --target ${{ matrix.target }}
         env:
           NEWERA_SENTRY_DSN: ${{ secrets.NEWERA_SENTRY_DSN }}
+          CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+          CARGO_PROFILE_RELEASE_STRIP: ${{ matrix.strip }}
+          CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: ${{ matrix.split }}
+
+      # Native crash reports name functions and lines only with the debug
+      # files of the exact build. Skipped without the SENTRY_AUTH_TOKEN secret
+      # (an org token, or a personal one with project:write), and a failed
+      # upload never holds the release back. The token reaches this step
+      # only, never the build and its build scripts.
+      - name: Upload debug files to Sentry
+        continue-on-error: true
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: 3d-new-era-ai
+          SENTRY_PROJECT: 3d-new-era-ai
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "No SENTRY_AUTH_TOKEN secret: debug files not uploaded."
+            exit 0
+          fi
+          bin="target/${{ matrix.target }}/release"
+          case "${{ runner.os }}" in
+            Windows) wanted=("$bin/newera.exe" "$bin/newera.pdb" "$bin/newera-gui.exe" "$bin/newera_gui.pdb") ;;
+            macOS) wanted=("$bin/newera" "$bin/newera.dSYM") ;;
+            Linux) wanted=("$bin/newera") ;;
+          esac
+          files=()
+          for f in "${wanted[@]}"; do
+            if [ -e "$f" ]; then files+=("$f"); else echo "::warning::missing $f"; fi
+          done
+          npx --yes @sentry/cli@3.8.0 debug-files upload --include-sources "${files[@]}"
 
       # Asset names carry no version, so releases/latest/download/<asset>
       # always points at the newest build.
@@ -73,6 +118,8 @@ jobs:
               ditto -c -k --keepParent "$stage/3D New Era AI.app" "${{ matrix.asset }}"
               ;;
             Linux)
+              # Built unstripped for the debug files above; shipped stripped.
+              strip "$bin/newera"
               mkdir "$stage/newera"
               cp "$bin/newera" README.md LICENSE-MIT LICENSE-APACHE "$stage/newera/"
               # Desktop integration: menu entry, hicolor icons, the .newera

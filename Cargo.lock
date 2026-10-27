@@ -3627,10 +3627,12 @@ dependencies = [
 name = "newera-telemetry"
 version = "3.1.0"
 dependencies = [
+ "log",
  "sentry",
  "serde",
  "serde_json",
  "tracing",
+ "tracing-log",
  "tracing-subscriber",
  "ureq",
 ]

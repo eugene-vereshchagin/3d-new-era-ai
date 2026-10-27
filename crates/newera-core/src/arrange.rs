@@ -372,16 +372,28 @@ pub fn group(doc: &mut Document, ids: &[ElementId], name: &str) -> CoreResult<Fu
             "a group needs at least two pieces".into(),
         ));
     }
-    let corners: Vec<Point2> = pieces.iter().flat_map(Furniture::footprint).collect();
+    // The group faces the way its largest piece does — a wardrobe turned to
+    // face -x makes a group turned so, not one at 0° that reads as turned
+    // against what it holds — and its box is measured in that frame.
+    let angle = pieces
+        .iter()
+        .max_by(|a, b| (a.width * a.depth).total_cmp(&(b.width * b.depth)))
+        .map_or(0.0, |p| p.angle);
+    let frame = Furniture {
+        angle,
+        ..Furniture::default()
+    };
+    let corners: Vec<(f64, f64)> = pieces
+        .iter()
+        .flat_map(Furniture::footprint)
+        .map(|p| frame.to_local(p))
+        .collect();
     let (min, max) = corners.iter().fold(
-        (
-            Point2::new(f64::MAX, f64::MAX),
-            Point2::new(f64::MIN, f64::MIN),
-        ),
+        ((f64::MAX, f64::MAX), (f64::MIN, f64::MIN)),
         |(lo, hi), p| {
             (
-                Point2::new(lo.x.min(p.x), lo.y.min(p.y)),
-                Point2::new(hi.x.max(p.x), hi.y.max(p.y)),
+                (lo.0.min(p.0), lo.1.min(p.1)),
+                (hi.0.max(p.0), hi.1.max(p.1)),
             )
         },
     );
@@ -398,10 +410,11 @@ pub fn group(doc: &mut Document, ids: &[ElementId], name: &str) -> CoreResult<Fu
         } else {
             name.trim().into()
         },
-        position: Point2::new(f64::midpoint(min.x, max.x), f64::midpoint(min.y, max.y)),
+        position: frame.to_plan((f64::midpoint(min.0, max.0), f64::midpoint(min.1, max.1))),
+        angle,
         elevation: bottom,
-        width: (max.x - min.x).max(1.0),
-        depth: (max.y - min.y).max(1.0),
+        width: (max.0 - min.0).max(1.0),
+        depth: (max.1 - min.1).max(1.0),
         height: (top - bottom).max(1.0),
         level: pieces[0].level,
         children: pieces.clone(),
@@ -549,6 +562,36 @@ mod tests {
         assert!(close(mirrored.start, (100.0, 0.0)));
         assert_eq!(mirrored.arc_extent, Some(-30.0));
         assert!(mirrored.right_side.is_some() && mirrored.left_side.is_none());
+    }
+
+    #[test]
+    fn a_group_faces_the_way_its_largest_piece_does() {
+        let mut doc = Document::default();
+        let mut add = |at: (f64, f64), w: f64, d: f64| {
+            let piece = Furniture {
+                id: doc.new_furniture_id(),
+                catalog: "box".into(),
+                position: Point2::new(at.0, at.1),
+                angle: 90.0,
+                width: w,
+                depth: d,
+                height: 200.0,
+                ..Furniture::default()
+            };
+            let id = ElementId::from(piece.id);
+            doc.execute(Command::insert(piece)).unwrap();
+            id
+        };
+        // A wardrobe turned a quarter, and a nightstand along it.
+        let wardrobe = add((100.0, 100.0), 120.0, 60.0);
+        let nightstand = add((100.0, 200.0), 40.0, 40.0);
+        let id = group(&mut doc, &[wardrobe, nightstand], "Quarto").unwrap();
+        let g = doc.home().piece(id).unwrap();
+        assert!((g.angle - 90.0).abs() < 1e-9, "{}", g.angle);
+        // y 40..220 along it, x 70..130 across.
+        assert!((g.width - 180.0).abs() < 1e-6, "{}", g.width);
+        assert!((g.depth - 60.0).abs() < 1e-6, "{}", g.depth);
+        assert!(close(g.position, (100.0, 130.0)), "{:?}", g.position);
     }
 
     #[test]

@@ -65,6 +65,21 @@ fn mix(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
 
+/// Brick painted a colour of its own: the same bond with the bricks nearly
+/// even and the joints a little shadowed. Plain brick's tones run from dark to
+/// over-bright with light mortar, which on a white wall turn into grey
+/// mottle; a pattern above the core's ones, chosen only by the renderer.
+pub(crate) const PAINTED_BRICK: u32 = 13;
+
+/// The renderer's kind for `pattern` drawn with or without a colour given.
+pub(crate) fn kind_of(pattern: newera_core::Pattern, tinted: bool) -> u32 {
+    if tinted && pattern == newera_core::Pattern::Brick {
+        PAINTED_BRICK
+    } else {
+        pattern.index()
+    }
+}
+
 /// Brightness multiplier of pattern `kind` (1-based, see
 /// `newera_core::Pattern::index`) at `uv`.
 pub(crate) fn shade(kind: u32, u: f32, v: f32, pixel: f32) -> f32 {
@@ -136,6 +151,12 @@ pub(crate) fn shade(kind: u32, u: f32, v: f32, pixel: f32) -> f32 {
             let gaps = joint(v, 0.06, 1.0, pixel).max(joint(x, 0.003, 1.0, pixel));
             tone * (0.85 + 0.15 * grain) * (1.0 - 0.7 * gaps)
         }
+        PAINTED_BRICK => {
+            let (lines, h) = running_bond(u, v, 0.5, 0.02, 0.07, pixel);
+            let tone = 0.94 + 0.08 * h;
+            let rough = 0.95 + 0.06 * fbm(u * 12.0, v * 4.0);
+            mix(tone * rough, 0.8, lines)
+        }
         _ => 1.0,
     }
 }
@@ -183,5 +204,26 @@ mod tests {
             }
         }
         assert!((shade(0, 1.0, 2.0, 0.1) - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn brick_given_a_colour_stays_close_to_that_colour() {
+        use newera_core::Pattern;
+        let range = |kind: u32| {
+            (0..400).fold((f32::MAX, f32::MIN), |(lo, hi), i| {
+                #[allow(clippy::cast_precision_loss)]
+                let t = i as f32 * 0.173;
+                // Away from the joints, on even and on shifted rows alike.
+                let (u, v) = (t.floor() + 0.3 + 0.15 * t.fract(), t * 0.61 + 0.4);
+                let s = shade(kind, u, v.floor() + 0.5, 0.001);
+                (lo.min(s), hi.max(s))
+            })
+        };
+        // Plain brick keeps its mottle; a white one stays white.
+        let (lo, hi) = range(kind_of(Pattern::Brick, false));
+        assert!(hi - lo > 0.3, "{lo}..{hi}");
+        let (lo, hi) = range(kind_of(Pattern::Brick, true));
+        assert!(lo > 0.85 && hi < 1.06, "{lo}..{hi}");
+        assert_eq!(kind_of(Pattern::Tiles, true), Pattern::Tiles.index());
     }
 }

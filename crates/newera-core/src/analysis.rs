@@ -454,9 +454,13 @@ pub fn check_layout_in(home: &Home, scope: Storeys) -> Vec<Issue> {
         }
     }
 
+    // A solid drawn as an outline covers its outline, not its bounds.
     let footprints: Vec<Polygon<f64>> = pieces
         .iter()
-        .map(|f| polygon(&f.projected_footprint()))
+        .map(|f| {
+            f.plan_outline()
+                .map_or_else(|| polygon(&f.projected_footprint()), |pts| polygon(&pts))
+        })
         .collect();
 
     // Heights in the building, for pieces of two storeys: a sofa downstairs
@@ -548,9 +552,20 @@ pub fn check_layout_in(home: &Home, scope: Storeys) -> Vec<Issue> {
             if depth <= WALL_TOLERANCE {
                 continue;
             }
-            if crate::solid::hits_prism(piece, &polygon(outline), 0.0, |at| {
-                wall_top_at(wall, at) - 1.0
-            }) {
+            // An outline's box is only its bounds: the shared area found
+            // above is the solid's own, and it is in the wall if it starts
+            // below the wall's top there.
+            let hits = if piece.plan_outline().is_some() {
+                shared
+                    .iter()
+                    .flat_map(|p| p.exterior().coords())
+                    .any(|c| piece.elevation < wall_top_at(wall, Point2::new(c.x, c.y)) - 1.0)
+            } else {
+                crate::solid::hits_prism(piece, &polygon(outline), 0.0, |at| {
+                    wall_top_at(wall, at) - 1.0
+                })
+            };
+            if hits {
                 issues.push(Issue::InWall(piece.id, wall.id));
             }
         }
@@ -908,6 +923,13 @@ fn window_obstruction(window: &Furniture, piece: &Furniture) -> Option<[f64; 2]>
     let zone = polygon(&[(-x, -y), (x, -y), (x, y), (-x, y)].map(|p| window.to_plan(p)));
     let shared = zone.intersection(&polygon(&piece.projected_footprint()));
     if shared.unsigned_area() <= MIN_OVERLAP {
+        return None;
+    }
+    // A tilted plate — a roof slope over a door — spans a tall z range, most
+    // of it away from the opening: the slope itself must reach into it.
+    if (piece.pitch != 0.0 || piece.roll != 0.0)
+        && !crate::solid::hits_prism(piece, &zone, sill, |_| head)
+    {
         return None;
     }
     let mut min = f64::INFINITY;
@@ -1728,6 +1750,40 @@ mod tests {
     }
 
     #[test]
+    fn a_roof_slope_blocks_a_window_only_where_it_comes_down_into_it() {
+        use crate::furniture::OpeningKind;
+        // A French window 210 cm high, along y from 145 to 255.
+        let mut window = piece(1, (200.0, 200.0), (110.0, 20.0, 210.0));
+        window.angle = 90.0;
+        window.opening = Some(Opening {
+            kind: OpeningKind::Window,
+            ..Opening::default()
+        });
+        // A 12 cm roof plate falling 37 cm per metre along y, 250 cm over
+        // the middle of the window: about 230 cm over its low jamb. (A plate
+        // 2 cm thick would be dismissed as flat before the slope is looked at.)
+        let mut roof = piece(2, (200.0, 200.0), (400.0, 400.0, 12.0));
+        roof.name = "Água do telhado".into();
+        roof.pitch = 0.3724_f64.atan().to_degrees();
+        roof.elevation = 250.0;
+        // Its z range reaches far below the head; the slope itself does not.
+        assert!(roof.height_range().0 < 210.0, "{:?}", roof.height_range());
+        assert!(window_obstruction(&window, &roof).is_none());
+        let mut home = Home::default();
+        home.furniture = vec![window.clone(), roof.clone()];
+        assert!(
+            !check_layout(&home)
+                .iter()
+                .any(|i| matches!(i, Issue::BlocksWindow { .. })),
+            "{:?}",
+            check_layout(&home)
+        );
+        // Lowered 40 cm, it comes down into the opening.
+        roof.elevation = 210.0;
+        assert!(window_obstruction(&window, &roof).is_some());
+    }
+
+    #[test]
     fn sliding_doors_and_passages_require_an_unobstructed_approach_on_both_sides() {
         use crate::furniture::OpeningKind;
         for kind in [OpeningKind::Door, OpeningKind::Passage] {
@@ -1925,6 +1981,51 @@ mod tilt_tests {
             "{:?}",
             check_layout(&home)
         );
+    }
+
+    #[test]
+    fn a_solid_drawn_as_a_turned_outline_is_in_a_wall_only_by_its_outline() {
+        use crate::furniture::SolidShape;
+        // A 100 × 35 cm shelf drawn as a polygon turned 10.5°, its back 8 cm
+        // clear of a wall running the same way: its bounds reach into the
+        // wall, the shelf does not.
+        let (sin, cos) = 10.5_f64.to_radians().sin_cos();
+        let turn = |x: f64, y: f64| [x * cos - y * sin, x * sin + y * cos];
+        let points: Vec<[f64; 2]> = [(-50.0, -17.5), (50.0, -17.5), (50.0, 17.5), (-50.0, 17.5)]
+            .iter()
+            .map(|&(x, y)| turn(x, y))
+            .collect();
+        let bound = |k: usize| points.iter().map(|p| p[k].abs()).fold(0.0, f64::max) * 2.0;
+        let center = Point2::new(300.0, 200.0);
+        let shelf = |clear: f64| {
+            // Wall center line behind the shelf: 17.5 + clear + half of 15 cm.
+            let [ox, oy] = turn(0.0, -(17.5 + clear + 7.5));
+            let [ux, uy] = turn(150.0, 0.0);
+            let mut wall = Wall::new(
+                WallId(1),
+                Point2::new(center.x + ox - ux, center.y + oy - uy),
+                Point2::new(center.x + ox + ux, center.y + oy + uy),
+            );
+            wall.thickness = 15.0;
+            let mut home = Home::default();
+            home.walls.push(wall);
+            home.furniture.push(Furniture {
+                id: FurnitureId(1),
+                catalog: "solid".into(),
+                name: "Prateleira".into(),
+                position: center,
+                width: bound(0),
+                depth: bound(1),
+                height: 180.0,
+                shape: Some(SolidShape::Outline(points.clone())),
+                ..Furniture::default()
+            });
+            check_layout(&home)
+        };
+        let in_wall = Issue::InWall(FurnitureId(1), WallId(1));
+        assert!(!shelf(8.0).contains(&in_wall), "{:?}", shelf(8.0));
+        // Pushed 12 cm into the wall, it is in it.
+        assert!(shelf(-12.0).contains(&in_wall), "{:?}", shelf(-12.0));
     }
 
     #[test]

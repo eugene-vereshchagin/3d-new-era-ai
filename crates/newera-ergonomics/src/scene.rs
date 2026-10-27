@@ -141,8 +141,8 @@ fn classify(piece: &Furniture, params: Option<&serde_json::Value>) -> Use {
         "chair" | "ares" => Use::Chair,
         "stool" => Use::Stool,
         "fridge" => Use::Fridge,
-        "stove" => Use::Stove,
-        "sink-counter" => Use::Sink,
+        "stove" | "cooktop" => Use::Stove,
+        "sink-counter" | "sink-bowl" => Use::Sink,
         "base-cabinet" => Use::Counter,
         "dishwasher" | "microwave" | "oven" => Use::Appliance,
         "wall-cabinet" => Use::WallCabinet,
@@ -512,15 +512,22 @@ impl<'a> Scene<'a> {
                 params,
                 built: newera_core::built_frame(top),
             });
-            // Items embedded in joinery count on their own (a TV on its panel).
-            for child in top
-                .children
-                .iter()
-                .filter(|c| c.visible && c.properties.contains_key("joinery:embedded"))
-            {
+            // Items embedded in joinery count on their own (a TV on its panel),
+            // however deep in the group, for what the host says they are:
+            // their name may be in any language.
+            for child in top.flatten().into_iter().skip(1).filter(|c| c.visible) {
+                let what = match child.properties.get("joinery:embedded").map(String::as_str) {
+                    None => continue,
+                    Some("cooktop") => Use::Stove,
+                    Some("sink") => Use::Sink,
+                    Some("fridge") => Use::Fridge,
+                    Some("oven" | "microwave" | "dishwasher") => Use::Appliance,
+                    Some("tv") => Use::Tv,
+                    Some(_) => classify(child, None),
+                };
                 units.push(Unit {
                     piece: child,
-                    what: classify(child, None),
+                    what,
                     params: None,
                     built: None,
                 });

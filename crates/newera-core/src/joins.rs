@@ -565,10 +565,55 @@ fn corner_of(walls: &[Wall], a: &Node, b: &Node) -> Option<Point2> {
             return Some(at);
         }
     }
-    Some(if a.refs.len() >= b.refs.len() {
-        a.center
+    // Anything else joins at the node that already has the most walls —
+    // unless that would lean a lone end over to reach it while the end's own
+    // line already lands on the body of a wall there (a wall carrying on a
+    // step aside from an L corner): then it stays apart and becomes a T.
+    let (busy, other) = if a.refs.len() >= b.refs.len() {
+        (a, b)
     } else {
-        b.center
+        (b, a)
+    };
+    if lands_on_body(walls, other, busy) {
+        return None;
+    }
+    Some(busy.center)
+}
+
+/// Whether `end`, a lone wall end off the line to `node`'s center, slides
+/// along its own line onto the body of a wall meeting at `node`, clear of the
+/// corner — farther from that wall's tips than half of any wall meeting at
+/// either node — so a T there keeps it straight. Ends only a few centimetres
+/// off, as drawn coordinates are, still close the corner.
+fn lands_on_body(walls: &[Wall], end: &Node, node: &Node) -> bool {
+    let [Ref::Tip(w, at_start)] = end.refs.as_slice() else {
+        return false;
+    };
+    let Some(u) = tip(walls, *w, 0, *at_start).map(|e| e.dir) else {
+        return false;
+    };
+    if project(end.center, u, node.center).1.abs() <= JOIN_TOLERANCE {
+        return false; // the center is on its line: joining there leans nothing
+    }
+    let clear = end
+        .refs
+        .iter()
+        .chain(&node.refs)
+        .map(|r| walls[r.wall()].thickness / 2.0)
+        .fold(JOIN_TOLERANCE, f64::max);
+    node.refs.iter().any(|r| {
+        let host = &walls[r.wall()];
+        let Some((a, e, len)) = line_of(host) else {
+            return false;
+        };
+        let Some(s) = meet(end.center, u, a, e) else {
+            return false;
+        };
+        let at = Point2::new(end.center.x + u.0 * s, end.center.y + u.1 * s);
+        let (on, _) = project(a, e, at);
+        at.distance(end.center) <= host.thickness / 2.0 + TOUCH_TOLERANCE
+            && on > clear
+            && on < len - clear
     })
 }
 
@@ -915,6 +960,29 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_wall_a_step_aside_from_an_l_corner_does_not_tilt() {
+        // An L corner at (1191.5, 382.5) and a wall carrying on from the
+        // vertical one 10 cm higher: it meets the vertical wall as a T, not
+        // at the corner, so its long faces stay level.
+        let walls = [
+            wall(11, (820.0, 382.5), (1191.5, 382.5), 15.0),
+            wall(12, (1191.5, -20.0), (1191.5, 382.5), 15.0),
+            wall(13, (1191.5, 372.5), (1572.0, 372.5), 15.0),
+        ];
+        let outline = &wall_outlines(&walls)[2];
+        for edge in outline.iter().zip(outline.iter().cycle().skip(1)) {
+            if edge.0.distance(*edge.1) > 40.0 {
+                assert!(
+                    (edge.0.y - edge.1.y).abs() < 1e-7,
+                    "the wall acquired a sloping face: {outline:?}"
+                );
+            }
+        }
+        assert!(has_point(outline, 1572.0, 365.0), "{outline:?}");
+        assert!(has_point(outline, 1572.0, 380.0), "{outline:?}");
     }
 
     #[test]

@@ -121,8 +121,18 @@ pub fn fixture_of(piece: &Furniture) -> Fixture {
 }
 
 /// Moves the embedded items of `old` onto `new`, keeping their place relative
-/// to the host (after the host moved, turned or was rebuilt).
-pub fn carry_embedded(old: &Furniture, new: &mut Furniture) {
+/// to the host (after the host moved, turned or was rebuilt). On a countertop
+/// a sink or cooktop goes with its cutout: the one at the same spot, or else
+/// the nth of its kind, as it was the nth before; with no cutout for it, it
+/// stays where it stood. Returns a note for each one left so.
+pub fn carry_embedded(old: &Furniture, new: &mut Furniture) -> Vec<String> {
+    let cutouts = |f: &Furniture| match serde_json::from_str::<Build>(f.properties.get(PARAMS_KEY)?)
+    {
+        Ok(Build::Countertop(top)) => Some((top.length, top.cutouts)),
+        _ => None,
+    };
+    let tops = cutouts(old).zip(cutouts(new));
+    let mut notes = Vec::new();
     for child in old
         .children
         .iter()
@@ -136,8 +146,55 @@ pub fn carry_embedded(old: &Furniture, new: &mut Furniture) {
         moved.position = new.to_plan(local);
         moved.angle = child.angle + new.angle - old.angle;
         moved.elevation = child.elevation + new.elevation - old.elevation;
+        let kind = match fixture_of(child) {
+            Fixture::Sink => Some(CutoutKind::Sink),
+            Fixture::Cooktop => Some(CutoutKind::Cooktop),
+            _ => None,
+        };
+        if let (Some(((old_length, old_cuts), (new_length, new_cuts))), Some(kind)) = (&tops, kind)
+        {
+            let xs = |cuts: &[Cutout]| {
+                let mut xs: Vec<f64> = cuts
+                    .iter()
+                    .filter(|c| c.kind == kind)
+                    .map(|c| c.x)
+                    .collect();
+                xs.sort_by(f64::total_cmp);
+                xs
+            };
+            let spot = |x: f64| new.to_plan((x - new_length / 2.0, local.1));
+            let after = xs(new_cuts);
+            let nth = xs(old_cuts)
+                .iter()
+                .enumerate()
+                .min_by(|a, b| {
+                    let off = |x: f64| (x - old_length / 2.0 - local.0).abs();
+                    off(*a.1).total_cmp(&off(*b.1))
+                })
+                .map(|(i, _)| i);
+            let bound = after
+                .iter()
+                .copied()
+                .find(|x| spot(*x).distance(child.position) < 1.0)
+                .or_else(|| nth.and_then(|i| after.get(i).copied()));
+            // On the stone: it follows the top surface.
+            moved.elevation =
+                child.elevation + (new.elevation + new.height) - (old.elevation + old.height);
+            if let Some(x) = bound {
+                moved.position = spot(x);
+            } else {
+                moved.position = child.position;
+                notes.push(format!(
+                    "{} {} ficou onde estava: a bancada não tem mais recorte para {}.",
+                    child.name,
+                    child.id,
+                    fixture_of(child).label()
+                ));
+            }
+        }
         new.children.push(moved);
     }
+    notes
 }
 
 /// A request to embed `item` (a piece already in the plan, or a new one) into
@@ -275,7 +332,34 @@ pub fn embed(doc: &mut Document, request: &EmbedRequest) -> Result<Value, String
                 .existing
                 .then_some(item.elevation - host.elevation)
                 .filter(|z| *z >= floor && *z + item.height <= cabinet.h - t);
-            let bottom = request.z.or(from_item).unwrap_or(default_bottom);
+            // `z` is above the room floor; the niche is measured in the cabinet.
+            let asked = request
+                .z
+                .map(|z| z - host.elevation)
+                .or(from_item)
+                .unwrap_or(default_bottom);
+            // Where the cabinet has room for it: the item sits on the niche
+            // that is built, not on the one that was asked.
+            let lowest = floor
+                + if cabinet.door == crate::DoorType::Drawers {
+                    0.0
+                } else {
+                    f64::from(cabinet.drawers) * 18.0
+                };
+            let highest = cabinet.h - t - (item.height + 2.0);
+            let bottom = if highest >= lowest {
+                asked.clamp(lowest, highest)
+            } else {
+                asked
+            };
+            if (bottom - asked).abs() > 0.05 {
+                notes.push(format!(
+                    "Com z = {} {} não cabe no armário: fica a {} cm do chão, onde há lugar para o nicho.",
+                    num(asked + host.elevation),
+                    kind.label(),
+                    num(bottom + host.elevation)
+                ));
+            }
             // A couple of centimeters of air above the appliance.
             // Niches this one would overlap make way, unless something is in them.
             let top_of = bottom + item.height + 2.0;
@@ -318,7 +402,7 @@ pub fn embed(doc: &mut Document, request: &EmbedRequest) -> Result<Value, String
             );
             let detail = json!({
                 "niche": [val(inner_w), val(item.height + 2.0)],
-                "bottom": val(bottom),
+                "bottom": val(host.elevation + bottom),
             });
             (Build::Cabinet(CabinetParams { ..cabinet }), place, detail)
         }
@@ -680,6 +764,90 @@ mod tests {
     }
 
     #[test]
+    fn a_cooktop_keeps_its_cutout_when_the_countertop_is_resized() {
+        let mut doc = Document::default();
+        let top = host(
+            &mut doc,
+            &Build::Countertop(CountertopParams {
+                length: 400.0,
+                ..CountertopParams::default()
+            }),
+        );
+        let cooktop = piece(&mut doc, "cooktop", "Cooktop", [60.0, 50.0, 6.0]);
+        embed(
+            &mut doc,
+            &EmbedRequest {
+                item: cooktop.clone(),
+                existing: false,
+                host: top,
+                at: Some(138.0),
+                z: None,
+                dry: false,
+            },
+        )
+        .unwrap();
+        let group = doc
+            .home()
+            .furniture
+            .iter()
+            .find(|f| f.id == top)
+            .unwrap()
+            .clone();
+        let before = group
+            .children
+            .iter()
+            .find(|c| c.id == cooktop.id)
+            .unwrap()
+            .position;
+        assert!((before.x - 138.0).abs() < 1e-9);
+        // Cut to 324 cm from the left, the right end kept: the cooktop's
+        // cutout is now 62 cm from the new left end, the same spot.
+        let resized = |cutouts: Vec<Cutout>| {
+            let build = Build::Countertop(CountertopParams {
+                length: 324.0,
+                cutouts,
+                ..CountertopParams::default()
+            });
+            let output = generate(&build).unwrap();
+            let mut n = 1000;
+            let mut next = || {
+                n += 1;
+                FurnitureId(n)
+            };
+            let mut new = assemble(
+                &build,
+                &output,
+                top,
+                Point2::new(238.0, 40.0),
+                0.0,
+                0.0,
+                &mut next,
+            );
+            let notes = carry_embedded(&group, &mut new);
+            let at = new
+                .children
+                .iter()
+                .find(|c| c.id == cooktop.id)
+                .unwrap()
+                .position;
+            (at, notes)
+        };
+        let (after, notes) = resized(vec![Cutout {
+            kind: CutoutKind::Cooktop,
+            x: 62.0,
+            w: None,
+            d: None,
+            drawn: true,
+        }]);
+        assert!(after.distance(before) < 1e-6, "{after:?} {before:?}");
+        assert!(notes.is_empty(), "{notes:?}");
+        // No cutout for it any more: it stays where it stood, and says so.
+        let (after, notes) = resized(Vec::new());
+        assert!(after.distance(before) < 1e-6, "{after:?} {before:?}");
+        assert_eq!(notes.len(), 1, "{notes:?}");
+    }
+
+    #[test]
     fn a_bowl_set_into_the_stone_cuts_the_cabinet_top_under_it() {
         let mut doc = Document::default();
         // A vanity: a cabinet, and a stone countertop 3 cm over its top.
@@ -802,6 +970,67 @@ mod tests {
                 .any(|note| note.as_str().is_some_and(|text| text.contains("w = 134")))),
             "{err}"
         );
+    }
+
+    #[test]
+    fn z_on_a_raised_cabinet_is_above_the_room_floor() {
+        let mut doc = Document::default();
+        let wall = host(
+            &mut doc,
+            &Build::Cabinet(CabinetParams {
+                w: 60.0,
+                h: 100.0,
+                d: 40.0,
+                plinth: 0.0,
+                ..CabinetParams::default()
+            }),
+        );
+        let mut raised = doc
+            .home()
+            .furniture
+            .iter()
+            .find(|f| f.id == wall)
+            .unwrap()
+            .clone();
+        // Hung on the wall: its pieces follow the group up.
+        raised.elevation = 150.0;
+        doc.execute(Command::update(raised)).unwrap();
+        let micro = piece(&mut doc, "microwave", "Micro-ondas", [50.0, 35.0, 30.0]);
+        let reply = embed(
+            &mut doc,
+            &EmbedRequest {
+                item: micro.clone(),
+                existing: false,
+                host: wall,
+                at: None,
+                z: Some(160.0),
+                dry: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(reply["bottom"], 160, "{reply}");
+        let group = doc.home().furniture.iter().find(|f| f.id == wall).unwrap();
+        let inside = group.children.iter().find(|c| c.id == micro.id).unwrap();
+        assert!(
+            (inside.elevation - 160.0).abs() < 1e-9,
+            "{}",
+            inside.elevation
+        );
+        // Past the top of the cabinet: in the highest niche it has, and said.
+        let other = piece(&mut doc, "microwave", "Micro-ondas", [50.0, 35.0, 30.0]);
+        let high = embed(
+            &mut doc,
+            &EmbedRequest {
+                item: other,
+                existing: false,
+                host: wall,
+                at: None,
+                z: Some(240.0),
+                dry: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(high["bottom"], 216.2, "{high}");
     }
 
     #[test]

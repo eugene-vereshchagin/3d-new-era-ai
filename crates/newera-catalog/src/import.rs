@@ -116,6 +116,10 @@ pub fn load_model(path: &Path) -> Result<ImportedModel, ImportError> {
     load_model_in(path, None)
 }
 
+/// The least width, depth or height an imported model gets, cm: a flat
+/// side of it (a plane) still has to have some.
+const MIN_SIZE_CM: f64 = 0.01;
+
 /// Loads a model file whose numbers are in `unit`, or guessed when `None`.
 /// A 5 cm part in a file drawn in centimeters is under 20 units across, and
 /// the guess would make it 5 m: saying the unit is how such a file comes in
@@ -159,7 +163,9 @@ pub fn load_model_in(path: &Path, unit: Option<Unit>) -> Result<ImportedModel, I
             }
         ));
     }
-    let size = raw.map(|v| (v * unit.to_cm()).max(1.0));
+    // A shelf 8 mm thick is 0.8 cm, not 1: only a flat side (a plane, no
+    // thickness at all) is given the least size a piece can have.
+    let size = raw.map(|v| (v * unit.to_cm()).max(MIN_SIZE_CM));
     mesh.fit_to(size[0], size[1], size[2]);
     Ok(ImportedModel { mesh, size, report })
 }
@@ -1114,6 +1120,38 @@ mod memory_tests {
             (glb.parts[0].name.as_str(), glb.parts[0].count),
             ("assento", 1)
         );
+        newera_core::vfs::unmount(dir);
+    }
+
+    #[test]
+    fn a_part_under_a_centimetre_keeps_its_size() {
+        let dir = Path::new("/virtual/catalog-thin-test");
+        // A 100 × 100 cm panel 8 mm thick (file z is the depth), and a plane.
+        let v = "v 0 0 0\nv 100 0 0\nv 100 100 0\nv 0 100 0\nv 0 0 0.8\nv 100 0 0.8\nv 100 100 0.8\nv 0 100 0.8\n";
+        let f = "f 5 6 7 8\nf 2 1 4 3\nf 6 2 3 7\nf 1 5 8 4\nf 8 7 3 4\nf 1 2 6 5\n";
+        newera_core::vfs::mount(
+            dir,
+            [
+                ("panel.obj".to_owned(), format!("{v}{f}").into_bytes()),
+                (
+                    "plane.obj".to_owned(),
+                    b"v 0 0 0\nv 50 0 0\nv 50 50 0\nv 0 50 0\nf 1 2 3 4\n".to_vec(),
+                ),
+            ],
+        );
+        let panel = load_model_in(&dir.join("panel.obj"), Some(Unit::Cm)).unwrap();
+        assert!(
+            panel
+                .size
+                .iter()
+                .zip([100.0, 0.8, 100.0])
+                .all(|(a, b)| (a - b).abs() < 1e-4),
+            "{:?}",
+            panel.size
+        );
+        let plane = load_model_in(&dir.join("plane.obj"), Some(Unit::Cm)).unwrap();
+        assert!(plane.size.iter().all(|&v| v > 0.0), "{:?}", plane.size);
+        assert!(plane.size[1] < 0.1, "{:?}", plane.size);
         newera_core::vfs::unmount(dir);
     }
 

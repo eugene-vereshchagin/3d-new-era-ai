@@ -4,8 +4,10 @@ use crate::command::Command;
 use crate::document::Document;
 use crate::elements::{Dimension, Element, Wall};
 use crate::error::{CoreError, CoreResult};
+use crate::furniture::Furniture;
 use crate::geometry::Point2;
-use crate::ids::{ElementId, WallId};
+use crate::home::Home;
+use crate::ids::{ElementId, FurnitureId, WallId};
 use crate::joins::JOIN_TOLERANCE;
 
 /// How far (cm) a moved door or window looks for a wall to sit in.
@@ -207,18 +209,40 @@ pub fn translate(
             }
             Element::Furniture(mut f) => {
                 f.translate(dx, dy);
-                // Doors and windows stay seated in the nearest wall.
-                if f.is_opening()
-                    && let Some((wall_id, along)) =
-                        nearest_wall(&home.level_view(f.level), f.position, OPENING_REACH)
-                    && let Some(wall) = home.wall(wall_id)
-                {
-                    crate::furniture::reseat_in_wall(&mut f, wall, along);
+                // Doors and windows stay seated in the nearest wall — as it
+                // stands after the move, so a door moved together with its
+                // wall is not pulled back into where the wall was.
+                if f.is_opening() {
+                    let mut view = home.level_view(f.level);
+                    for w in view.walls.iter_mut().filter(|w| ids.contains(&w.id.into())) {
+                        w.start = shift(w.start);
+                        w.end = shift(w.end);
+                    }
+                    if let Some((wall_id, along)) = nearest_wall(&view, f.position, OPENING_REACH)
+                        && let Some(wall) = view.wall(wall_id)
+                    {
+                        crate::furniture::reseat_in_wall(&mut f, wall, along);
+                    }
                 }
                 Element::Furniture(f)
             }
         };
         commands.push(Command::Update { element: moved });
+    }
+
+    // The doors and windows of a moved wall go with it: left behind, they
+    // stood in the air where the wall had been.
+    let mut carried: Vec<FurnitureId> = Vec::new();
+    for wall in home.walls.iter().filter(|w| ids.contains(&w.id.into())) {
+        for piece in hosted_openings(home, wall) {
+            if ids.contains(&piece.id.into()) || carried.contains(&piece.id) {
+                continue;
+            }
+            carried.push(piece.id);
+            let mut piece = piece.clone();
+            piece.translate(dx, dy);
+            commands.push(Command::update(piece));
+        }
     }
 
     if drag_joined {
@@ -246,6 +270,65 @@ pub fn translate(
         }
     }
     doc.execute(Command::Batch { commands })
+}
+
+/// The doors and windows sitting in `wall`, on its storey.
+fn hosted_openings<'a>(home: &'a Home, wall: &Wall) -> Vec<&'a Furniture> {
+    home.furniture
+        .iter()
+        .filter(|f| f.is_opening() && home.on_level(f.level, wall.level))
+        .filter(|f| {
+            // A hidden door is still in the wall.
+            let probe = Furniture {
+                visible: true,
+                ..(*f).clone()
+            };
+            crate::furniture::wall_cuts(std::slice::from_ref(wall), &[probe])
+                .iter()
+                .any(|cuts| !cuts.is_empty())
+        })
+        .collect()
+}
+
+/// The doors and windows of `old` seated again in `new`, the same wall after
+/// its ends changed, at the same distance from its start and kept inside it.
+///
+/// Returns the pieces to update and the ones that no longer fit (wider than
+/// the wall, or the wall became an arc): those are left where they were.
+/// `skip` are pieces the caller places itself.
+pub fn carry_openings(
+    home: &Home,
+    old: &Wall,
+    new: &Wall,
+    skip: &[ElementId],
+) -> (Vec<Furniture>, Vec<FurnitureId>) {
+    let (mut carried, mut left) = (Vec::new(), Vec::new());
+    let len = old.start.distance(old.end).max(1e-9);
+    let dir = (
+        (old.end.x - old.start.x) / len,
+        (old.end.y - old.start.y) / len,
+    );
+    let new_len = new.start.distance(new.end);
+    for piece in hosted_openings(home, old) {
+        if skip.contains(&piece.id.into()) {
+            continue;
+        }
+        if new.is_arc() || new_len + 0.1 < piece.width {
+            left.push(piece.id);
+            continue;
+        }
+        let (dx, dy) = (
+            piece.position.x - old.start.x,
+            piece.position.y - old.start.y,
+        );
+        let half = piece.width / 2.0;
+        let along = (dx * dir.0 + dy * dir.1)
+            .clamp(half.min(new_len / 2.0), (new_len - half).max(new_len / 2.0));
+        let mut piece = piece.clone();
+        crate::furniture::reseat_in_wall(&mut piece, new, along);
+        carried.push(piece);
+    }
+    (carried, left)
 }
 
 /// Moves one wall endpoint, dragging every other wall endpoint joined to it.
@@ -597,6 +680,26 @@ pub fn add_level(
     Ok(id)
 }
 
+/// Updates that give the lowest storey's elements it by name.
+///
+/// An element with no storey of its own is on "the lowest storey", whichever
+/// that is: a storey added below, or the ground floor raised above another,
+/// took every such wall, room and piece with it. Run before a change of
+/// elevation, in the same step, they stay on the storey they were on.
+pub fn pin_to_base_level(home: &Home) -> Vec<Command> {
+    let Some(base) = home.base_level() else {
+        return Vec::new();
+    };
+    home.elements()
+        .filter(|e| !matches!(e, Element::Level(_)))
+        .filter(|e| e.level().is_none_or(|id| home.level(id).is_none()))
+        .map(|mut e| {
+            e.set_level(Some(base));
+            Command::Update { element: e }
+        })
+        .collect()
+}
+
 /// Deletes a storey and everything on it, as one undoable step.
 pub fn delete_level(doc: &mut Document, id: crate::ids::LevelId) -> CoreResult<()> {
     let home = doc.home();
@@ -675,6 +778,51 @@ mod tests {
             Point2::new(400.0, 300.0),
             "far end stayed"
         );
+    }
+
+    /// The L, with an 80 cm door in the middle of its first wall.
+    fn doc_with_door() -> (Document, WallId, FurnitureId) {
+        let (mut doc, a, _) = doc_with_l();
+        let mut door = Furniture {
+            id: doc.new_furniture_id(),
+            catalog: "door".into(),
+            width: 80.0,
+            depth: 15.0,
+            height: 210.0,
+            opening: Some(crate::Opening::default()),
+            ..Furniture::default()
+        };
+        let wall = doc.home().wall(a).unwrap().clone();
+        crate::furniture::align_to_wall(&mut door, &wall, 200.0);
+        let id = door.id;
+        doc.execute(Command::insert(door)).unwrap();
+        (doc, a, id)
+    }
+
+    fn cuts(doc: &Document, wall: WallId, door: FurnitureId) -> bool {
+        let home = doc.home();
+        let i = home.walls.iter().position(|w| w.id == wall).unwrap();
+        home.wall_cuts()[i].iter().any(|c| c.furniture == door)
+    }
+
+    #[test]
+    fn a_moved_wall_takes_its_doors_along() {
+        let (mut doc, a, door) = doc_with_door();
+        translate(&mut doc, &[a.into()], 0.0, 20.0, false).unwrap();
+        assert_eq!(
+            doc.home().find_piece(door).unwrap().position,
+            Point2::new(200.0, 20.0),
+            "the door went with its wall"
+        );
+        assert!(cuts(&doc, a, door), "and still opens it");
+
+        // Moved together, the door is not pulled back to where the wall was.
+        translate(&mut doc, &[a.into(), door.into()], 0.0, 20.0, false).unwrap();
+        assert_eq!(
+            doc.home().find_piece(door).unwrap().position,
+            Point2::new(200.0, 40.0)
+        );
+        assert!(cuts(&doc, a, door));
     }
 
     #[test]

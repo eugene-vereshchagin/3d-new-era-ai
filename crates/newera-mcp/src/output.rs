@@ -615,7 +615,12 @@ pub(crate) fn schema(name: &str) -> Option<Value> {
             &["rows"],
         ),
         "history" => shape(
-            &[("checkpoints", list("[label, changes ago]"))],
+            &[(
+                "checkpoints",
+                list(
+                    "[label, changes ago, restorable]; null, false when set before the project was opened",
+                ),
+            )],
             &["checkpoints"],
         ),
         "plugins" => shape(&[("rows", list("[name, title, description]"))], &["rows"]),

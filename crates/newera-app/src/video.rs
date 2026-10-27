@@ -178,7 +178,10 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
         return;
     };
     let mut open = true;
+    #[cfg(target_arch = "wasm32")]
     let mut render_to = None;
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut ask_where = false;
     let mut cancel = false;
     let environment = app.document.read().home().environment.clone();
     let (mut fps, mut speed) = (environment.video.frame_rate, environment.video.speed);
@@ -286,10 +289,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        render_to = rfd::FileDialog::new()
-                            .add_filter("AVI", &["avi"])
-                            .set_file_name("video.avi")
-                            .save_file();
+                        ask_where = true;
                     }
                 }
                 if let Some(job) = &window.job {
@@ -363,16 +363,30 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
         window.last = Some((file, outcome));
         window.job = None;
     }
-    if let Some(file) = render_to {
-        #[cfg(not(target_arch = "wasm32"))]
-        window.start(app, file);
-        #[cfg(target_arch = "wasm32")]
-        if let Err(error) = window.start_web(app, ctx) {
-            window.last = Some((file, Err(error)));
-        }
+    #[cfg(target_arch = "wasm32")]
+    if let Some(file) = render_to
+        && let Err(error) = window.start_web(app, ctx)
+    {
+        window.last = Some((file, Err(error)));
     }
     if open {
         app.video = Some(window);
+    }
+    // Rendered once the dialog answers, a few frames later, if the window
+    // is still open.
+    #[cfg(not(target_arch = "wasm32"))]
+    if ask_where {
+        let dialog = crate::files::save_dialog("AVI", "avi", "video.avi");
+        app.ask_file(dialog, |app, path| {
+            if let Some(path) = path
+                && let Some(mut window) = app.video.take()
+            {
+                if !window.running() {
+                    window.start(app, path);
+                }
+                app.video = Some(window);
+            }
+        });
     }
 }
 

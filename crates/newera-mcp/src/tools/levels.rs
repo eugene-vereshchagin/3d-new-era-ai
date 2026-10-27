@@ -78,7 +78,9 @@ impl NewEraMcp {
                     && let Some(mut raised) = doc.home().level(level).cloned()
                 {
                     raised.elevation = elev;
-                    doc.execute(Command::update(raised)).map_err(core)?;
+                    let mut commands = ops::pin_to_base_level(doc.home());
+                    commands.push(Command::update(raised));
+                    doc.execute(Command::Batch { commands }).map_err(core)?;
                 }
                 Ok(ok(&doc, &[level.to_string()]))
             }
@@ -109,7 +111,15 @@ impl NewEraMcp {
                 if let Some(reference) = p.reference {
                     updated.set_reference(reference);
                 }
-                doc.execute(Command::update(updated)).map_err(core)?;
+                // Moving a storey up or down can change which is the lowest:
+                // what was on it by default stays where it was.
+                let mut commands = if p.elev.is_some() {
+                    ops::pin_to_base_level(doc.home())
+                } else {
+                    Vec::new()
+                };
+                commands.push(Command::update(updated));
+                doc.execute(Command::Batch { commands }).map_err(core)?;
                 Ok(ok(&doc, &[]))
             }
             "delete" => {
@@ -128,6 +138,43 @@ mod tests {
     use crate::tools::check::CheckParams;
     use crate::tools::read::GetHomeParams;
     use crate::tools::server;
+
+    #[test]
+    fn a_storey_added_below_does_not_take_the_ground_floor_walls() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(r#"{"walls":[{"pts":[[0,0],[500,0],[500,400]]}]}"#).unwrap(),
+        ))
+        .unwrap();
+        // The first storey added creates the ground floor for what is drawn.
+        s.levels(Parameters(LevelsParams {
+            action: Some("add".into()),
+            ..LevelsParams::default()
+        }))
+        .unwrap();
+        let ground = s.document.read().home().base_level().unwrap();
+        // A basement, below it.
+        s.levels(Parameters(LevelsParams {
+            action: Some("add".into()),
+            name: Some("Subsolo".into()),
+            elev: Some(-300.0),
+            ..LevelsParams::default()
+        }))
+        .unwrap();
+        let doc = s.document.read();
+        let home = doc.home();
+        assert_ne!(
+            home.base_level(),
+            Some(ground),
+            "the basement is lowest now"
+        );
+        assert!(
+            home.walls
+                .iter()
+                .all(|w| home.resolve_level(w.level) == Some(ground)),
+            "the walls stayed on the ground floor"
+        );
+    }
 
     #[test]
     fn a_reference_storey_is_drawing_and_checks_leave_it_alone() {

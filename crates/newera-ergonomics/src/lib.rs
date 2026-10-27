@@ -4854,6 +4854,38 @@ mod tests {
     }
 
     #[test]
+    fn a_cooktop_embedded_in_a_countertop_is_the_cooking_zone_whatever_its_name() {
+        let mut home = Home::default();
+        square(&mut home, "Cozinha", 400.0, 300.0);
+        let mut top = piece(60, "group", (200.0, 40.0), (200.0, 60.0, 90.0), 0.0);
+        top.properties.insert(
+            "joinery:params".into(),
+            r#"{"kind":"countertop","cutouts":[{"kind":"cooktop","x":100}]}"#.into(),
+        );
+        let mut slab = piece(61, "box", (200.0, 40.0), (200.0, 60.0, 3.0), 0.0);
+        slab.elevation = 87.0;
+        let mut cooktop = piece(62, "box", (200.0, 40.0), (60.0, 50.0, 6.0), 0.0);
+        cooktop.name = "Варочная панель".into();
+        cooktop.elevation = 84.6;
+        cooktop
+            .properties
+            .insert("joinery:embedded".into(), "cooktop".into());
+        top.children = vec![slab, cooktop];
+        home.furniture = vec![top];
+        let report = review(&home, &Profile::default());
+        assert!(
+            !report.findings.iter().any(|f| {
+                // Only the zones listed before the colon are missing: the
+                // flow after it always ends in cocção.
+                f.message.split_once(':').is_some_and(|(missing, _)| {
+                    missing.contains("zonas de trabalho") && missing.contains("cocção")
+                }) || f.message.contains("fogão ou cooktop")
+            }),
+            "{report:#?}"
+        );
+    }
+
+    #[test]
     fn a_hood_narrower_than_the_cooktop_is_reported_and_a_window_softens_the_gas_rule() {
         let mut home = Home::default();
         square(&mut home, "Cozinha", 400.0, 300.0);
