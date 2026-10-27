@@ -115,7 +115,9 @@ pub struct RunParams {
     pub t: f64,
     /// Front finish, e.g. `wood` or `#5f6e4a`.
     pub front: Option<String>,
-    /// Carcass color `[r,g,b]`.
+    /// Carcass color `[r,g,b]` or `#rrggbb`.
+    #[serde(deserialize_with = "crate::cabinet::rgb_or_hex")]
+    #[schemars(with = "Option<HandleColor>")]
     pub color: Option<[u8; 3]>,
     /// Handles: bar, profile, knob, cava or none (default bar).
     pub handle: HandleStyle,
@@ -256,6 +258,8 @@ pub struct FillerParams {
     pub d: f64,
     /// Board, mm (default 18).
     pub t: f64,
+    #[serde(deserialize_with = "crate::cabinet::rgb_or_hex")]
+    #[schemars(with = "Option<HandleColor>")]
     pub color: Option<[u8; 3]>,
     pub front: Option<String>,
 }

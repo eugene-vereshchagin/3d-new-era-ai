@@ -41,8 +41,8 @@ pub struct CabinetRunParams {
     /// Room the fronts face, by id or name (default: toward the house middle).
     pub room: Option<String>,
     /// Flat choices, all optional: row base|wall|tall, h, d, elev, t (mm), front,
-    /// color [r,g,b], handle bar|profile|knob|cava|none (bar), `handle_color` [r,g,b] or
-    /// "#hex", drawers (drawer units), max (widest module, 90), target (60),
+    /// color and `handle_color` [r,g,b] or "#hex", handle bar|profile|knob|cava|none (bar),
+    /// drawers (drawer units), max (widest module, 90), target (60),
     /// top (base countertop, true), `top_material`, sink / cooktop (center cm along
     /// the wall: cabinet under it and the countertop cutout), `sink_w` (80), `cooktop_w` (60),
     /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom).

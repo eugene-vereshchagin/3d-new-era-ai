@@ -53,7 +53,9 @@ pub struct CabinetParams {
     /// countertop cutout; the cut list keeps one board with machining.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_cutout: Option<[f64; 4]>,
-    /// Carcass color `[r,g,b]` (default white MDF).
+    /// Carcass color `[r,g,b]` or `#rrggbb` (default white MDF).
+    #[serde(deserialize_with = "crate::cabinet::rgb_or_hex")]
+    #[schemars(with = "Option<HandleColor>")]
     pub color: Option<[u8; 3]>,
     /// Door and drawer front finish, e.g. `wood` or `#5f6e4a`.
     pub front: Option<String>,
@@ -95,6 +97,25 @@ pub enum HandleStyle {
 pub enum HandleColor {
     Rgb([u8; 3]),
     Hex(String),
+}
+
+/// Reads a color given as `[r,g,b]` or `#rrggbb` into `[r,g,b]`: the
+/// same choice handles have, for the colors that are stored as `[r,g,b]`.
+pub(crate) fn rgb_or_hex<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<[u8; 3]>, D::Error> {
+    match Option::<HandleColor>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(HandleColor::Rgb(c)) => Ok(Some(c)),
+        Some(HandleColor::Hex(text)) => text
+            .parse::<newera_core::Material>()
+            .ok()
+            .and_then(|m| m.color)
+            .map(Some)
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!("color `{text}`: use #rrggbb or [r,g,b]"))
+            }),
+    }
 }
 
 /// A doorless opening across the cabinet's inside, cm.
@@ -1715,6 +1736,25 @@ mod tests {
         let rgb: CabinetParams =
             serde_json::from_str(r#"{"handle":"knob","handle_color":[1,2,3]}"#).unwrap();
         assert_eq!(rgb.handle_color, Some(HandleColor::Rgb([1, 2, 3])));
+    }
+
+    #[test]
+    fn a_carcass_color_is_taken_as_hex_too() {
+        let hex: CabinetParams = serde_json::from_str(r##"{"color":"#d8d2c6"}"##).unwrap();
+        assert_eq!(hex.color, Some([216, 210, 198]));
+        // Stored as it always was.
+        assert!(
+            serde_json::to_string(&hex)
+                .unwrap()
+                .contains(r#""color":[216,210,198]"#)
+        );
+        let rgb: CabinetParams = serde_json::from_str(r#"{"color":[1,2,3]}"#).unwrap();
+        assert_eq!(rgb.color, Some([1, 2, 3]));
+        assert!(serde_json::from_str::<CabinetParams>(r#"{"color":"nope"}"#).is_err());
+        let sofa: crate::SofaParams = serde_json::from_str(r##"{"color":"#d8d2c6"}"##).unwrap();
+        assert_eq!(sofa.color, Some([216, 210, 198]));
+        let run: crate::RunParams = serde_json::from_str(r##"{"color":"#d8d2c6"}"##).unwrap();
+        assert_eq!(run.color, Some([216, 210, 198]));
     }
 
     #[test]
