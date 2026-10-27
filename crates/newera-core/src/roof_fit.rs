@@ -12,7 +12,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::furniture::{Furniture, SolidShape};
 use crate::geometry::Point2;
 use crate::home::Home;
-use crate::ids::{ElementId, WallId};
+use crate::ids::{ElementId, LevelId, WallId};
 
 /// Property marking an element that follows the roof; its value is the
 /// lowest height (cm) a roof surface must have to count, so floors and
@@ -31,6 +31,38 @@ fn slopes(home: &Home) -> Vec<&Furniture> {
         // Roof panels, not rafters or braces: a surface is wide both ways.
         .filter(|f| {
             !f.is_opening() && (f.pitch != 0.0 || f.roll != 0.0) && f.width.min(f.depth) >= 30.0
+        })
+        .collect()
+}
+
+/// Sloped surfaces over storey `level`: its own and those of the storeys
+/// above it, raised by how much higher their floor is, so every height reads
+/// from this storey's floor. A double-height wall on the ground floor follows
+/// the roof drawn on the floor above.
+fn slopes_over(home: &Home, level: Option<LevelId>) -> Vec<Furniture> {
+    let level = home.resolve_level(level);
+    let base = home.elevation_of(level);
+    let mut storeys: Vec<Option<LevelId>> = home
+        .levels
+        .iter()
+        .filter(|l| Some(l.id) == level || (!l.is_reference() && l.elevation >= base))
+        .map(|l| Some(l.id))
+        .collect();
+    if storeys.is_empty() {
+        storeys.push(None);
+    }
+    storeys
+        .into_iter()
+        .flat_map(|storey| {
+            let offset = home.elevation_of(storey) - base;
+            slopes(&home.level_view(storey))
+                .into_iter()
+                .map(|f| {
+                    let mut f = f.clone();
+                    f.elevation += offset;
+                    f
+                })
+                .collect::<Vec<_>>()
         })
         .collect()
 }
@@ -200,13 +232,15 @@ pub fn fit_commands(
     above: f64,
     next_wall_id: &mut dyn FnMut() -> WallId,
 ) -> Vec<Command> {
-    let view = home.level_view(home.current_level());
-    let slopes = slopes(&view);
     let mut commands = Vec::new();
+    // Each element is fitted to the roofs over its own storey, whichever
+    // storey is selected.
     for id in ids {
         match id {
             ElementId::Wall(w) => {
                 let Some(wall) = home.wall(*w) else { continue };
+                let slopes = slopes_over(home, wall.level);
+                let slopes: Vec<&Furniture> = slopes.iter().collect();
                 let Some(parts) = fits_wall(wall, &slopes, above) else {
                     continue;
                 };
@@ -220,12 +254,10 @@ pub fn fit_commands(
                 }
             }
             ElementId::Furniture(f) => {
-                if let Some(fitted) = home
-                    .furniture
-                    .iter()
-                    .find(|p| p.id == *f)
-                    .and_then(|p| fits_piece(p, &slopes, above))
-                {
+                if let Some(fitted) = home.furniture.iter().find(|p| p.id == *f).and_then(|p| {
+                    let slopes = slopes_over(home, p.level);
+                    fits_piece(p, &slopes.iter().collect::<Vec<_>>(), above)
+                }) {
                     commands.push(Command::update(fitted));
                 }
             }
@@ -464,5 +496,83 @@ mod tests {
             ))
             .is_empty()
         );
+    }
+
+    #[test]
+    fn a_wall_follows_the_roof_of_the_storey_above_whichever_storey_is_selected() {
+        let mut home = Home::default();
+        home.levels = vec![
+            crate::Level {
+                id: LevelId(1),
+                elevation: 0.0,
+                ..crate::Level::default()
+            },
+            crate::Level {
+                id: LevelId(2),
+                elevation: 245.0,
+                ..crate::Level::default()
+            },
+        ];
+        // A shed roof on the upper storey, 100 → 300 cm above its floor.
+        let mut roof = slope(1, 300.0, (0.0, 100.0), (400.0, 300.0), 600.0);
+        roof.level = Some(LevelId(2));
+        home.furniture.push(roof);
+        // A double-height wall on the ground floor under it.
+        let mut wall = Wall::new(
+            WallId(10),
+            Point2::new(100.0, 50.0),
+            Point2::new(100.0, 350.0),
+        );
+        wall.height = 525.0;
+        wall.level = Some(LevelId(1));
+        home.walls.push(wall);
+        let upper = home.level_view(Some(LevelId(2)));
+        let roof_at = |y: f64| roof_height_at(&upper, Point2::new(100.0, y), 10.0).unwrap();
+        for selected in [LevelId(1), LevelId(2)] {
+            home.selected_level = Some(selected);
+            let commands = fit_commands(&home, &[ElementId::Wall(WallId(10))], 10.0, &mut || {
+                WallId(99)
+            });
+            let [
+                Command::Update {
+                    element: crate::elements::Element::Wall(fitted),
+                    ..
+                },
+            ] = commands.as_slice()
+            else {
+                panic!("{selected:?}: {commands:?}")
+            };
+            // Heights from the wall's own floor: the roof's plus 245 cm.
+            assert!(
+                (fitted.height - (roof_at(50.0) + 245.0)).abs() < 1.0,
+                "{selected:?}: {fitted:?}"
+            );
+            assert!(
+                (fitted.height_at_end.unwrap() - (roof_at(350.0) + 245.0)).abs() < 1.0,
+                "{selected:?}: {fitted:?}"
+            );
+        }
+        // On the upper storey, the same roof reads from that floor.
+        let mut high = Wall::new(
+            WallId(11),
+            Point2::new(200.0, 50.0),
+            Point2::new(200.0, 350.0),
+        );
+        high.height = 280.0;
+        high.level = Some(LevelId(2));
+        home.walls.push(high);
+        let commands = fit_commands(&home, &[ElementId::Wall(WallId(11))], 10.0, &mut || {
+            WallId(98)
+        });
+        let [
+            Command::Update {
+                element: crate::elements::Element::Wall(fitted),
+                ..
+            },
+        ] = commands.as_slice()
+        else {
+            panic!("{commands:?}")
+        };
+        assert!((fitted.height - roof_at(50.0)).abs() < 1.0, "{fitted:?}");
     }
 }
