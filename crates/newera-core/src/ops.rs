@@ -680,6 +680,26 @@ pub fn add_level(
     Ok(id)
 }
 
+/// Updates that give the lowest storey's elements it by name.
+///
+/// An element with no storey of its own is on "the lowest storey", whichever
+/// that is: a storey added below, or the ground floor raised above another,
+/// took every such wall, room and piece with it. Run before a change of
+/// elevation, in the same step, they stay on the storey they were on.
+pub fn pin_to_base_level(home: &Home) -> Vec<Command> {
+    let Some(base) = home.base_level() else {
+        return Vec::new();
+    };
+    home.elements()
+        .filter(|e| !matches!(e, Element::Level(_)))
+        .filter(|e| e.level().is_none_or(|id| home.level(id).is_none()))
+        .map(|mut e| {
+            e.set_level(Some(base));
+            Command::Update { element: e }
+        })
+        .collect()
+}
+
 /// Deletes a storey and everything on it, as one undoable step.
 pub fn delete_level(doc: &mut Document, id: crate::ids::LevelId) -> CoreResult<()> {
     let home = doc.home();
