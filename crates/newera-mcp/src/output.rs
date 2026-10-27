@@ -892,6 +892,10 @@ pub(crate) fn schema(name: &str) -> Option<Value> {
             ),
             ("unchanged_note", text("Why they did not change")),
             (
+                "overridden",
+                list("Asked values a piece's mount set aside: {id, elev, note}"),
+            ),
+            (
                 "welded",
                 strings("Wall ends pulled onto a wall: \"<wall>.<a|b>→[x,y]\""),
             ),

@@ -121,24 +121,90 @@ fn unchanged(
         .collect()
 }
 
-/// A reply with `unchanged` added: the requests that were already so.
-fn with_unchanged(reply: &str, still: &[serde_json::Value]) -> String {
-    if still.is_empty() {
+/// Elevations asked for that a piece's mount set aside: a downlight given
+/// `elev` goes back onto the ceiling. `asked` is `(id, elev)` per request.
+///
+/// The write did nothing to the piece, and was answered as if the piece
+/// already sat at the height asked for — when it sat 27 cm above it. Each
+/// one is named with where it ended and why.
+pub(super) fn overridden(
+    home: &newera_core::Home,
+    asked: &[(String, f64)],
+) -> Vec<serde_json::Value> {
+    use newera_core::mounting::{Mount, mount_of, on_ceiling};
+    asked
+        .iter()
+        .filter_map(|(raw, elev)| {
+            let newera_core::ElementId::Furniture(id) = raw.parse().ok()? else {
+                return None;
+            };
+            let piece = home.find_piece(id)?;
+            if (piece.elevation - elev).abs() < 0.05 {
+                return None;
+            }
+            let why = if on_ceiling(piece) {
+                "snapped to the ceiling"
+            } else if mount_of(&piece.catalog) == Some(Mount::Floor) {
+                "kept flush with the floor"
+            } else {
+                "set by what it is mounted on"
+            };
+            let (given, now) = (
+                crate::compact::num(*elev),
+                crate::compact::num(piece.elevation),
+            );
+            Some(serde_json::json!({
+                "id": raw,
+                "elev": now,
+                "note": format!("elev {given} {why} at {now}"),
+            }))
+        })
+        .collect()
+}
+
+/// The elevations an update asks for, by id.
+fn asked_elevs(items: &[UpdateSpec]) -> Vec<(String, f64)> {
+    items
+        .iter()
+        .filter_map(|i| Some((i.id.clone(), i.elev?)))
+        .collect()
+}
+
+/// A reply with `unchanged` added: the requests that were already so; and
+/// `overridden`: the values asked for that the piece did not keep.
+fn with_unchanged(
+    reply: &str,
+    still: &[serde_json::Value],
+    snapped: &[serde_json::Value],
+) -> String {
+    let set_aside: std::collections::BTreeSet<&str> =
+        snapped.iter().filter_map(|s| s["id"].as_str()).collect();
+    let still: Vec<&serde_json::Value> = still
+        .iter()
+        .filter(|s| !s["id"].as_str().is_some_and(|id| set_aside.contains(id)))
+        .collect();
+    if still.is_empty() && snapped.is_empty() {
         return reply.to_owned();
     }
     let note = "these already had the values asked for; nothing was changed on them";
+    let mut extra = serde_json::Map::new();
+    if !still.is_empty() {
+        extra.insert("unchanged".to_owned(), serde_json::json!(still));
+        extra.insert("unchanged_note".to_owned(), serde_json::json!(note));
+    }
+    if !snapped.is_empty() {
+        extra.insert("overridden".to_owned(), serde_json::json!(snapped));
+    }
     match reply.find('{') {
         Some(at) => {
             let (head, body) = reply.split_at(at);
             let mut json: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
-            json["unchanged"] = serde_json::json!(still);
-            json["unchanged_note"] = serde_json::json!(note);
+            if let Some(object) = json.as_object_mut() {
+                object.extend(extra);
+            }
             format!("{head}{json}")
         }
-        None => format!(
-            "{reply} {}",
-            serde_json::json!({"unchanged": still, "unchanged_note": note})
-        ),
+        None => format!("{reply} {}", serde_json::Value::Object(extra)),
     }
 }
 
@@ -195,6 +261,7 @@ impl NewEraMcp {
             edit::update(doc, items).map_err(invalid)
         };
         let asked: Vec<String> = p.items.iter().map(|i| i.id.clone()).collect();
+        let elevs = asked_elevs(&p.items);
         if Dry::on(p.dry.as_ref()) {
             let doc = self.document.read();
             let before = doc.home().clone();
@@ -202,17 +269,19 @@ impl NewEraMcp {
             let mut scratch = newera_core::Document::new(before.clone());
             apply(&mut scratch, items.clone(), rename.as_ref())?;
             let still = unchanged(&before, scratch.home(), &asked);
+            let snapped = overridden(scratch.home(), &elevs);
             let answer = reply::preview_with(&doc, Dry::brief(p.dry.as_ref()), move |scratch| {
                 apply(scratch, items, rename.as_ref()).map(|_| ())
             })?;
-            return Ok(with_unchanged(&answer, &still));
+            return Ok(with_unchanged(&answer, &still, &snapped));
         }
         let mut doc = self.document.write();
         on_variant(&mut doc, p.v)?;
         let before = doc.home().clone();
         let updated = apply(&mut doc, p.items, p.rename.as_ref())?;
         let still = unchanged(&before, doc.home(), &asked);
-        let mut reply = with_unchanged(&applied(&doc, &before), &still);
+        let snapped = overridden(doc.home(), &elevs);
+        let mut reply = with_unchanged(&applied(&doc, &before), &still, &snapped);
         if !updated.welded.is_empty() {
             reply.push_str(" welded=");
             reply.push_str(&updated.welded.join(","));
@@ -1058,6 +1127,46 @@ mod tests {
             !s.document.read().home().cameras.observer_active,
             "undo restores the aerial view"
         );
+    }
+    #[test]
+    fn an_elev_the_ceiling_takes_back_is_said_as_snapped() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(
+                r#"{"walls":[{"pts":[[0,0],[400,0],[400,400],[0,400]],"closed":true}],
+                    "rooms":[{"name":"Sala","at":[200,200]}]}"#,
+            )
+            .unwrap(),
+        ))
+        .unwrap();
+        let reply = s
+            .place(Parameters(
+                serde_json::from_str(
+                    r#"{"items":[{"cat":"downlight","at":[200,200],"elev":200}]}"#,
+                )
+                .unwrap(),
+            ))
+            .unwrap();
+        let (id, elev) = {
+            let doc = s.document.read();
+            let f = doc.home().furniture.last().unwrap();
+            (f.id.to_string(), f.elevation)
+        };
+        assert!(elev > 240.0, "on the 250 cm ceiling: {elev}");
+        assert!(
+            reply.contains(&format!("{id}: elev 200 snapped to the ceiling")),
+            "{reply}"
+        );
+        let reply = s
+            .update(Parameters(UpdateParams {
+                items: serde_json::from_str(&format!(r#"[{{"id":"{id}","elev":200}}]"#)).unwrap(),
+                rename: None,
+                v: None,
+                dry: None,
+            }))
+            .unwrap();
+        assert!(!reply.contains("already had"), "{reply}");
+        assert!(reply.contains("elev 200 snapped to the ceiling"), "{reply}");
     }
     #[test]
     fn a_slope_a_storey_and_an_opacity_are_said_as_changes() {

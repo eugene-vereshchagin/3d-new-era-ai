@@ -133,6 +133,7 @@ impl NewEraMcp {
         }
         let mut doc = self.document.write();
         on_variant(&mut doc, p.v)?;
+        let elevs: Vec<Option<f64>> = items.iter().map(|i| i.elev).collect();
         let placed = edit::place_noting(&mut doc, items).map_err(invalid)?;
         // `ids=` stays last on the first line: it is what callers split the
         // reply on. What an import left out follows, a line per model.
@@ -142,6 +143,22 @@ impl NewEraMcp {
             reply.push_str("\nimported ");
             reply.push_str(line);
             reply.push_str(" — `model` lists what it kept");
+        }
+        // An elev the piece's mount set aside (a sensor sent up to the
+        // ceiling), a line each: placed silently, it read as kept.
+        if elevs.len() == placed.ids.len() {
+            let asked: Vec<(String, f64)> = placed
+                .ids
+                .iter()
+                .zip(&elevs)
+                .filter_map(|(id, elev)| Some((id.clone(), (*elev)?)))
+                .collect();
+            for snap in super::elements::overridden(doc.home(), &asked) {
+                reply.push('\n');
+                reply.push_str(snap["id"].as_str().unwrap_or_default());
+                reply.push_str(": ");
+                reply.push_str(snap["note"].as_str().unwrap_or_default());
+            }
         }
         Ok(reply)
     }

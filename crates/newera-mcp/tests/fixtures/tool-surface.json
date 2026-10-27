@@ -5715,6 +5715,9 @@
         "ok": {
           "type": "boolean"
         },
+        "overridden": {
+          "type": "array"
+        },
         "properties": {
           "items": {
             "type": "string"
