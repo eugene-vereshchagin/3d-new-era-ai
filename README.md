@@ -369,6 +369,10 @@ through the same endpoint, so installing from source counts like any other insta
 your email, your projects and usage, never the conversation. See the
 [privacy policy](https://3dneweraai.com/privacy/).
 
+Apart from that switch, the desktop app asks GitHub's public API for the latest release when it
+opens, sending nothing about the installation, and says in its status bar when a newer one is
+out.
+
 ## Support the project
 
 Everything above is free and stays free. If it saves you time, the

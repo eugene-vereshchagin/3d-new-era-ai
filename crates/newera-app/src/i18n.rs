@@ -512,6 +512,11 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
         ],
         "Abrir o GitHub" => ["Open GitHub", "Abrir GitHub", "Ouvrir GitHub"],
         "Agora não" => ["Not now", "Ahora no", "Pas maintenant"],
+        "Nova versão {} disponível" => [
+            "New version {} available",
+            "Nueva versión {} disponible",
+            "Nouvelle version {} disponible",
+        ],
         "Muita gente usa o 3D New Era AI todos os dias, mas quase ninguém apoia o projeto." => [
             "Many people use 3D New Era AI every day, but almost no one supports the project.",
             "Mucha gente usa 3D New Era AI todos los días, pero casi nadie apoya el proyecto.",

@@ -68,6 +68,7 @@ pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
             }
             let mut app = app::NewEraApp::new(cc, document, options.mcp_url);
             app.ask_support();
+            app.check_for_update(&cc.egui_ctx);
             if let Some(path) = options.open {
                 app.open_path(&path);
             }

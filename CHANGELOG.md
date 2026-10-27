@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The desktop app says when a newer release is out: at launch it asks GitHub for the latest
+  release, and the status bar links to it ("Nova versão 3.2.0 disponível"). Installed copies kept
+  running old versions without knowing.
 - At every launch, on the desktop and in the web editor, a dialog asks for support: it explains
   that the AIs using the tool send more reports and suggestions than there is time and money to
   fix, links to Buy Me a Coffee and invites issues and pull requests on GitHub.

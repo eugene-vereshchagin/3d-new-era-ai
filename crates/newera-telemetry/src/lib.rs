@@ -29,6 +29,8 @@
 pub mod analytics;
 #[cfg(not(target_arch = "wasm32"))]
 mod tunnel;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update;
 
 use std::io::Write as _;
 use std::path::PathBuf;

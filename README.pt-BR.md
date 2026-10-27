@@ -237,6 +237,9 @@ compilando conta como qualquer outra instalação; `cargo build` num clone e a i
 contínua não contam nada. O conector na nuvem guarda só o necessário: e-mail, projetos e uso,
 nunca a conversa. Veja a [política de privacidade](https://3dneweraai.com/privacy/).
 
+Fora dessa chave, o app desktop pergunta à API pública do GitHub qual é a última versão ao abrir,
+sem enviar nada sobre a instalação, e avisa na barra de status quando há uma mais nova.
+
 ## Apoie o projeto
 
 Tudo acima é gratuito e continua gratuito. Se o projeto te poupa tempo, o

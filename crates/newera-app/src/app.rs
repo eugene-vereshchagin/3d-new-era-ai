@@ -69,6 +69,8 @@ const SETTINGS_KEY: &str = "newera-settings";
 const SUPPORT_URL: &str = "https://buymeacoffee.com/leandrodaf/membership";
 /// Where issues and pull requests go.
 const REPOSITORY_URL: &str = "https://github.com/leandrodaf/3d-new-era-ai";
+/// Where a newer release is downloaded from.
+const RELEASES_URL: &str = "https://github.com/leandrodaf/3d-new-era-ai/releases/latest";
 
 /// Counts what was done with the request for support — `shown`, `coffee`,
 /// `github` or `dismiss` — under the same switch as the rest of the usage
@@ -198,6 +200,8 @@ pub(crate) struct NewEraApp {
     /// Whether the window still has to ask for support. The app turns it on
     /// at every launch; a window built for a test leaves it off.
     pub(crate) support_ask: bool,
+    /// A release newer than this build, once the check at launch finds one.
+    pub(crate) newer: std::sync::Arc<std::sync::OnceLock<String>>,
     /// The last autosave attempt revision and time; not confirmation of persistence.
     #[cfg(target_arch = "wasm32")]
     mirrored: (u64, Instant, bool),
@@ -286,6 +290,7 @@ impl NewEraApp {
             background_dir: None,
             restored: false,
             support_ask: false,
+            newer: std::sync::Arc::default(),
             #[cfg(target_arch = "wasm32")]
             mirrored: (0, Instant::now(), false),
             catalog_query: String::new(),
@@ -1554,6 +1559,20 @@ impl NewEraApp {
         answer.or_else(|| response.should_close().then_some("dismiss"))
     }
 
+    /// Looks for a newer release in the background; the status bar says so
+    /// when there is one. The browser editor is always the latest already.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn check_for_update(&self, ctx: &egui::Context) {
+        let newer = std::sync::Arc::clone(&self.newer);
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            if let Some(version) = newera_telemetry::update::newer_release() {
+                let _ = newer.set(version);
+                ctx.request_repaint();
+            }
+        });
+    }
+
     /// Asks for support on this launch, and counts that it was asked.
     pub(crate) fn ask_support(&mut self) {
         self.support_ask = true;
@@ -2418,6 +2437,7 @@ impl NewEraApp {
                         self.status = None;
                     }
                 }
+                self.release_link(ui);
                 return;
             }
             ui.separator();
@@ -2455,7 +2475,20 @@ impl NewEraApp {
                     self.status = None;
                 }
             }
+            self.release_link(ui);
         });
+    }
+
+    /// A newer release, last in the status bar: what just happened is said
+    /// first, and this is what a narrow window cuts off.
+    fn release_link(&self, ui: &mut egui::Ui) {
+        if let Some(version) = self.newer.get() {
+            ui.separator();
+            ui.hyperlink_to(
+                crate::i18n::fill("Nova versão {} disponível", &[version]),
+                RELEASES_URL,
+            );
+        }
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
@@ -3034,6 +3067,18 @@ mod tests {
 
     fn walls(h: &Harness<'_, NewEraApp>) -> Vec<Wall> {
         h.state().document.read().home().walls.clone()
+    }
+
+    #[test]
+    fn a_newer_release_is_said_in_the_status_bar() {
+        let mut h = app_with_wall();
+        assert!(
+            h.query_by_label_contains("disponível").is_none(),
+            "no news, no line"
+        );
+        h.state_mut().newer.set("99.0.0".to_owned()).unwrap();
+        h.run_steps(3);
+        h.get_by_label("Nova versão 99.0.0 disponível");
     }
 
     #[test]
