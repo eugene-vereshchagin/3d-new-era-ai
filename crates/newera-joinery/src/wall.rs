@@ -44,7 +44,7 @@ pub struct CabinetRunParams {
     /// color and `handle_color` [r,g,b] or "#hex", handle bar|profile|knob|cava|none (bar),
     /// drawers (drawer units), max (widest module, 90), target (60),
     /// top (base countertop, true), `top_material`, sink / cooktop (center cm along
-    /// the wall: cabinet under it and the countertop cutout), `sink_w` (80), `cooktop_w` (60),
+    /// the wall: its cabinet and cutout; null removes it), `sink_w` (80), `cooktop_w` (60),
     /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom).
     pub p: Option<serde_json::Map<String, Value>>,
     /// Stretch to fill, cm from the wall start (default: all of it).
@@ -492,6 +492,8 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             removed.push(*id);
         }
     }
+    // Keys this call set: `p` is per call, the rest comes from the last one.
+    let given = |key: &str| request.given.iter().any(|g| g == key);
     // Keep the finish of the cabinets being replaced unless told otherwise.
     if let Some(Build::Cabinet(old)) = removed
         .iter()
@@ -499,7 +501,6 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
         .filter_map(|f| serde_json::from_str::<Build>(f.properties.get(PARAMS_KEY)?).ok())
         .find(|b| matches!(b, Build::Cabinet(_)))
     {
-        let given = |key: &str| request.given.iter().any(|g| g == key);
         if !given("t") {
             params.t = old.t;
         }
@@ -535,7 +536,7 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
                 continue;
             }
             let center = along(f.position);
-            if name.contains("cooktop") && params.cooktop.is_none() {
+            if name.contains("cooktop") && params.cooktop.is_none() && !given("cooktop") {
                 params.cooktop = Some(center);
                 params.cooktop_w = ((f.width + 6.0) / 5.0).ceil().max(12.0) * 5.0;
                 params.cooktop_real = Some([f.width, f.depth]);
@@ -543,6 +544,7 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
                 found_notes.push("cooktop".to_owned());
             } else if (name.contains("pia") || name.contains("cuba") || name.starts_with("tanque"))
                 && params.sink.is_none()
+                && !given("sink")
                 && !name.contains("gavet")
                 && !name.contains("armario")
             {
@@ -566,21 +568,74 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
                 .filter(|c| c.properties.contains_key(crate::EMBED_KEY))
             {
                 let center = along(child.position);
-                match crate::fixture_of(child) {
-                    // A real item already set in wins over the position asked before.
-                    crate::Fixture::Cooktop if params.row == RunRow::Base => {
-                        params.cooktop = Some(center);
+                let fixture = crate::fixture_of(child);
+                let mut child = child.clone();
+                let key = match fixture {
+                    crate::Fixture::Sink if params.row == RunRow::Base => "sink",
+                    crate::Fixture::Cooktop if params.row == RunRow::Base => "cooktop",
+                    _ => "",
+                };
+                if !key.is_empty() {
+                    let at = if key == "sink" {
+                        &mut params.sink
+                    } else {
+                        &mut params.cooktop
+                    };
+                    // A real item already set in wins over the position asked
+                    // before; one asked for now moves it, and `null` leaves it
+                    // with the old countertop.
+                    if !given(key) {
+                        *at = Some(center);
+                    } else if let Some(to) = *at {
+                        child.position = Point2::new(
+                            child.position.x + u.0 * (to - center),
+                            child.position.y + u.1 * (to - center),
+                        );
+                    } else {
+                        continue;
+                    }
+                    if key == "sink" {
+                        params.sink_w = ((child.width + 10.0) / 5.0).ceil().max(12.0) * 5.0;
+                        params.sink_real = Some([child.width, child.depth]);
+                    } else {
                         params.cooktop_w = ((child.width + 6.0) / 5.0).ceil().max(12.0) * 5.0;
                         params.cooktop_real = Some([child.width, child.depth]);
                     }
-                    crate::Fixture::Sink if params.row == RunRow::Base => {
-                        params.sink = Some(center);
-                        params.sink_w = ((child.width + 10.0) / 5.0).ceil().max(12.0) * 5.0;
-                        params.sink_real = Some([child.width, child.depth]);
-                    }
-                    _ => {}
                 }
-                carry.push(child.clone());
+                carry.push(child);
+            }
+        }
+    }
+    // The sink or cooktop asked for in this call keeps its place where
+    // another wall's run turns the corner over it: that run gives way and is
+    // planned again against this one, stopping short of it. A stored request
+    // never lists them as given, so a neighbor planned again doesn't push back.
+    let mut yielded: Vec<FurnitureId> = Vec::new();
+    let mut neighbors: Vec<String> = Vec::new();
+    // As deep as the fronts that would cover it (see `covering` below): the
+    // other run's modules behind its corner one would still take the stretch.
+    let reach = (params.row == RunRow::Base)
+        .then(|| newera_core::wall_run(home, wall_id, side, d + DOOR_SWING, z, &|_| false))
+        .flatten();
+    if let Some(reach) = &reach {
+        for (key, center, width) in [
+            ("sink", params.sink, params.sink_w),
+            ("cooktop", params.cooktop, params.cooktop_w),
+        ] {
+            let Some(center) = center.filter(|_| given(key)) else {
+                continue;
+            };
+            let (a, b) = (center - width / 2.0, center + width / 2.0);
+            for o in reach.obstacles.iter().filter(|o| o.from < b && o.to > a) {
+                if let RunBlock::Piece { id, .. } = &o.block
+                    && let Some(t) = piece(*id).and_then(other_run)
+                    && !yielded.contains(id)
+                {
+                    yielded.push(*id);
+                    if !neighbors.contains(&t) {
+                        neighbors.push(t);
+                    }
+                }
             }
         }
     }
@@ -588,10 +643,75 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
     let skip = |f: &Furniture| {
         removed.contains(&f.id)
             || embedded.contains(&f.id)
+            || yielded.contains(&f.id)
             || (skip_top && joinery_kind(f).as_deref() == Some("countertop"))
     };
     let mut run = newera_core::wall_run(home, wall_id, side, band, z, &skip)
         .ok_or_else(|| format!("{wall_id} can't hold a run"))?;
+    // A sink or cooktop of the run on the wall across the corner is worked
+    // at from the front: its cabinet and the room to open it stay clear of
+    // this run, which stops short of them rather than standing in front.
+    if params.row == RunRow::Base {
+        let normal = (-u.1 * side, u.0 * side);
+        let face = wall.thickness / 2.0;
+        for top in home.furniture.iter().filter(|f| {
+            other_run(f).is_some()
+                && joinery_kind(f).as_deref() == Some("countertop")
+                && (f.angle - wall_angle).to_radians().sin().abs() > 0.9
+                && !skip(f)
+        }) {
+            let Some(cutouts) = top
+                .properties
+                .get(PARAMS_KEY)
+                .and_then(|stored| serde_json::from_str::<Value>(stored).ok())
+                .and_then(|v| v["cutouts"].as_array().cloned())
+            else {
+                continue;
+            };
+            for c in cutouts
+                .iter()
+                .filter(|c| c["kind"] == "sink" || c["kind"] == "cooktop")
+            {
+                let Some(x) = c["x"].as_f64() else {
+                    continue;
+                };
+                let half = (c["w"].as_f64().unwrap_or(56.0) + 20.0).max(60.0) / 2.0;
+                let (cx, reach) = (
+                    x - top.width / 2.0,
+                    top.depth / 2.0 + DOOR_SWING + CORNER_FILLER,
+                );
+                let corners = [
+                    (-half, -reach),
+                    (half, -reach),
+                    (-half, reach),
+                    (half, reach),
+                ]
+                .map(|(dx, dy)| top.to_plan((cx + dx, dy)));
+                let span = |axis: (f64, f64)| {
+                    corners
+                        .iter()
+                        .map(|p| (p.x - wall.start.x) * axis.0 + (p.y - wall.start.y) * axis.1)
+                        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+                            (lo.min(v), hi.max(v))
+                        })
+                };
+                let (out, along) = (span(normal), span(u));
+                let (a, b) = (along.0.max(0.0), along.1.min(length));
+                if out.1 <= face || out.0 >= face + band || b - a < 1.0 {
+                    continue;
+                }
+                run.obstacles.push(RunObstacle {
+                    from: a,
+                    to: b,
+                    block: RunBlock::Piece {
+                        id: top.id,
+                        catalog: top.catalog.clone(),
+                    },
+                });
+            }
+        }
+        run.obstacles.sort_by(|a, b| a.from.total_cmp(&b.from));
+    }
     let named = |id: FurnitureId, words: &[&str]| {
         piece(id).is_some_and(|f| {
             let n = plain(&f.name);
@@ -615,7 +735,6 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             .is_some_and(|f| has_cooktop(f) && joinery_kind(f).as_deref() == Some("countertop"))
     };
     let mut notes = Vec::new();
-    let mut neighbors: Vec<String> = Vec::new();
     let mut over = Vec::new();
     if params.row == RunRow::Wall {
         // Leave the hood's width free over a stove or cooktop.
@@ -721,7 +840,7 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
     }
     // Other runs' cabinets just in front of this one: their fronts cover ours.
     let front = newera_core::wall_run(home, wall_id, side, d + DOOR_SWING, z, &skip);
-    let covering: Vec<(f64, f64)> = front
+    let covering: Vec<(f64, f64, FurnitureId)> = front
         .iter()
         .flat_map(|r| r.obstacles.iter())
         .filter_map(|o| {
@@ -736,7 +855,7 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             if !neighbors.contains(&t) {
                 neighbors.push(t);
             }
-            Some((o.from, o.to))
+            Some((o.from, o.to, *id))
         })
         .collect();
     let gaps: Vec<RunGap> = run
@@ -760,8 +879,8 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             let blind_start = if start == EndKind::Wall {
                 covering
                     .iter()
-                    .filter(|(f, t)| *f <= a2 + 1.0 && *t > a2 + 1.0)
-                    .map(|(_, t)| t - a2 + CORNER_FILLER)
+                    .filter(|(f, t, _)| *f <= a2 + 1.0 && *t > a2 + 1.0)
+                    .map(|(_, t, _)| t - a2 + CORNER_FILLER)
                     .fold(0.0, f64::max)
             } else {
                 0.0
@@ -769,8 +888,8 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             let blind_end = if end == EndKind::Wall {
                 covering
                     .iter()
-                    .filter(|(f, t)| *t >= b2 - 1.0 && *f < b2 - 1.0)
-                    .map(|(f, _)| b2 - f + CORNER_FILLER)
+                    .filter(|(f, t, _)| *t >= b2 - 1.0 && *f < b2 - 1.0)
+                    .map(|(f, _, _)| b2 - f + CORNER_FILLER)
                     .fold(0.0, f64::max)
             } else {
                 0.0
@@ -785,6 +904,38 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             })
         })
         .collect();
+    // A sink or cooktop in a stretch the corners' blind panels take whole:
+    // no cabinet can go under it, and the cabinets in the way are named.
+    if params.row == RunRow::Base {
+        for g in &gaps {
+            for (name, key, center) in [
+                ("A pia", "sink", params.sink),
+                ("O cooktop", "cooktop", params.cooktop),
+            ] {
+                let left = g.to - g.from - g.blind_start - g.blind_end;
+                if center.is_none_or(|c| c <= g.from || c >= g.to) || left > 0.0 {
+                    continue;
+                }
+                let mut ids: Vec<String> = covering
+                    .iter()
+                    .filter(|(f, t, _)| *f < g.to && *t > g.from)
+                    .map(|(_, _, id)| {
+                        let run = piece(*id).and_then(other_run).unwrap_or_default();
+                        format!("{id} ({run})")
+                    })
+                    .collect();
+                ids.dedup();
+                return Err(format!(
+                    "{name} em {} cm de {wall_id} cai no canto que {} já cobre: sobram {} cm de {} a {} cm. Afaste p.{key} do canto, ou use p.{key}=null.",
+                    brazilian(center.unwrap_or_default()),
+                    ids.join(", "),
+                    brazilian(left),
+                    brazilian(g.from),
+                    brazilian(g.to)
+                ));
+            }
+        }
+    }
     let over: Vec<RunOver> = over
         .into_iter()
         .filter(|o| o.from >= from - 0.5 && o.to <= to + 0.5)
@@ -811,10 +962,19 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
         })
         .unwrap_or_default();
     // Old cabinets outside every free stretch (behind a shaft, beside the
-    // laundry sink) stay: nothing would take their place.
+    // laundry sink) stay: nothing would take their place. Not where another
+    // run now stands, or in front of its sink: that run took the place.
     let along_of = |id: &FurnitureId| {
         piece(*id)
             .map(|f| (f.position.x - wall.start.x) * u.0 + (f.position.y - wall.start.y) * u.1)
+    };
+    let taken = |c: f64| {
+        run.obstacles.iter().any(|o| {
+            c >= o.from
+                && c <= o.to
+                && matches!(&o.block, RunBlock::Piece { id, .. }
+                    if piece(*id).and_then(other_run).is_some())
+        })
     };
     let kept_back: Vec<FurnitureId> = removed
         .iter()
@@ -822,11 +982,30 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
             along_of(id).is_some_and(|c| {
                 !gaps.iter().any(|g| c >= g.from - 1.0 && c <= g.to + 1.0)
                     && !over.iter().any(|o| c >= o.from - 1.0 && c <= o.to + 1.0)
+                    && !taken(c)
             })
         })
         .copied()
         .collect();
     let (modules, plan_notes) = crate::plan_run(&gaps, &over, &joints, &params)?;
+    // A sink or cooktop where nothing can stand (in front of another run's
+    // sink, behind the fridge) is said, not dropped in silence.
+    if params.row == RunRow::Base {
+        for (name, center, role) in [
+            ("A pia", params.sink, crate::Role::Sink),
+            ("O cooktop", params.cooktop, crate::Role::Cooktop),
+        ] {
+            if let Some(c) = center.filter(|c| (from..=to).contains(c))
+                && !gaps.iter().any(|g| c > g.from && c < g.to)
+                && !modules.iter().any(|m| m.role == role)
+            {
+                notes.push(format!(
+                    "{name} em {} cm de {wall_id} ficou sem módulo: ali não há trecho livre.",
+                    brazilian(c)
+                ));
+            }
+        }
+    }
     let removed: Vec<FurnitureId> = removed
         .into_iter()
         .filter(|id| !kept_back.contains(id))
@@ -1122,7 +1301,8 @@ pub fn cabinet_run(doc: &mut Document, p: &CabinetRunParams) -> Result<Value, St
         else {
             continue;
         };
-        let again = plan(scratch.home(), &stored)?;
+        let again = plan(scratch.home(), &stored)
+            .map_err(|e| format!("{tag}, planejado de novo por encontrar este: {e}"))?;
         if unchanged(scratch.home(), tag, &again) {
             continue;
         }

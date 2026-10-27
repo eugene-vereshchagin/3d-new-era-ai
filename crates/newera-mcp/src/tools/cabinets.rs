@@ -394,6 +394,70 @@ mod tests {
         );
     }
     #[test]
+    fn a_sink_asked_now_wins_the_corner_and_null_takes_it_out() {
+        let s = server();
+        let params: CreateParams = serde_json::from_str(
+            r#"{"walls":[{"pts":[[0,0],[400,0],[400,300],[0,300]],"closed":true}],"rooms":[{"name":"Cozinha","at":[200,150]}]}"#,
+        )
+        .unwrap();
+        s.create(Parameters(params)).unwrap();
+        let run = |json: &str| -> serde_json::Value {
+            let p: newera_joinery::CabinetRunParams = serde_json::from_str(json).unwrap();
+            serde_json::from_str(&s.cabinet_run(Parameters(p)).unwrap()).unwrap()
+        };
+        let role = |reply: &serde_json::Value, role: &str| {
+            reply["modules"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|m| m[1] == role)
+                .cloned()
+        };
+        // w4 first: its countertop turns the corner onto w1.
+        run(r#"{"wall":"w4"}"#);
+        // A sink asked for at that corner keeps its place; w4 gives way.
+        let top = run(r#"{"wall":"w1","p":{"sink":50}}"#);
+        let sink = role(&top, "sink").unwrap_or_else(|| panic!("{top}"));
+        let (from, w) = (sink[2].as_f64().unwrap(), sink[3].as_f64().unwrap());
+        assert!(from < 20.0 && from + w > 85.0, "{top}");
+        // …stopping where the sink's doors open: w4 runs from y = 300 to 0,
+        // and the sink's front is at y = 7.5 + 58, plus 60 to open it.
+        let side = &top["adjusted"][0];
+        assert_eq!(side["wall"], "w4", "{top}");
+        for m in side["modules"].as_array().unwrap() {
+            let end = m[2].as_f64().unwrap() + m[3].as_f64().unwrap();
+            assert!(end <= 300.0 - 125.0, "{m} in front of the sink: {top}");
+        }
+        let issues = s.check_layout(Parameters(CheckParams::default())).unwrap();
+        assert!(!issues.contains("overlap"), "{issues}");
+        // A real bowl set into the countertop, in the sink's cutout…
+        let counter = role(&top, "countertop").unwrap();
+        let at = from + w / 2.0 - counter[2].as_f64().unwrap();
+        let counter = counter[0].as_str().unwrap().to_owned();
+        let embed: EmbedParams = serde_json::from_str(&format!(
+            r#"{{"cat":"sink-bowl","host":"{counter}","at":{at}}}"#
+        ))
+        .unwrap();
+        let bowl: serde_json::Value =
+            serde_json::from_str(&s.embed(Parameters(embed)).unwrap()).unwrap();
+        let bowl = bowl["item"].as_str().unwrap().to_owned();
+        // …kept by a plan that says nothing about it, gone with `sink: null`.
+        let kept = run(r#"{"wall":"w1"}"#);
+        let sink = role(&kept, "sink").unwrap_or_else(|| panic!("{kept}"));
+        assert!(sink[2].as_f64().unwrap() < 20.0, "{kept}");
+        let cleared = run(r#"{"wall":"w1","p":{"sink":null}}"#);
+        assert!(role(&cleared, "sink").is_none(), "{cleared}");
+        let doc = s.document.read();
+        assert!(
+            !doc.home()
+                .furniture
+                .iter()
+                .flat_map(|f| f.flatten())
+                .any(|f| f.id.to_string() == bowl),
+            "the bowl stayed: {cleared}"
+        );
+    }
+    #[test]
     fn a_cabinet_run_faces_the_room_named_by_its_name() {
         let s = server();
         let params: CreateParams = serde_json::from_str(
