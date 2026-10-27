@@ -260,16 +260,21 @@ impl NewEraMcp {
             ..group
         };
         // Items embedded in it stay in their place on the host.
-        if let Some(old) = &existing {
-            newera_joinery::carry_embedded(old, &mut group);
-        }
+        let carried = existing
+            .as_ref()
+            .map(|old| newera_joinery::carry_embedded(old, &mut group))
+            .unwrap_or_default();
         let command = if existing.is_some() {
             Command::update(group)
         } else {
             Command::insert(group)
         };
         doc.execute(command).map_err(core)?;
-        Ok(summary(&group_id.to_string()).to_string())
+        let mut reply = summary(&group_id.to_string());
+        if let Some(notes) = reply["notes"].as_array_mut() {
+            notes.extend(carried.into_iter().map(serde_json::Value::String));
+        }
+        Ok(reply.to_string())
     }
     #[tool(
         name = "cut_list",

@@ -121,8 +121,18 @@ pub fn fixture_of(piece: &Furniture) -> Fixture {
 }
 
 /// Moves the embedded items of `old` onto `new`, keeping their place relative
-/// to the host (after the host moved, turned or was rebuilt).
-pub fn carry_embedded(old: &Furniture, new: &mut Furniture) {
+/// to the host (after the host moved, turned or was rebuilt). On a countertop
+/// a sink or cooktop goes with its cutout: the one at the same spot, or else
+/// the nth of its kind, as it was the nth before; with no cutout for it, it
+/// stays where it stood. Returns a note for each one left so.
+pub fn carry_embedded(old: &Furniture, new: &mut Furniture) -> Vec<String> {
+    let cutouts = |f: &Furniture| match serde_json::from_str::<Build>(f.properties.get(PARAMS_KEY)?)
+    {
+        Ok(Build::Countertop(top)) => Some((top.length, top.cutouts)),
+        _ => None,
+    };
+    let tops = cutouts(old).zip(cutouts(new));
+    let mut notes = Vec::new();
     for child in old
         .children
         .iter()
@@ -136,8 +146,55 @@ pub fn carry_embedded(old: &Furniture, new: &mut Furniture) {
         moved.position = new.to_plan(local);
         moved.angle = child.angle + new.angle - old.angle;
         moved.elevation = child.elevation + new.elevation - old.elevation;
+        let kind = match fixture_of(child) {
+            Fixture::Sink => Some(CutoutKind::Sink),
+            Fixture::Cooktop => Some(CutoutKind::Cooktop),
+            _ => None,
+        };
+        if let (Some(((old_length, old_cuts), (new_length, new_cuts))), Some(kind)) = (&tops, kind)
+        {
+            let xs = |cuts: &[Cutout]| {
+                let mut xs: Vec<f64> = cuts
+                    .iter()
+                    .filter(|c| c.kind == kind)
+                    .map(|c| c.x)
+                    .collect();
+                xs.sort_by(f64::total_cmp);
+                xs
+            };
+            let spot = |x: f64| new.to_plan((x - new_length / 2.0, local.1));
+            let after = xs(new_cuts);
+            let nth = xs(old_cuts)
+                .iter()
+                .enumerate()
+                .min_by(|a, b| {
+                    let off = |x: f64| (x - old_length / 2.0 - local.0).abs();
+                    off(*a.1).total_cmp(&off(*b.1))
+                })
+                .map(|(i, _)| i);
+            let bound = after
+                .iter()
+                .copied()
+                .find(|x| spot(*x).distance(child.position) < 1.0)
+                .or_else(|| nth.and_then(|i| after.get(i).copied()));
+            // On the stone: it follows the top surface.
+            moved.elevation =
+                child.elevation + (new.elevation + new.height) - (old.elevation + old.height);
+            if let Some(x) = bound {
+                moved.position = spot(x);
+            } else {
+                moved.position = child.position;
+                notes.push(format!(
+                    "{} {} ficou onde estava: a bancada não tem mais recorte para {}.",
+                    child.name,
+                    child.id,
+                    fixture_of(child).label()
+                ));
+            }
+        }
         new.children.push(moved);
     }
+    notes
 }
 
 /// A request to embed `item` (a piece already in the plan, or a new one) into
@@ -677,6 +734,90 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("armário com nicho"), "{err}");
+    }
+
+    #[test]
+    fn a_cooktop_keeps_its_cutout_when_the_countertop_is_resized() {
+        let mut doc = Document::default();
+        let top = host(
+            &mut doc,
+            &Build::Countertop(CountertopParams {
+                length: 400.0,
+                ..CountertopParams::default()
+            }),
+        );
+        let cooktop = piece(&mut doc, "cooktop", "Cooktop", [60.0, 50.0, 6.0]);
+        embed(
+            &mut doc,
+            &EmbedRequest {
+                item: cooktop.clone(),
+                existing: false,
+                host: top,
+                at: Some(138.0),
+                z: None,
+                dry: false,
+            },
+        )
+        .unwrap();
+        let group = doc
+            .home()
+            .furniture
+            .iter()
+            .find(|f| f.id == top)
+            .unwrap()
+            .clone();
+        let before = group
+            .children
+            .iter()
+            .find(|c| c.id == cooktop.id)
+            .unwrap()
+            .position;
+        assert!((before.x - 138.0).abs() < 1e-9);
+        // Cut to 324 cm from the left, the right end kept: the cooktop's
+        // cutout is now 62 cm from the new left end, the same spot.
+        let resized = |cutouts: Vec<Cutout>| {
+            let build = Build::Countertop(CountertopParams {
+                length: 324.0,
+                cutouts,
+                ..CountertopParams::default()
+            });
+            let output = generate(&build).unwrap();
+            let mut n = 1000;
+            let mut next = || {
+                n += 1;
+                FurnitureId(n)
+            };
+            let mut new = assemble(
+                &build,
+                &output,
+                top,
+                Point2::new(238.0, 40.0),
+                0.0,
+                0.0,
+                &mut next,
+            );
+            let notes = carry_embedded(&group, &mut new);
+            let at = new
+                .children
+                .iter()
+                .find(|c| c.id == cooktop.id)
+                .unwrap()
+                .position;
+            (at, notes)
+        };
+        let (after, notes) = resized(vec![Cutout {
+            kind: CutoutKind::Cooktop,
+            x: 62.0,
+            w: None,
+            d: None,
+            drawn: true,
+        }]);
+        assert!(after.distance(before) < 1e-6, "{after:?} {before:?}");
+        assert!(notes.is_empty(), "{notes:?}");
+        // No cutout for it any more: it stays where it stood, and says so.
+        let (after, notes) = resized(Vec::new());
+        assert!(after.distance(before) < 1e-6, "{after:?} {before:?}");
+        assert_eq!(notes.len(), 1, "{notes:?}");
     }
 
     #[test]
