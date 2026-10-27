@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: weekly
     groups:
-      # egui's font crate and icon set must move with egui itself, or two
+      # egui's font crate must move with egui itself, or two
       # epaint versions end up in the graph.
       egui:
         patterns: ["egui*", "eframe", "epaint*", "wgpu*"]

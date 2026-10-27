@@ -58,7 +58,7 @@ impl Gesture {
 /// no new event to read — so the answer is remembered until a new wheel event
 /// says otherwise.
 fn last_scroll_was_a_glide(ui: &egui::Ui) -> bool {
-    let id = egui::Id::new("scroll-device-is-a-trackpad");
+    let id = egui::Id::unique("scroll-device-is-a-trackpad");
     let fresh = ui.input(|i| {
         i.raw.events.iter().rev().find_map(|event| match event {
             egui::Event::MouseWheel { unit, .. } => Some(*unit == MouseWheelUnit::Point),

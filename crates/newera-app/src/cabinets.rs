@@ -2,8 +2,8 @@
 //! (base, wall or tall row), with the sink and cooktop where the connections
 //! are. A preview lists the modules before anything changes.
 
+use crate::icon;
 use eframe::egui::{self, RichText};
-use egui_phosphor::regular as icon;
 use newera_core::WallId;
 use newera_joinery::{CabinetRunParams, RunRow};
 

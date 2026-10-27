@@ -162,7 +162,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
     let what = job.what();
     let elapsed = job.started.elapsed();
     let mut leave = false;
-    crate::theme::modal(ctx, egui::Id::new("job")).show(ctx, |ui| {
+    crate::theme::modal(ctx, egui::Id::unique("job")).show(ctx, |ui| {
         ui.set_width(380.0);
         ui.heading(&job.title);
         if !job.detail.is_empty() {

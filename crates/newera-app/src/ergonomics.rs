@@ -2,8 +2,8 @@
 //! there, kept up to date while the plan changes. Findings select what they
 //! are about, and those with a checked fix apply it in one click.
 
+use crate::icon;
 use eframe::egui::{self, Color32, RichText};
-use egui_phosphor::regular as icon;
 use newera_core::standards::{self, Tier};
 use newera_core::{Command, Element, ElementId, FurnitureId, ops};
 use newera_ergonomics::{Profile, Report, Severity};

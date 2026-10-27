@@ -1,8 +1,8 @@
 //! Plan variants as tabs: several versions of the same project, each with
 //! its own history, to try alternatives and compare them side by side.
 
+use crate::icon;
 use eframe::egui::{self, RichText};
-use egui_phosphor::regular as icon;
 use newera_core::Home;
 
 use crate::app::NewEraApp;

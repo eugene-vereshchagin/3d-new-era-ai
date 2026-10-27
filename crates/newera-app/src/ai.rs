@@ -7,8 +7,8 @@
 //! wants, and the proof: who said hello, when, and the tools they are calling
 //! as they call them.
 
+use crate::icon;
 use eframe::egui::{self, RichText};
-use egui_phosphor::regular as icon;
 
 use crate::app::NewEraApp;
 
@@ -373,7 +373,7 @@ pub(crate) fn button(app: &mut NewEraApp, ui: &mut egui::Ui) {
         egui::Stroke::new(1.0, edge),
         egui::StrokeKind::Inside,
     );
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &hint));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &hint));
     if response.on_hover_text(hint).clicked() {
         app.dialog = Some(crate::dialogs::Dialog::ConnectAi { client: 0 });
     }
@@ -416,7 +416,7 @@ pub(crate) fn panel(app: &mut NewEraApp, ctx: &egui::Context, chosen: &mut usize
     *chosen = (*chosen).min(clients.len() - 1);
     let narrow = ctx.content_rect().width() < crate::app::NARROW;
 
-    crate::theme::modal(ctx, egui::Id::new("connect-ai")).show(ctx, |ui| {
+    crate::theme::modal(ctx, egui::Id::unique("connect-ai")).show(ctx, |ui| {
         ui.set_min_width(if narrow { 300.0 } else { 620.0 });
         ui.spacing_mut().item_spacing.y = 10.0;
         crate::theme::title(

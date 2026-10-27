@@ -1,7 +1,7 @@
 //! Modal dialogs: element properties, background calibration, home settings.
 
+use crate::icon;
 use eframe::egui::{self, DragValue, RichText};
-use egui_phosphor::regular as icon;
 use newera_core::{
     BackgroundImage, Command, Compass, Dimension, Element, Furniture, Label, Material, Pattern,
     Point2, Room, WALL_TYPES, Wall, WallId,
@@ -149,7 +149,7 @@ fn cm(value: &mut f64, range: std::ops::RangeInclusive<f64>) -> DragValue<'_> {
 /// Shows a dialog with OK/Cancel. Returns `Some(true)` on OK, `Some(false)` on cancel.
 fn modal(ctx: &egui::Context, title: &str, body: impl FnOnce(&mut egui::Ui)) -> Option<bool> {
     let mut result = None;
-    let response = crate::theme::modal(ctx, egui::Id::new("newera-dialog")).show(ctx, |ui| {
+    let response = crate::theme::modal(ctx, egui::Id::unique("newera-dialog")).show(ctx, |ui| {
         // One width for every form in the window, so opening two in a row
         // does not move the fields around under the eye.
         ui.set_width(430.0);
@@ -181,7 +181,7 @@ pub(crate) fn material_editor(
     let before = material.clone();
     // An image picked in the dialog opened by an earlier frame.
     #[cfg(not(target_arch = "wasm32"))]
-    let image_dialog = egui::Id::new((id, "image dialog"));
+    let image_dialog = egui::Id::unique((id, "image dialog"));
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(asked) = ui.data(|d| d.get_temp::<crate::files::Asked>(image_dialog)) {
         match asked.take() {
@@ -921,7 +921,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
         }
         Dialog::ConfirmDiscard(action) => {
             let mut choice = None;
-            crate::theme::modal(ctx, egui::Id::new("confirm-discard")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("confirm-discard")).show(ctx, |ui| {
                 ui.set_min_width(380.0);
                 crate::theme::title(ui, crate::i18n::tr("Salvar alterações?"));
                 ui.label(crate::i18n::tr(
@@ -956,7 +956,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
         }
         Dialog::ConfirmCloseVariant { index, name } => {
             let mut choice = None;
-            crate::theme::modal(ctx, egui::Id::new("close-variant")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("close-variant")).show(ctx, |ui| {
                 ui.set_min_width(380.0);
                 crate::theme::title(ui, &crate::i18n::fill("Fechar “{}”?", &[&name]));
                 ui.label(crate::i18n::tr(
@@ -1004,7 +1004,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
                     })
                     .collect()
             };
-            crate::theme::modal(ctx, egui::Id::new("quantities")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("quantities")).show(ctx, |ui| {
                 ui.set_min_width(420.0);
                 crate::theme::title(
                     ui,
@@ -1061,7 +1061,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
                     newera_core::electrical::cable_lengths(home),
                 )
             };
-            crate::theme::modal(ctx, egui::Id::new("electrical")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("electrical")).show(ctx, |ui| {
                 ui.set_min_width(560.0);
                 crate::theme::title(
                     ui,
@@ -1279,7 +1279,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
         }
         Dialog::ConfirmDeleteLevel { id, name } => {
             let mut choice = None;
-            crate::theme::modal(ctx, egui::Id::new("delete-level")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("delete-level")).show(ctx, |ui| {
                 ui.set_min_width(380.0);
                 crate::theme::title(ui, &crate::i18n::fill("Excluir “{}”?", &[&name]));
                 ui.label(crate::i18n::tr(
@@ -1307,7 +1307,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
         Dialog::Compare(rows) => {
             let mut close = false;
             let mut switch = None;
-            crate::theme::modal(ctx, egui::Id::new("compare-variants")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("compare-variants")).show(ctx, |ui| {
                 crate::theme::title(
                     ui,
                     &format!(
@@ -1391,7 +1391,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context, dialog: Dialog) -> 
         }
         Dialog::Help => {
             let mut close = false;
-            crate::theme::modal(ctx, egui::Id::new("help")).show(ctx, |ui| {
+            crate::theme::modal(ctx, egui::Id::unique("help")).show(ctx, |ui| {
                 ui.set_min_width(460.0);
                 crate::theme::title(
                     ui,

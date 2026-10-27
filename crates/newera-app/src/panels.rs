@@ -3,8 +3,8 @@
 //! notes, and a single row shape everywhere — so the eye learns one pattern
 //! and then reads the whole panel with it.
 
+use crate::icon;
 use eframe::egui::{self, RichText, Sense, Stroke, Vec2};
-use egui_phosphor::regular as icon;
 use newera_catalog::{CatalogItem, Category, SymbolShape};
 use newera_core::{ElementId, FurnitureId, Point2};
 
@@ -184,8 +184,7 @@ fn row<R>(
             });
         })
         .response;
-    response
-        .widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, name));
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, name));
     let rect = response.rect.expand2(Vec2::new(0.0, 2.0));
     if selected || response.hovered() {
         let fill = if selected { t.accent_soft } else { t.raised };
@@ -359,7 +358,7 @@ pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
                             band(
                                 ui,
                                 Band {
-                                    id: egui::Id::new(category.id()),
+                                    id: egui::Id::unique(category.id()),
                                     glyph: category_icon(category),
                                     title: crate::i18n::tr(category.name()),
                                     total: items.len(),
@@ -495,7 +494,7 @@ fn outliner(app: &mut NewEraApp, ui: &mut egui::Ui) {
         Kind::Labels => home.labels.len(),
         Kind::Lines => home.polylines.len(),
     };
-    let filter_id = egui::Id::new("outliner_filter");
+    let filter_id = egui::Id::unique("outliner_filter");
     let mut hidden = ui.data(|d| d.get_temp::<u8>(filter_id).unwrap_or(0));
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
@@ -514,7 +513,7 @@ fn outliner(app: &mut NewEraApp, ui: &mut egui::Ui) {
     // three screens down. Only when the selection actually changed, so the
     // list stays where it was put while nobody is selecting anything.
     let mark = format!("{:?}", app.selection);
-    let focus_id = egui::Id::new("outliner_focus");
+    let focus_id = egui::Id::unique("outliner_focus");
     let moved = ui.data(|d| d.get_temp::<String>(focus_id)) != Some(mark.clone());
     ui.data_mut(|d| d.insert_temp(focus_id, mark));
 
@@ -533,7 +532,7 @@ fn outliner(app: &mut NewEraApp, ui: &mut egui::Ui) {
                 band(
                     ui,
                     Band {
-                        id: egui::Id::new(("outliner", kind.bit())),
+                        id: egui::Id::unique(("outliner", kind.bit())),
                         glyph: kind.glyph(),
                         title: kind.title(),
                         total: n,

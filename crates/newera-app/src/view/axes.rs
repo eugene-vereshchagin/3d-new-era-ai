@@ -116,7 +116,7 @@ pub(crate) fn interact(ui: &egui::Ui, view: Rect, basis: Basis) -> Outcome {
     let rect = disc(view);
     let response = ui.interact(
         rect,
-        ui.id().with("3d-view-axes"),
+        ui.scope_id().with("3d-view-axes"),
         egui::Sense::click_and_drag(),
     );
     let pointer = response.hover_pos().or(response.interact_pointer_pos());

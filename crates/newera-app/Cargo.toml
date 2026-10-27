@@ -11,7 +11,9 @@ authors.workspace = true
 [dependencies]
 bytemuck.workspace = true
 eframe = { workspace = true, features = ["persistence"] }
-egui-phosphor = "0.14"
+# egui 0.37 leaves its emoji fonts out by default; the window writes ⚠ and
+# other symbols in plain text, which would otherwise show as boxes.
+egui = { version = "0.37.0", features = ["monochrome_emoji_fonts"] }
 glam.workspace = true
 image.workspace = true
 newera-catalog.workspace = true
@@ -52,4 +54,4 @@ newera-mcp.workspace = true
 workspace = true
 
 [dev-dependencies]
-egui_kittest = { version = "0.36.2", features = ["eframe", "wgpu", "snapshot"] }
+egui_kittest = { version = "0.37.0", features = ["eframe", "wgpu", "snapshot"] }

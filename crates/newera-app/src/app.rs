@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use web_time::Instant;
 
+use crate::icon;
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers, RichText, Stroke};
-use egui_phosphor::regular as icon;
 use newera_core::{
     Command, CoreResult, Document, Element, ElementId, Home, LengthUnit, Point2, SharedDocument,
     ops,
@@ -218,7 +218,7 @@ impl NewEraApp {
         mcp_url: Option<String>,
     ) -> Self {
         let mut fonts = egui::FontDefinitions::default();
-        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        crate::icon::add_to_fonts(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
         crate::theme::apply(&cc.egui_ctx);
 
@@ -1484,7 +1484,7 @@ impl NewEraApp {
         // Narrowed to the cup, the button's own text is one glyph of an icon
         // font, which is what a screen reader would otherwise be handed. The
         // hover text is a picture; this is the name.
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, words));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, words));
         if response.on_hover_text(words).clicked() {
             ui.ctx().open_url(egui::OpenUrl::new_tab(SUPPORT_URL));
         }
@@ -1497,7 +1497,7 @@ impl NewEraApp {
     fn support_dialog(ctx: &egui::Context) -> Option<&'static str> {
         let mut answer = None;
         let title = crate::i18n::tr("Apoiar o projeto");
-        let modal = crate::theme::modal(ctx, egui::Id::new("newera-support"));
+        let modal = crate::theme::modal(ctx, egui::Id::unique("newera-support"));
         let response =
             modal.show(ctx, |ui| {
                 // As wide as the other dialogs, less on a phone: the modal's
@@ -2243,12 +2243,7 @@ impl NewEraApp {
                     let response = ui.add(button);
                     // Named after the mode, not the glyph it is laid out around.
                     response.widget_info(|| {
-                        egui::WidgetInfo::selected(
-                            egui::WidgetType::Button,
-                            true,
-                            chosen,
-                            walls.label(),
-                        )
+                        egui::WidgetInfo::selected(egui::Role::Button, true, chosen, walls.label())
                     });
                     let response = response.on_hover_text(format!(
                         "{}: {}\n{}",

@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use web_time::Instant;
 
+use crate::icon;
 use eframe::egui::{self, RichText};
-use egui_phosphor::regular as icon;
 
 use crate::app::NewEraApp;
 
