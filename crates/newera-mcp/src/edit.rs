@@ -2501,6 +2501,9 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
     let mut placed_here: Vec<newera_core::Furniture> = Vec::new();
     let count = items.len();
     let mut refused: Vec<String> = Vec::new();
+    // A refused batch hands its ids back: the next piece placed is not
+    // numbered as if the refused ones had been.
+    let mark = doc.id_mark();
     let mut one = |mut spec: PlaceSpec| -> EditResult<()> {
         // `library:<name>@<v>`: that version's file, at the size, in the
         // unit and with the photos and measurements it was published with.
@@ -2856,17 +2859,18 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
             });
         }
     }
-    match refused.len() {
-        0 => {}
-        _ if count == 1 => return Err(refused.remove(0)),
-        n => {
-            return Err(format!(
-                "nothing placed: {n} of the {count} items refused, the others are fine as given — {}",
-                refused.join(" | ")
-            ));
-        }
+    let refusal = match refused.len() {
+        0 => doc.execute(Command::Batch { commands }).map_err(core).err(),
+        _ if count == 1 => Some(refused.remove(0)),
+        n => Some(format!(
+            "nothing placed: {n} of the {count} items refused, the others are fine as given — {}",
+            refused.join(" | ")
+        )),
+    };
+    if let Some(why) = refusal {
+        doc.rewind_ids(mark);
+        return Err(why);
     }
-    doc.execute(Command::Batch { commands }).map_err(core)?;
     Ok(Placed {
         ids,
         turned,
@@ -3021,6 +3025,9 @@ mod place_tests {
         // Alone, an item is refused in its own words.
         let alone = place(&mut doc, vec![spec("no-such-thing", 300.0)]).unwrap_err();
         assert!(alone.starts_with("unknown catalog id"), "{alone}");
+        // The refused batches took no ids: the next piece is the first one.
+        let ids = place(&mut doc, vec![spec("bed-double", 100.0)]).unwrap();
+        assert_eq!(ids, ["f1"]);
     }
 
     #[test]

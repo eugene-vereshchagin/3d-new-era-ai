@@ -160,6 +160,17 @@ impl Document {
         self.current_mut().home.new_furniture_id()
     }
 
+    /// See [`Home::id_mark`].
+    #[must_use]
+    pub fn id_mark(&self) -> u64 {
+        self.home().id_mark()
+    }
+
+    /// See [`Home::rewind_ids`]: only for ids that never reached the plan.
+    pub fn rewind_ids(&mut self, mark: u64) {
+        self.current_mut().home.rewind_ids(mark);
+    }
+
     pub fn new_polyline_id(&mut self) -> PolylineId {
         self.current_mut().home.new_polyline_id()
     }

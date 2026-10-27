@@ -237,6 +237,22 @@ impl Home {
         }
     }
 
+    /// Where id allocation stands now, to go back to with
+    /// [`Home::rewind_ids`].
+    #[must_use]
+    pub fn id_mark(&self) -> u64 {
+        self.next_id
+    }
+
+    /// Takes back the ids handed out since `mark`, for a change refused
+    /// before any of them reached the plan: a refused batch of ten pieces
+    /// would otherwise move the next piece from `f5` to `f15`. An id an
+    /// element holds is never handed out again ([`Home::allocate_id`] skips
+    /// past them).
+    pub fn rewind_ids(&mut self, mark: u64) {
+        self.next_id = self.next_id.min(mark);
+    }
+
     fn allocate_id(&mut self) -> u64 {
         // Also guards against files whose counter lags behind their elements.
         let id = self.next_id.max(self.max_used_id() + 1);
