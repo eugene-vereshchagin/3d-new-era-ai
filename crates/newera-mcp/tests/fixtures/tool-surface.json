@@ -4431,7 +4431,7 @@
               "type": "array"
             },
             "along": {
-              "description": "Distance along the wall from its start, cm (default: middle)",
+              "description": "Distance along the wall from its start, cm (default: `at`'s, or middle)",
               "type": "number"
             },
             "angle": {
@@ -4440,7 +4440,7 @@
             },
             "at": {
               "$ref": "#/$defs/Point2",
-              "description": "Center on the plan. Optional when `wall` is given; a door or window placed `at` a point near a wall snaps into it"
+              "description": "Center on the plan, optional with `wall`; a door or window `at` a point near a wall snaps into it"
             },
             "b": {
               "description": "With `cat:\"beam\"`: the other end point `[x,y,z]` cm",

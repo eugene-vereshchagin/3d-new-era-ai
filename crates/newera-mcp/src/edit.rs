@@ -2413,12 +2413,12 @@ pub(crate) struct PlaceSpec {
     /// parts — to `at` or `wall`, with any size, angle or name given here
     /// on top.
     pub copy: Option<String>,
-    /// Center on the plan. Optional when `wall` is given; a door or window
-    /// placed `at` a point near a wall snaps into it.
+    /// Center on the plan, optional with `wall`; a door or window `at` a
+    /// point near a wall snaps into it.
     pub at: Option<Point2>,
     /// Put it in/against this wall (doors and windows cut it).
     pub wall: Option<String>,
-    /// Distance along the wall from its start, cm (default: middle).
+    /// Distance along the wall from its start, cm (default: `at`'s, or middle).
     pub along: Option<f64>,
     /// Clockwise degrees: 0 turns the front to +y (down the plan), 90 to
     /// −x, 180 to −y, 270 to +x. `facing` says the same without the sums.
@@ -2842,6 +2842,23 @@ fn nearest_wall(doc: &Document, at: Point2) -> Option<(newera_core::Wall, f64)> 
         .map(|(_, w, along)| (w.clone(), along))
 }
 
+/// Where along `wall` a piece `width` wide goes when no `along` was given:
+/// `at` projected onto the wall, kept far enough from the ends for the piece
+/// to fit, or the middle without `at` (or when it does not fit at all).
+fn along_from(wall: &Wall, at: Option<Point2>, width: f64) -> f64 {
+    let (a, b) = (wall.start, wall.end);
+    let len = a.distance(b);
+    let half = width.max(0.0) / 2.0;
+    match at {
+        Some(at) if len > 1e-9 && len >= 2.0 * half => {
+            let (dx, dy) = (b.x - a.x, b.y - a.y);
+            let along = ((at.x - a.x) * dx + (at.y - a.y) * dy) / len;
+            along.clamp(half, len - half)
+        }
+        _ => len / 2.0,
+    }
+}
+
 /// Turns a door so its leaf swings to the side of `into`, keeping the hinge
 /// at the same end of the opening.
 fn swing_into(piece: &mut newera_core::Furniture, into: Point2) {
@@ -3218,7 +3235,7 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
                 piece.level = doc.home().resolve_level(wall.level);
                 let along = spec
                     .along
-                    .unwrap_or_else(|| wall.start.distance(wall.end) / 2.0);
+                    .unwrap_or_else(|| along_from(&wall, spec.at, piece.width));
                 newera_core::align_to_wall(&mut piece, &wall, along);
                 if let Some(depth) = spec.d {
                     piece.depth = depth;
@@ -3640,6 +3657,58 @@ mod place_tests {
             .find(|f| f.id.to_string() == ids[0])
             .unwrap();
         assert!((door.position.y - 300.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_piece_given_a_wall_and_a_point_goes_where_the_point_is() {
+        let mut doc = Document::default();
+        create(
+            &mut doc,
+            CreateParams {
+                walls: vec![WallPath {
+                    pts: vec![Point2::new(0.0, 0.0), Point2::new(500.0, 0.0)],
+                    ..WallPath::default()
+                }],
+                ..CreateParams::default()
+            },
+        )
+        .unwrap();
+        let wall = doc.home().walls[0].id.to_string();
+        let door_at = |doc: &mut Document, at: Option<Point2>| {
+            let ids = place(
+                doc,
+                vec![PlaceSpec {
+                    cat: "door".into(),
+                    wall: Some(wall.clone()),
+                    at,
+                    ..PlaceSpec::default()
+                }],
+            )
+            .unwrap();
+            doc.home()
+                .furniture
+                .iter()
+                .find(|f| f.id.to_string() == ids[0])
+                .unwrap()
+                .clone()
+        };
+        let door = door_at(&mut doc, Some(Point2::new(100.0, 0.0)));
+        assert!(
+            (door.position.x - 100.0).abs() < 1e-6,
+            "{:?}",
+            door.position
+        );
+        assert!(door.position.y.abs() < 1e-6);
+        // Past the end it stops where the whole leaf still fits.
+        let door = door_at(&mut doc, Some(Point2::new(520.0, 40.0)));
+        assert!(
+            (door.position.x - (500.0 - door.width / 2.0)).abs() < 1e-6,
+            "{:?}",
+            door.position
+        );
+        // Without a point, the middle.
+        let door = door_at(&mut doc, None);
+        assert!((door.position.x - 250.0).abs() < 1e-6);
     }
 
     #[test]
