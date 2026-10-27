@@ -27,6 +27,12 @@ sentry = { version = "0.49.2", default-features = false, features = [
     "ureq",
     "rustls",
 ] }
+# Reads the real target of a line that came through the `log` crate.
+tracing-log = "0.2.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+log = "0.4.34"
+sentry = { version = "0.49.2", default-features = false, features = ["test"] }
 
 [lints]
 workspace = true
