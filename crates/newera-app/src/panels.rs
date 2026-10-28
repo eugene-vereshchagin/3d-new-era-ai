@@ -471,7 +471,12 @@ fn outliner(app: &mut NewEraApp, ui: &mut egui::Ui) {
     };
     let unit = app.unit();
     let total: f64 = home.rooms.iter().map(newera_core::Room::area).sum();
-    header(ui, icon::HOUSE_LINE, &home.name, &unit.format_area(total));
+    header(
+        ui,
+        icon::HOUSE_LINE,
+        &crate::i18n::shown(&home.name),
+        &unit.format_area(total),
+    );
     ui.label(crate::theme::fig(
         ui.visuals(),
         &format!(
@@ -587,7 +592,7 @@ fn outliner(app: &mut NewEraApp, ui: &mut egui::Ui) {
                         } else {
                             unit.format_size([f.width, f.depth, f.height])
                         };
-                        (f.id.into(), f.name.clone(), kind)
+                        (f.id.into(), crate::i18n::shown(&f.name), kind)
                     })
                     .collect(),
             );

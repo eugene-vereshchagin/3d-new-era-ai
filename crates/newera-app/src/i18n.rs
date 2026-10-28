@@ -136,6 +136,32 @@ pub(crate) fn dynamic(pt: &str) -> String {
     translations(pt).map_or_else(|| pt.to_owned(), |row| row[column].to_owned())
 }
 
+/// A name that lives in the project, as the window shows it. The defaults
+/// the project starts with ("Nova casa", "Versão 1", "Versão 1 (cópia)") and
+/// the catalog names pieces are placed under are Portuguese in the file; on
+/// screen they follow the window's language. A name somebody typed is theirs
+/// and stays as it is.
+pub(crate) fn shown(name: &str) -> String {
+    shown_in(name, lang())
+}
+
+/// [`shown`] in one named language. See [`say`].
+fn shown_in(name: &str, lang: Lang) -> String {
+    let Some(column) = lang.column() else {
+        return name.to_owned();
+    };
+    if let Some(original) = name.strip_suffix(" (cópia)") {
+        return format!("{}{}", shown_in(original, lang), say(" (cópia)", lang));
+    }
+    if let Some(n) = name.strip_prefix("Versão ")
+        && !n.is_empty()
+        && n.chars().all(|c| c.is_ascii_digit())
+    {
+        return fill_in("Versão {}", lang, &[&n]);
+    }
+    translations(name).map_or_else(|| name.to_owned(), |row| row[column].to_owned())
+}
+
 pub(crate) fn tr(pt: &'static str) -> &'static str {
     say(pt, lang())
 }
@@ -177,6 +203,9 @@ fn fill_in(pt: &'static str, lang: Lang, parts: &[&dyn std::fmt::Display]) -> St
 fn translations(pt: &str) -> Option<[&'static str; 3]> {
     Some(match pt {
         " · arco" => [" · arc", " · arco", " · arc"],
+        " (cópia)" => [" (copy)", " (copia)", " (copie)"],
+        "Nova casa" => ["New home", "Casa nueva", "Nouvelle maison"],
+        "Versão {}" => ["Version {}", "Versión {}", "Version {}"],
         "A tarefa termina sozinha em segundo plano; o resultado é descartado." => [
             "The task finishes on its own in the background; its result is thrown away.",
             "La tarea termina sola en segundo plano; su resultado se descarta.",
@@ -2146,6 +2175,26 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The names a new project starts with, and the catalog's, follow the
+    /// window's language; one somebody typed does not. The English editor
+    /// said "Versão 1", "Nova casa" and "Porta-janela".
+    #[test]
+    fn default_names_follow_the_language() {
+        assert_eq!(shown_in("Versão 1", Lang::En), "Version 1");
+        assert_eq!(shown_in("Versão 12", Lang::Es), "Versión 12");
+        assert_eq!(shown_in("Versão 1 (cópia)", Lang::Fr), "Version 1 (copie)");
+        assert_eq!(shown_in("Nova casa", Lang::En), "New home");
+        assert_eq!(shown_in("Porta-janela", Lang::En), "French door");
+        assert_eq!(
+            shown_in("Cadeira Ares (cópia)", Lang::Es),
+            "Silla Ares (copia)"
+        );
+        // Portuguese is what the file holds, and a typed name is left alone.
+        assert_eq!(shown_in("Versão 1", Lang::Pt), "Versão 1");
+        assert_eq!(shown_in("Bloom Coffee", Lang::En), "Bloom Coffee");
+        assert_eq!(shown_in("Versão final", Lang::En), "Versão final");
+    }
 
     /// Every literal handed to `tr` has every other language, or the window
     /// silently falls back to Portuguese for whoever picked one of them —

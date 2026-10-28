@@ -70,7 +70,11 @@ pub(crate) fn bar(app: &mut NewEraApp, ui: &mut egui::Ui) {
                             }
                             continue;
                         }
-                        let text = RichText::new(format!("{} {}", icon::FILE_TEXT, info.name));
+                        let text = RichText::new(format!(
+                            "{} {}",
+                            icon::FILE_TEXT,
+                            crate::i18n::shown(&info.name)
+                        ));
                         let tab = ui.add(egui::Button::selectable(
                             info.active,
                             if info.active { text.strong() } else { text },
