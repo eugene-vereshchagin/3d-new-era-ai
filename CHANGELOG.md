@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A snap for Ubuntu's App Center and the Snap Store (`sudo snap install newera`): each release packs
+  its Linux build into one and, once the store credentials are set, publishes it to the stable
+  channel, where snapd keeps every install up to date. The `newera` command and `newera mcp`
+  work from it as from the tarball.
 - The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
   poster and a link until someone presses play, so the page loads nothing from YouTube before
   that, and the embed is YouTube's no-cookie one.

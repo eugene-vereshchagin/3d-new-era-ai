@@ -1,0 +1,56 @@
+name: Snap
+
+# Packs the snap the way release.yml does — around a published Linux build —
+# installs it with the runner's own snapd, and checks what a user of Ubuntu's
+# App Center gets: the `newera` command, the MCP server over stdio, and the
+# menu entry. Runs when the snap's recipe or this check change.
+on:
+  pull_request:
+    paths: ["snap/**", ".github/workflows/snap.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    name: Pack, install and run the snap
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      # The newest release's tarball: the recipe is what is under test, and it
+      # wraps a build rather than making one.
+      - name: The Linux build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo "$GITHUB_REPOSITORY" -p newera-linux-x64.tar.gz
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          sed -i "s/^version: .*/version: \"$version\"/" snap/snapcraft.yaml
+      - id: pack
+        uses: snapcore/action-build@v1
+      - name: Install
+        run: sudo snap install --dangerous "${{ steps.pack.outputs.snap }}"
+      - name: The command
+        run: |
+          /snap/bin/newera --version
+          snap connections newera
+      - name: MCP over stdio
+        run: |
+          # The client a terminal AI starts: it must answer initialize without
+          # an editor open, from inside the confinement.
+          reply=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | timeout 30 /snap/bin/newera mcp --standalone | head -1)
+          echo "$reply"
+          echo "$reply" | grep -q '"serverInfo"'
+      - name: The menu entry
+        run: |
+          entry=/var/lib/snapd/desktop/applications/newera_newera.desktop
+          cat "$entry"
+          grep -q '^Name=3D New Era AI' "$entry"
+          grep -q '^Exec=.*newera' "$entry"
+          grep -q '^Icon=/snap/newera/.*/meta/gui/newera.png' "$entry"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: snap
+          path: ${{ steps.pack.outputs.snap }}

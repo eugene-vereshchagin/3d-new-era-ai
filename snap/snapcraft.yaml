@@ -1,0 +1,64 @@
+# The Snap Store package: what Ubuntu's App Center lists, and what snapd keeps
+# up to date on its own. It wraps the release's own Linux build instead of
+# compiling again — release.yml drops newera-linux-x64.tar.gz next to this file
+# and writes the version in — so the snap runs the very binary the tarball
+# ships. core22 has the glibc 2.35 that binary is built against.
+name: newera
+title: 3D New Era AI
+base: core22
+version: "0.0.0" # written by release.yml from the tag
+summary: Home design editor with a built-in MCP server for AI agents
+description: |
+  A home design editor — walls, doors, windows, joinery, lighting, cameras —
+  with an MCP server inside, so an AI agent (Claude, ChatGPT, Codex, Cursor,
+  Gemini or any MCP client) works the same tools you do and every change shows
+  up on screen, with undo. It checks lighting and ergonomics against real
+  standards and renders photoreal pictures of the rooms.
+
+  Free and open source, no account, no ads. In English, Portuguese, Spanish
+  and French.
+
+  Connect an AI from a terminal with `newera mcp`, or point it at the editor's
+  server at http://127.0.0.1:7878/mcp while the window is open.
+website: https://3dneweraai.com/
+source-code: https://github.com/leandrodaf/3d-new-era-ai
+issues: https://github.com/leandrodaf/3d-new-era-ai/issues
+contact: mailto:contato@3dneweraai.com
+license: MIT OR Apache-2.0
+icon: snap/gui/newera.png
+grade: stable
+confinement: strict
+architectures:
+  - build-on: [amd64]
+
+apps:
+  newera:
+    command: newera/newera
+    desktop: newera/share/applications/newera.desktop
+    # The gnome extension brings the graphics stack the window opens with:
+    # Mesa (OpenGL and Vulkan), EGL, X11, Wayland, xkbcommon, fontconfig and
+    # the desktop portal behind the file dialogs.
+    extensions: [gnome]
+    common-id: io.github.leandrodaf.newera
+    plugs:
+      - home
+      - removable-media
+      # Photos and the AI connectors reach the network; the MCP server
+      # listens on 127.0.0.1:7878.
+      - network
+      - network-bind
+
+parts:
+  newera:
+    plugin: dump
+    source: newera-linux-x64.tar.gz
+    override-prime: |
+      craftctl default
+      # snapd reads the entry from here and fills in the command; its icon
+      # comes from the snap's own.
+      sed -i -e 's|^Exec=.*|Exec=newera %f|' -e 's|^TryExec=.*||' \
+        -e 's|^Icon=.*|Icon=${SNAP}/meta/gui/newera.png|' \
+        newera/share/applications/newera.desktop
+    stage-packages:
+      - libvulkan1
+      - libxkbcommon-x11-0
