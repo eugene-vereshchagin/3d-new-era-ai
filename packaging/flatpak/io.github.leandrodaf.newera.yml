@@ -1,0 +1,63 @@
+# Flatpak manifest: what Flathub builds and GNOME Software and KDE Discover
+# install. Built from source with no network, as Flathub asks: the crates come
+# from cargo-sources.json, which scripts/flatpak-cargo-sources.sh writes from
+# Cargo.lock. In this repository the source is the checkout itself (flatpak.yml
+# builds it on every change); the copy submitted to Flathub points the first
+# source at a release tag instead.
+id: io.github.leandrodaf.newera
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: newera
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # The 3D view and the photos run on the GPU.
+  - --device=dri
+  # Photos, the AI connectors and the update notice reach the network; the
+  # MCP server listens on 127.0.0.1:7878 for the AI on this machine.
+  - --share=network
+  # An AI client saves and opens projects and exports by path (`file save
+  # path=~/Projetos/casa.newera`), outside any dialog, so the portal alone
+  # cannot hand it the file.
+  - --filesystem=home
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/newera/cargo
+    CARGO_NET_OFFLINE: "true"
+modules:
+  - name: newera
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release --locked -p newera
+      - install -Dm755 target/release/newera /app/bin/newera
+      # Everything exported from a Flatpak carries the app's id: the menu
+      # entry, the metadata, the icons and the .newera file type with its
+      # document icon.
+      - install -Dm644 assets/linux/newera.desktop /app/share/applications/io.github.leandrodaf.newera.desktop
+      - sed -i -e 's/^Icon=newera$/Icon=io.github.leandrodaf.newera/' -e '/^TryExec=/d' /app/share/applications/io.github.leandrodaf.newera.desktop
+      - install -Dm644 assets/linux/io.github.leandrodaf.newera.metainfo.xml /app/share/metainfo/io.github.leandrodaf.newera.metainfo.xml
+      - sed -i 's|<launchable type="desktop-id">newera.desktop</launchable>|<launchable type="desktop-id">io.github.leandrodaf.newera.desktop</launchable>|' /app/share/metainfo/io.github.leandrodaf.newera.metainfo.xml
+      - install -Dm644 assets/linux/newera.xml /app/share/mime/packages/io.github.leandrodaf.newera.xml
+      - sed -i 's/"application-x-newera"/"io.github.leandrodaf.newera.application-x-newera"/g' /app/share/mime/packages/io.github.leandrodaf.newera.xml
+      - |
+        for dir in assets/linux/hicolor/*/; do
+          size=$(basename "$dir")
+          for f in "$dir"apps/newera.*; do
+            install -Dm644 "$f" "/app/share/icons/hicolor/$size/apps/io.github.leandrodaf.newera.${f##*.}"
+          done
+          for f in "$dir"mimetypes/application-x-newera.*; do
+            install -Dm644 "$f" "/app/share/icons/hicolor/$size/mimetypes/io.github.leandrodaf.newera.application-x-newera.${f##*.}"
+          done
+        done
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .git
+      - cargo-sources.json

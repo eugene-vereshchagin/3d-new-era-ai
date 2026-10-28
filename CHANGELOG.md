@@ -23,6 +23,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A Flatpak manifest for Flathub (`packaging/flatpak/`), so GNOME Software and KDE Discover can
+  list the app: it builds from source with no network, exports the menu entry, icons, metadata and
+  the `.newera` file type under the app's id, and a check builds, installs and runs it.
 - The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
   poster and a link until someone presses play, so the page loads nothing from YouTube before
   that, and the embed is YouTube's no-cookie one.

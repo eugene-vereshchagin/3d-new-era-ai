@@ -30,3 +30,4 @@ web/*.newera
 
 # Local secrets for the hosted service.
 crates/newera-cloud/local/app.env
+packaging/flatpak/cargo-sources.json
