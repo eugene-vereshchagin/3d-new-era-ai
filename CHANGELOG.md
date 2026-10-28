@@ -23,6 +23,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The Linux app's store listing (AppStream metadata, read by GNOME Software, KDE Discover, the
+  Ubuntu App Center and Flathub): five screenshots with captions, categories, keywords in four
+  languages, the brand colors, release history and links to the code, help and donations.
 - The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
   poster and a link until someone presses play, so the page loads nothing from YouTube before
   that, and the embed is YouTube's no-cookie one.

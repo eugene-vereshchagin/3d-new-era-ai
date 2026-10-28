@@ -32,12 +32,93 @@
     </p>
   </description>
   <launchable type="desktop-id">newera.desktop</launchable>
+  <categories>
+    <category>Graphics</category>
+    <category>3DGraphics</category>
+    <category>Engineering</category>
+  </categories>
+  <keywords>
+    <keyword>floor plan</keyword>
+    <keyword>interior design</keyword>
+    <keyword>home design</keyword>
+    <keyword>architecture</keyword>
+    <keyword>3D</keyword>
+    <keyword>MCP</keyword>
+    <keyword>AI</keyword>
+    <keyword>Sweet Home 3D</keyword>
+    <keyword xml:lang="pt_BR">planta baixa</keyword>
+    <keyword xml:lang="pt_BR">projeto de interiores</keyword>
+    <keyword xml:lang="pt_BR">marcenaria</keyword>
+    <keyword xml:lang="es">plano de planta</keyword>
+    <keyword xml:lang="es">diseño de interiores</keyword>
+    <keyword xml:lang="fr">plan de maison</keyword>
+    <keyword xml:lang="fr">architecture d'intérieur</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The editor: catalog, rendered floor plan and live 3D, with an AI working over MCP</caption>
+      <caption xml:lang="pt_BR">O editor: catálogo, planta humanizada e 3D ao vivo, com a IA trabalhando pelo MCP</caption>
+      <image type="source" width="1600" height="1000">https://3dneweraai.com/images/editor.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>An apartment the AI furnished, seen from above</caption>
+      <caption xml:lang="pt_BR">Um apartamento mobiliado pela IA, visto de cima</caption>
+      <image type="source" width="1280" height="800">https://3dneweraai.com/images/showcase/12-aerial.jpg</image>
+    </screenshot>
+    <screenshot>
+      <caption>A made-to-measure kitchen, rendered in the app</caption>
+      <caption xml:lang="pt_BR">Uma cozinha planejada, renderizada no app</caption>
+      <image type="source" width="1280" height="800">https://3dneweraai.com/images/showcase/04-kitchen.jpg</image>
+    </screenshot>
+    <screenshot>
+      <caption>The same room at night, with the lights that were placed</caption>
+      <caption xml:lang="pt_BR">O mesmo ambiente à noite, com as luzes colocadas</caption>
+      <image type="source" width="1280" height="800">https://3dneweraai.com/images/showcase/09-dining-night.jpg</image>
+    </screenshot>
+    <screenshot>
+      <caption>The living room by the window</caption>
+      <caption xml:lang="pt_BR">A sala junto à janela</caption>
+      <image type="source" width="1280" height="800">https://3dneweraai.com/images/showcase/01-living-window.jpg</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#f2ede4</color>
+    <color type="primary" scheme_preference="dark">#1b1c22</color>
+  </branding>
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
   <provides>
     <binary>newera</binary>
     <mediatype>application/x-newera</mediatype>
   </provides>
   <url type="homepage">https://3dneweraai.com/</url>
   <url type="bugtracker">https://github.com/leandrodaf/3d-new-era-ai/issues</url>
+  <url type="vcs-browser">https://github.com/leandrodaf/3d-new-era-ai</url>
+  <url type="help">https://github.com/leandrodaf/3d-new-era-ai#readme</url>
+  <url type="donation">https://buymeacoffee.com/leandrodaf</url>
+  <url type="contact">https://3dneweraai.com/#faq</url>
   <developer id="io.github.leandrodaf"><name>Leandro Ferreira</name></developer>
   <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="3.2.0" date="2026-10-27">
+      <url type="details">https://github.com/leandrodaf/3d-new-era-ai/releases/tag/v3.2.0</url>
+      <description>
+        <p>A Microsoft Store package, a notice when a newer release is out, and doors that can be turned to swing the other way.</p>
+      </description>
+    </release>
+    <release version="3.1.0" date="2026-10-01">
+      <url type="details">https://github.com/leandrodaf/3d-new-era-ai/releases/tag/v3.1.0</url>
+    </release>
+    <release version="3.0.0" date="2026-09-29">
+      <url type="details">https://github.com/leandrodaf/3d-new-era-ai/releases/tag/v3.0.0</url>
+    </release>
+    <release version="2.0.0" date="2026-09-28">
+      <url type="details">https://github.com/leandrodaf/3d-new-era-ai/releases/tag/v2.0.0</url>
+    </release>
+  </releases>
 </component>
