@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- On Linux the running window shows the app's own icon in the dock and groups with its launcher,
+  on X11 and Wayland: the window names itself `io.github.leandrodaf.newera`, the id the menu
+  entry, the AppStream metadata and the Linux packages use, instead of its title.
 - The Linux tarball opens on Ubuntu 22.04, Debian 12, Fedora 36 and newer: it is built on the oldest
   Ubuntu GitHub runs (glibc 2.35) instead of the newest. The 3.2.0 one asked for glibc 2.43 and
   failed to start on Ubuntu 24.04 with `GLIBC_2.43 not found`.
@@ -23,6 +26,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A snap for Ubuntu's App Center and the Snap Store (`sudo snap install newera`): each release packs
+  its Linux build into one and, once the store credentials are set, publishes it to the stable
+  channel, where snapd keeps every install up to date. The `newera` command and `newera mcp`
+  work from it as from the tarball.
+- Linux packages on every release, next to the tarball: `newera-linux-x64.deb` (Debian, Ubuntu,
+  Mint, Pop!_OS: `sudo apt install ./newera-linux-x64.deb`), `newera-linux-x64.rpm` (Fedora, RHEL,
+  openSUSE) and `newera-linux-x64.AppImage` (any distro, one file that runs as it is). The `.deb`
+  and the `.rpm` install the `newera` command, the menu entry, the icons and the `.newera` file
+  type, and uninstall cleanly.
+- The Linux app's store listing (AppStream metadata, read by GNOME Software, KDE Discover, the
+  Ubuntu App Center and Flathub): five screenshots with captions, categories, keywords in four
+  languages, the brand colors, release history and links to the code, help and donations.
+- A Flatpak manifest for Flathub (`packaging/flatpak/`), so GNOME Software and KDE Discover can
+  list the app: it builds from source with no network, exports the menu entry, icons, metadata and
+  the `.newera` file type under the app's id, and a check builds, installs and runs it.
 - The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
   poster and a link until someone presses play, so the page loads nothing from YouTube before
   that, and the embed is YouTube's no-cookie one.

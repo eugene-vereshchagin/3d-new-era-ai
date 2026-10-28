@@ -179,6 +179,63 @@ jobs:
           name: newera-windows-x64.msix
           path: newera-windows-x64.msix
 
+  # The Snap Store package, from the Linux build just made: what Ubuntu's App
+  # Center lists, kept up to date by snapd on every machine that installs it.
+  snap:
+    name: Pack the snap
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    outputs:
+      file: ${{ steps.pack.outputs.snap }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: newera-linux-x64.tar.gz
+          path: .
+      - name: Version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # A run started by hand has no tag: pack the workspace's version.
+          case "$version" in [0-9]*.[0-9]*.[0-9]*) ;; *) version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1) ;; esac
+          sed -i "s/^version: .*/version: \"$version\"/" snap/snapcraft.yaml
+      - id: pack
+        uses: snapcore/action-build@v1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: snap
+          path: ${{ steps.pack.outputs.snap }}
+
+  # The packages a Linux desktop installs with a double click, from the Linux
+  # build just made: .deb, .rpm and AppImage (scripts/linux-packages.sh).
+  linux-packages:
+    name: Pack .deb, .rpm and AppImage
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-packaging
+      - uses: actions/download-artifact@v8
+        with:
+          name: newera-linux-x64.tar.gz
+          path: dist
+      - name: Pack
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # A run started by hand has no tag: pack the workspace's version.
+          case "$version" in [0-9]*.[0-9]*.[0-9]*) ;; *) version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1) ;; esac
+          scripts/linux-packages.sh dist/newera-linux-x64.tar.gz "$version" packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: packages/newera-linux-x64.*
+
   # One MCP Bundle for every platform, from the binaries just built: what Claude
   # Desktop installs with a double click, and the package the MCP Registry
   # lists. On macOS because that is where lipo makes the Apple binary
@@ -226,7 +283,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: [build, mcpb, msix]
+    needs: [build, mcpb, msix, linux-packages]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -358,6 +415,45 @@ jobs:
             echo "The Store took this release; it goes live after certification."
           else
             echo "::warning::The Store did not take this release (${{ steps.send.outcome }}). The release itself is unaffected; the MSIX is on it for a manual submission."
+          fi
+
+  # The Snap Store, stable channel. Skipped until the SNAPCRAFT_STORE_CREDENTIALS
+  # secret exists (`snapcraft export-login --snaps=newera
+  # --acls=package_access,package_push,package_update,package_release -`),
+  # and like winget and the Microsoft Store a refusal is said on the run and
+  # leaves the release alone.
+  snapstore:
+    name: Send to the Snap Store
+    needs: [publish, snap]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+    steps:
+      - uses: actions/download-artifact@v8
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        with:
+          name: snap
+          path: dist
+      - id: send
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        continue-on-error: true
+        uses: snapcore/action-publish@v1
+        with:
+          snap: dist/${{ needs.snap.outputs.file }}
+          release: stable
+      - name: Say what the Snap Store did
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "$SNAPCRAFT_STORE_CREDENTIALS" ]; then
+            echo "::notice::No SNAPCRAFT_STORE_CREDENTIALS secret: the snap was built but not sent to the Snap Store."
+          elif [ "${{ steps.send.outcome }}" = "success" ]; then
+            echo "The Snap Store took this release; snapd updates every install on its own."
+          else
+            echo "::warning::The Snap Store did not take this release (${{ steps.send.outcome }}). The release itself is unaffected."
           fi
 
   # Homebrew: the cask in leandrodaf/homebrew-tap, rewritten with this

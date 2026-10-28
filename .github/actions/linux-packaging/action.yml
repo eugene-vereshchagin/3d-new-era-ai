@@ -1,0 +1,19 @@
+name: Linux packaging tools
+description: rpmbuild and a pinned appimagetool, for scripts/linux-packages.sh on Ubuntu runners.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update
+        sudo apt-get update -qq -o Acquire::Languages=none
+        sudo apt-get install -y --no-install-recommends rpm
+        # Pinned and checked: the checksum is the one GitHub lists for the
+        # 1.9.1 release asset. The runners have no FUSE, so it unpacks
+        # itself instead of mounting.
+        curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+          https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+        echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $RUNNER_TEMP/appimagetool" | sha256sum -c -
+        chmod +x "$RUNNER_TEMP/appimagetool"
+        sudo ln -sf "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
+        echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"

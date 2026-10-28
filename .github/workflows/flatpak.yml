@@ -1,0 +1,60 @@
+name: Flatpak
+
+# Builds the Flatpak from this checkout the way Flathub does — from source,
+# offline, with the crates listed in cargo-sources.json — then installs the
+# bundle and runs it. Runs when the manifest, the desktop files, the crates or
+# this check change.
+on:
+  pull_request:
+    paths:
+      - packaging/flatpak/**
+      - scripts/flatpak-cargo-sources.sh
+      - assets/linux/**
+      - Cargo.lock
+      - .github/workflows/flatpak.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sources:
+    name: Crates for an offline build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/flatpak-cargo-sources.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cargo-sources
+          path: packaging/flatpak/cargo-sources.json
+
+  build:
+    name: Build, install and run
+    needs: sources
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: cargo-sources
+          path: packaging/flatpak
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: newera.flatpak
+          manifest-path: packaging/flatpak/io.github.leandrodaf.newera.yml
+          cache-key: flatpak-builder-${{ hashFiles('Cargo.lock') }}
+      - name: Install and run
+        run: |
+          flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak --user install -y --noninteractive newera.flatpak
+          flatpak run io.github.leandrodaf.newera --version
+          # What gets exported to the desktop.
+          export_dir="$HOME/.local/share/flatpak/exports/share"
+          test -f "$export_dir/applications/io.github.leandrodaf.newera.desktop"
+          test -f "$export_dir/metainfo/io.github.leandrodaf.newera.metainfo.xml"
+          test -f "$export_dir/icons/hicolor/256x256/apps/io.github.leandrodaf.newera.png"
+          test -f "$export_dir/mime/packages/io.github.leandrodaf.newera.xml"

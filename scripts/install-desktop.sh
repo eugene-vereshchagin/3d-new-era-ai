@@ -13,7 +13,11 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
 bin="$HOME/.local/bin"
-desktop="$data/applications/newera.desktop"
+# Named after the window's id (io.github.leandrodaf.newera), which is how
+# Wayland finds the launcher of a running window. Releases up to 3.2.0
+# installed it as newera.desktop: that one is removed.
+desktop="$data/applications/io.github.leandrodaf.newera.desktop"
+old_desktop="$data/applications/newera.desktop"
 mime="$data/mime/packages/newera.xml"
 metainfo="$data/metainfo/io.github.leandrodaf.newera.metainfo.xml"
 
@@ -108,7 +112,7 @@ refresh() {
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-    rm -f "$desktop" "$mime" "$metainfo" "$bin/newera"
+    rm -f "$desktop" "$old_desktop" "$mime" "$metainfo" "$bin/newera"
     find "$data/icons/hicolor" -name 'newera.png' -o -name 'newera.svg' \
         -o -name 'application-x-newera.png' -o -name 'application-x-newera.svg' 2>/dev/null \
         | while read -r icon; do rm -f "$icon"; done
@@ -141,13 +145,14 @@ mkdir -p "$(dirname "$desktop")"
 sed -e "s|^Exec=newera|Exec=$bin/newera|" -e "s|^TryExec=newera|TryExec=$bin/newera|" \
     "$here/share/applications/newera.desktop" > "$desktop"
 chmod 644 "$desktop"
+rm -f "$old_desktop"
 
 put 644 "$here/share/mime/packages/newera.xml" "$mime"
 put 644 "$here/share/metainfo/io.github.leandrodaf.newera.metainfo.xml" "$metainfo"
 refresh
 
 # Make it the default opener for .newera, when the tool is around.
-command -v xdg-mime >/dev/null 2>&1 && xdg-mime default newera.desktop application/x-newera || true
+command -v xdg-mime >/dev/null 2>&1 && xdg-mime default io.github.leandrodaf.newera.desktop application/x-newera || true
 
 count install
 

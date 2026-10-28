@@ -115,15 +115,15 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends desktop-file-utils
           data="${XDG_DATA_HOME:-$HOME/.local/share}"
           "$HOME/.local/bin/newera" --version
-          for f in "$data/applications/newera.desktop" \
+          for f in "$data/applications/io.github.leandrodaf.newera.desktop" \
                    "$data/mime/packages/newera.xml" \
                    "$data/metainfo/io.github.leandrodaf.newera.metainfo.xml" \
                    "$data/icons/hicolor/256x256/apps/newera.png"; do
             test -f "$f" || { echo "missing $f"; exit 1; }
           done
           # The menu entry runs the binary wherever the session's PATH points.
-          grep -q "^Exec=$HOME/.local/bin/newera" "$data/applications/newera.desktop"
-          desktop-file-validate "$data/applications/newera.desktop"
+          grep -q "^Exec=$HOME/.local/bin/newera" "$data/applications/io.github.leandrodaf.newera.desktop"
+          desktop-file-validate "$data/applications/io.github.leandrodaf.newera.desktop"
       - name: Run again (installing over itself)
         run: |
           cd newera && ./install-desktop.sh
@@ -133,6 +133,6 @@ jobs:
           data="${XDG_DATA_HOME:-$HOME/.local/share}"
           (cd newera && ./install-desktop.sh --uninstall)
           test ! -e "$HOME/.local/bin/newera"
-          test ! -e "$data/applications/newera.desktop"
+          test ! -e "$data/applications/io.github.leandrodaf.newera.desktop"
           test ! -e "$data/mime/packages/newera.xml"
           test -z "$(find "$data/icons/hicolor" -name 'newera.*' -o -name 'application-x-newera.*')"
