@@ -82,7 +82,7 @@
     "q3": "Which AI works?", "a3": "Any app that speaks MCP: Claude Code, Claude Desktop, Codex, Gemini CLI, Cursor, VS Code, Windsurf, and apps like Cline and Cherry Studio that run DeepSeek, Qwen, Llama and other models.",
     "q4": "Does my project go to the cloud?", "a4": "No. The app and its MCP server run on your computer and only accept connections from the same machine. The project is your own <code>.newera</code> file.",
     "q5": "Do I need a graphics card?", "a5": "No. The 3D view uses the GPU when there is one, and photos render on the CPU — even on a headless server.",
-    "q6": "Does it open my Sweet Home 3D projects?", "a6": "Yes, <code>.sh3d</code> files open with walls, rooms, furniture, lights, cameras and levels.",
+    "q6": "Does it open my Sweet Home 3D projects?", "a6": "Yes, <code>.sh3d</code> files open with walls, rooms, furniture, lights, cameras and levels. <a href=\"/sweet-home-3d-alternative/\">How it compares with Sweet Home 3D</a>.",
     "foot.by": "Built in Rust by Leandro Ferreira.", "foot.releases": "Releases", "foot.showcase": "Showcase", "foot.issues": "Report an issue", "foot.privacy": "Privacy", "foot.terms": "Terms", "foot.support": "Support ☕", "foot.refund": "Refunds", "foot.contact": "Contact", "ai.oneclick": "Or in one click, with the app installed:",
     "foot.credits": "Reference plan: <i>Typical apartment floor plan FOCSA Building</i>, Osvaldo Valdes, CC BY-SA 4.0. Textures: ambientCG, CC0."
   };
@@ -214,7 +214,7 @@
     "q5": "¿Necesito tarjeta gráfica?",
     "a5": "No. La vista 3D usa la GPU cuando la hay, y las fotos se renderizan en la CPU — incluso en un servidor sin pantalla.",
     "q6": "¿Abre mis proyectos de Sweet Home 3D?",
-    "a6": "Sí, los archivos <code>.sh3d</code> se abren con paredes, habitaciones, muebles, luces, cámaras y niveles.",
+    "a6": "Sí, los archivos <code>.sh3d</code> se abren con paredes, habitaciones, muebles, luces, cámaras y niveles. <a href=\"/sweet-home-3d-alternative/\">Comparación con Sweet Home 3D</a> (en inglés).",
     "foot.by": "Hecho en Rust por Leandro Ferreira.",
     "foot.releases": "Versiones",
     "foot.showcase": "Galería",
@@ -352,7 +352,7 @@
     "q5": "Faut-il une carte graphique ?",
     "a5": "Non. La vue 3D utilise le GPU quand il y en a un, et les photos se calculent sur le CPU — même sur un serveur sans écran.",
     "q6": "Ouvre-t-il mes projets Sweet Home 3D ?",
-    "a6": "Oui, les fichiers <code>.sh3d</code> s'ouvrent avec murs, pièces, meubles, lumières, caméras et niveaux.",
+    "a6": "Oui, les fichiers <code>.sh3d</code> s'ouvrent avec murs, pièces, meubles, lumières, caméras et niveaux. <a href=\"/sweet-home-3d-alternative/\">Comparaison avec Sweet Home 3D</a> (en anglais).",
     "foot.by": "Écrit en Rust par Leandro Ferreira.",
     "foot.releases": "Versions",
     "foot.showcase": "Galerie",

@@ -26,6 +26,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A press kit at `/press/`, in English and Portuguese: the project in one paragraph, key facts,
+  the demo video, high-resolution images made in the app and the logo, free to use in coverage.
+- A page for people looking for a Sweet Home 3D alternative (`/sweet-home-3d-alternative/`): what
+  carries over (`.sh3d` projects, the way of working), what is new, and a side-by-side table,
+  linked from the FAQ in every language and listed in the sitemap.
 - A snap for Ubuntu's App Center and the Snap Store (`sudo snap install newera`): each release packs
   its Linux build into one and, once the store credentials are set, publishes it to the stable
   channel, where snapd keeps every install up to date. The `newera` command and `newera mcp`

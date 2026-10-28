@@ -81,3 +81,12 @@ body {
 /* A section hidden by the switch: `hidden` alone loses to `display: block`
    further up in some browsers' default sheets. */
 .legal [hidden] { display: none !important; }
+
+/* Comparison tables: full width, and on a phone the wrapper scrolls, not the
+   page; the table keeps its own display so screen readers still see a table. */
+.legal .table-scroll { overflow-x: auto; margin: 1em 0; }
+.legal .table-scroll:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.legal table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.legal .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.legal th, .legal td { text-align: left; padding: 0.5em 0.75em; border-bottom: 1px solid rgba(127, 127, 127, 0.25); vertical-align: top; }
+.legal thead th { font-weight: 600; }

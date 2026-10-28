@@ -12,6 +12,16 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://3dneweraai.com/"/>
   </url>
   <url>
+    <loc>https://3dneweraai.com/sweet-home-3d-alternative/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://3dneweraai.com/press/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://3dneweraai.com/privacy/</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
