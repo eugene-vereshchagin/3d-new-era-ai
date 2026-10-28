@@ -92,7 +92,10 @@ jobs:
   linux:
     name: Linux
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    # The oldest distro the tarball promises, not the newest: on ubuntu-latest
+    # a binary that needs the newest glibc installs and runs, and nobody else
+    # can open it.
+    runs-on: ubuntu-22.04
     steps:
       # The Linux installer travels inside the release tarball, next to the
       # binary it installs, so there is nothing to check out: what is tested

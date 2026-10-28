@@ -69,7 +69,8 @@ once:
   `xattr -dr com.apple.quarantine "/Applications/3D New Era AI.app"`.
 - **Linux:** `tar xzf newera-linux-x64.tar.gz && ./newera/newera`. Run
   `./newera/install-desktop.sh` to add the menu entry, the icon and the `.newera` file
-  type (`--uninstall` undoes it).
+  type (`--uninstall` undoes it). It needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12,
+  Fedora 36 or any later release.
 
 The one-line installers skip these prompts.
 </details>

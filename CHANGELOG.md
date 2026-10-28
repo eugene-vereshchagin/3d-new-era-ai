@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The Linux tarball opens on Ubuntu 22.04, Debian 12, Fedora 36 and newer: it is built on the oldest
+  Ubuntu GitHub runs (glibc 2.35) instead of the newest. The 3.2.0 one asked for glibc 2.43 and
+  failed to start on Ubuntu 24.04 with `GLIBC_2.43 not found`.
+
 ## [3.2.0] - 2026-10-27
 
 ### Added

@@ -23,7 +23,11 @@ jobs:
         # its symbols were uploaded. `strip` / `split` override the release
         # profile here only, so a local `cargo build --release` stays as it was.
         include:
-          - os: ubuntu-latest
+          # The oldest Ubuntu GitHub still runs: a binary asks for the glibc
+          # it was linked against, and ubuntu-latest's left out every distro
+          # older than itself. 22.04's 2.35 opens on Ubuntu 22.04, Debian 12,
+          # Fedora 36 and anything newer.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             asset: newera-linux-x64.tar.gz
             strip: none
@@ -55,7 +59,7 @@ jobs:
       # never an earlier tag's, so saving one here would only be thrown away.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: release-${{ matrix.target }}
+          shared-key: release-${{ matrix.target }}-${{ matrix.os }}
           save-if: false
       # The Sentry DSN is baked into released binaries only; it lives in the
       # repository's secrets, never in its files, and CI builds go without it.
@@ -120,6 +124,15 @@ jobs:
             Linux)
               # Built unstripped for the debug files above; shipped stripped.
               strip "$bin/newera"
+              # No newer glibc than the oldest supported distro has: the
+              # 3.2.0 tarball, built on ubuntu-latest, asked for 2.43 and did
+              # not open on Ubuntu 24.04.
+              need=$(objdump -T "$bin/newera" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+              echo "newera needs $need"
+              if [ "$(printf '%s\n' "$need" GLIBC_2.35 | sort -V | tail -1)" != GLIBC_2.35 ]; then
+                echo "::error::newera needs $need, newer than the 2.35 of Ubuntu 22.04"
+                exit 1
+              fi
               mkdir "$stage/newera"
               cp "$bin/newera" README.md LICENSE-MIT LICENSE-APACHE "$stage/newera/"
               # Desktop integration: menu entry, hicolor icons, the .newera

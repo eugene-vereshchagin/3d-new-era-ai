@@ -69,7 +69,8 @@ sistema pergunta uma vez:
   `xattr -dr com.apple.quarantine "/Applications/3D New Era AI.app"`.
 - **Linux:** `tar xzf newera-linux-x64.tar.gz && ./newera/newera`. Rode
   `./newera/install-desktop.sh` para pôr o app no menu, com ícone, e dar aos arquivos
-  `.newera` ícone e duplo clique (`--uninstall` desfaz).
+  `.newera` ícone e duplo clique (`--uninstall` desfaz). Pede glibc 2.35 ou mais nova:
+  Ubuntu 22.04, Debian 12, Fedora 36 ou qualquer versão posterior.
 
 Os instaladores de uma linha evitam esses avisos.
 </details>
