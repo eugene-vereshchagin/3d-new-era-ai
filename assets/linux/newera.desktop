@@ -18,6 +18,6 @@ Categories=Graphics;3DGraphics;Engineering;
 Keywords=floorplan;interior;architecture;3d;home;design;mcp;ai;planta;marcenaria;
 MimeType=application/x-newera;
 StartupNotify=true
-# eframe names the X11 class / Wayland app_id after the window title, so the
-# running window picks up this entry's icon too.
-StartupWMClass=3D New Era AI
+# The window's X11 class and Wayland app_id (APP_ID in crates/newera-app), so
+# the running window picks up this entry's icon too.
+StartupWMClass=io.github.leandrodaf.newera

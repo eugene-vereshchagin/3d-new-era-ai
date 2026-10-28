@@ -43,11 +43,19 @@ pub struct AppOptions {
     pub open: Option<PathBuf>,
 }
 
+/// The name the window gives the desktop: the X11 class and the Wayland
+/// app_id. The menu entry's `StartupWMClass` says the same, and so do the
+/// Flatpak, the AppStream metadata and the .deb, .rpm and AppImage entries,
+/// so the dock shows the app's own icon and groups its windows whichever way
+/// it was installed.
+pub const APP_ID: &str = "io.github.leandrodaf.newera";
+
 /// Opens the editor window and blocks until it is closed.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run(document: SharedDocument, options: AppOptions) -> eframe::Result {
     let mut viewport = eframe::egui::ViewportBuilder::default()
         .with_title("3D New Era AI")
+        .with_app_id(APP_ID)
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size([960.0, 620.0]);
     if let Some(icon) = app_icon() {
@@ -233,5 +241,24 @@ mod tests {
             setup.instance_descriptor.backends,
             eframe::wgpu::Backends::GL
         );
+    }
+}
+
+#[cfg(test)]
+mod desktop_identity {
+    /// The menu entry and the window name each other: with `StartupWMClass`
+    /// left at the old window title, docks showed a generic icon for the
+    /// running app and a second one for the launcher.
+    #[test]
+    fn the_menu_entry_names_the_window() {
+        let entry = include_str!("../../../assets/linux/newera.desktop");
+        let class = entry
+            .lines()
+            .find_map(|line| line.strip_prefix("StartupWMClass="))
+            .expect("the menu entry has StartupWMClass");
+        assert_eq!(class, super::APP_ID);
+        let metainfo =
+            include_str!("../../../assets/linux/io.github.leandrodaf.newera.metainfo.xml");
+        assert!(metainfo.contains(&format!("<id>{}</id>", super::APP_ID)));
     }
 }
