@@ -20,6 +20,9 @@
     "aria.github": "Repository on GitHub",
     "alt.hero": "Dining room at dusk, rendered by the app",
     "alt.editor": "The editor with catalog, rendered floor plan and 3D view",
+    "alt.video": "An AI designs a café in the editor, with the conversation in a terminal beside it",
+    "aria.video": "Watch: an AI designs a café in 3D, live (1:38)",
+    "demo.fig": "VIDEO — An AI designs a café from scratch, live, over MCP · 1:38",
     "alt.plan": "Rendered floor plan of the apartment",
     "alt.day": "By day",
     "alt.night": "At night",
@@ -93,6 +96,9 @@
     "aria.github": "Repositorio en GitHub",
     "alt.hero": "Comedor al atardecer, renderizado por la app",
     "alt.editor": "El editor con catálogo, plano renderizado y vista 3D",
+    "alt.video": "Una IA diseña una cafetería en el editor, con la conversación en una terminal al lado",
+    "aria.video": "Ver: una IA diseña una cafetería en 3D, en vivo (1:38)",
+    "demo.fig": "VÍDEO — Una IA diseña una cafetería desde cero, en vivo, por MCP · 1:38",
     "alt.plan": "Plano renderizado del apartamento",
     "alt.day": "De día",
     "alt.night": "De noche",
@@ -228,6 +234,9 @@
     "aria.github": "Dépôt sur GitHub",
     "alt.hero": "Salle à manger au crépuscule, rendue par l'app",
     "alt.editor": "L'éditeur avec catalogue, plan rendu et vue 3D",
+    "alt.video": "Une IA conçoit un café dans l'éditeur, avec la conversation dans un terminal à côté",
+    "aria.video": "Regarder : une IA conçoit un café en 3D, en direct (1:38)",
+    "demo.fig": "VIDÉO — Une IA conçoit un café de zéro, en direct, par MCP · 1:38",
     "alt.plan": "Plan rendu de l'appartement",
     "alt.day": "De jour",
     "alt.night": "La nuit",
@@ -544,6 +553,20 @@
   }
 
   $$(".lang button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+
+  // ---- The demo video: YouTube loads only for whoever presses play ----
+  $$("[data-youtube]").forEach((link) => link.addEventListener("click", (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    const frame = document.createElement("iframe");
+    frame.src = `https://www.youtube-nocookie.com/embed/${link.dataset.youtube}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+    frame.title = link.getAttribute("aria-label");
+    frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    frame.allowFullscreen = true;
+    link.replaceWith(frame);
+    // The link had the focus; a keyboard keeps it on the player that took its place.
+    frame.focus();
+  }));
 
   // ---- The menu a narrow window gets ----
   const toggle = $(".nav__toggle");

@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
 - The connector page (`/connector/`) opens in the visitor's language, with the PT · EN switch the
   pricing and legal pages have. It always opened in Portuguese, with the English text below it.
 
+### Added
+
+- The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
+  poster and a link until someone presses play, so the page loads nothing from YouTube before
+  that, and the embed is YouTube's no-cookie one.
+
 ## [3.2.0] - 2026-10-27
 
 ### Added

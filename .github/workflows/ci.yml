@@ -176,6 +176,8 @@ jobs:
       - run: node --test scripts/share-preview.test.mjs
       # The pages written in two languages open in the visitor's.
       - run: node --test scripts/bilingual-pages.test.mjs
+      # The demo video on the landing page, and its words in every language.
+      - run: node --test scripts/landing-video.test.mjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown

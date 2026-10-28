@@ -206,6 +206,17 @@ button { font: inherit; color: inherit; }
 
 /* Product shot with dimension lines */
 .product { position: relative; padding-top: 34px; }
+.demo { padding-top: clamp(40px, 6vw, 80px); }
+.demo__shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule-2); box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 30px 60px -30px rgba(40, 32, 20, 0.35); background: #0f1224; aspect-ratio: 16 / 9; }
+.demo__play { position: relative; display: block; height: 100%; }
+/* YouTube's player wants 200 px of height. Below that width the 16:9 box
+   keeps the column's width and takes the height instead: a minimum on a
+   16:9 box would widen it past the screen. */
+@media (max-width: 400px) { .demo__shot { aspect-ratio: auto; height: 200px; } }
+.demo__play img, .demo__shot iframe { display: block; width: 100%; height: 100%; border: 0; object-fit: cover; }
+.demo__button { position: absolute; left: 50%; top: 50%; width: 88px; height: 88px; margin: -44px 0 0 -44px; border-radius: 50%; background: rgba(15, 18, 36, 0.72); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); transition: transform 0.15s ease, background 0.15s ease; }
+.demo__button::after { content: ""; position: absolute; left: 35px; top: 27px; border-style: solid; border-width: 17px 0 17px 28px; border-color: transparent transparent transparent #fff; }
+.demo__play:hover .demo__button, .demo__play:focus-visible .demo__button { transform: scale(1.06); background: rgba(15, 18, 36, 0.86); }
 .product__shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule-2); box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 30px 60px -30px rgba(40, 32, 20, 0.35); background: var(--card); }
 .dim { position: absolute; color: var(--accent); font: 500 11px/1 var(--mono); }
 .dim--top { top: 8px; left: var(--gutter); right: var(--gutter); height: 12px; border-left: 1px solid; border-right: 1px solid; }
