@@ -1,0 +1,118 @@
+name: Linux packages
+
+# Builds the .deb, .rpm and AppImage the way release.yml does — around a
+# published Linux build — and installs each one where people do: the .deb with
+# apt on Ubuntu 22.04, the .rpm with dnf on Fedora, the AppImage run as a file.
+# Each must give the `newera` command, the menu entry, its icon and the
+# .newera file type, and uninstall cleanly.
+on:
+  pull_request:
+    paths:
+      - scripts/linux-packages.sh
+      - assets/linux/**
+      - .github/actions/linux-packaging/**
+      - .github/workflows/linux-packages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    name: Pack
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-packaging
+      # The newest release's tarball, with this branch's desktop files in it:
+      # what is under test is the packaging, not the build.
+      - name: The Linux build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo "$GITHUB_REPOSITORY" -p newera-linux-x64.tar.gz
+          tar -xzf newera-linux-x64.tar.gz
+          rm -rf newera/share && mkdir -p newera/share/{applications,mime/packages,metainfo,icons}
+          cp assets/linux/newera.desktop newera/share/applications/
+          cp assets/linux/newera.xml newera/share/mime/packages/
+          cp assets/linux/io.github.leandrodaf.newera.metainfo.xml newera/share/metainfo/
+          cp -r assets/linux/hicolor newera/share/icons/
+          tar -czf newera-linux-x64.tar.gz newera
+      - name: Pack
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          scripts/linux-packages.sh newera-linux-x64.tar.gz "$version" packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: packages/newera-linux-x64.*
+
+  deb:
+    name: .deb on Ubuntu 22.04
+    needs: pack
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+      - name: Install
+        # apt resolves the Depends: line, the way a double click in the App
+        # Center or `apt install ./newera-linux-x64.deb` does.
+        run: sudo apt-get install -y ./newera-linux-x64.deb
+      - name: Check
+        run: |
+          newera --version
+          test -f /usr/share/applications/io.github.leandrodaf.newera.desktop
+          test -f /usr/share/icons/hicolor/256x256/apps/newera.png
+          test -f /usr/share/icons/hicolor/scalable/apps/newera.svg
+          test -f /usr/share/metainfo/io.github.leandrodaf.newera.metainfo.xml
+          grep -q 'application/x-newera' /usr/share/mime/globs2
+          sudo apt-get install -y -qq --no-install-recommends desktop-file-utils appstream
+          desktop-file-validate /usr/share/applications/io.github.leandrodaf.newera.desktop
+          appstreamcli validate --no-net /usr/share/metainfo/io.github.leandrodaf.newera.metainfo.xml
+      - name: Uninstall
+        run: |
+          sudo apt-get remove -y newera
+          test ! -e /usr/bin/newera
+          test ! -e /usr/share/applications/io.github.leandrodaf.newera.desktop
+
+  rpm:
+    name: .rpm on Fedora
+    needs: pack
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+      - name: Install
+        run: dnf install -y ./newera-linux-x64.rpm
+      - name: Check
+        run: |
+          newera --version
+          test -f /usr/share/applications/io.github.leandrodaf.newera.desktop
+          test -f /usr/share/icons/hicolor/256x256/apps/newera.png
+          test -f /usr/share/metainfo/io.github.leandrodaf.newera.metainfo.xml
+      - name: Uninstall
+        run: |
+          dnf remove -y newera
+          test ! -e /usr/bin/newera
+
+  appimage:
+    name: AppImage
+    needs: pack
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+      - name: Run
+        # No FUSE on the runner: the AppImage unpacks itself, as it does on a
+        # machine without libfuse2.
+        run: |
+          chmod +x newera-linux-x64.AppImage
+          ./newera-linux-x64.AppImage --appimage-extract-and-run --version
+          ./newera-linux-x64.AppImage --appimage-extract >/dev/null
+          test -f squashfs-root/io.github.leandrodaf.newera.desktop
+          test -f squashfs-root/newera.png
+          test -x squashfs-root/AppRun

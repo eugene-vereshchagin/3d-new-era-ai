@@ -179,6 +179,31 @@ jobs:
           name: newera-windows-x64.msix
           path: newera-windows-x64.msix
 
+  # The packages a Linux desktop installs with a double click, from the Linux
+  # build just made: .deb, .rpm and AppImage (scripts/linux-packages.sh).
+  linux-packages:
+    name: Pack .deb, .rpm and AppImage
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-packaging
+      - uses: actions/download-artifact@v8
+        with:
+          name: newera-linux-x64.tar.gz
+          path: dist
+      - name: Pack
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # A run started by hand has no tag: pack the workspace's version.
+          case "$version" in [0-9]*.[0-9]*.[0-9]*) ;; *) version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1) ;; esac
+          scripts/linux-packages.sh dist/newera-linux-x64.tar.gz "$version" packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: packages/newera-linux-x64.*
+
   # One MCP Bundle for every platform, from the binaries just built: what Claude
   # Desktop installs with a double click, and the package the MCP Registry
   # lists. On macOS because that is where lipo makes the Apple binary
@@ -226,7 +251,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: [build, mcpb, msix]
+    needs: [build, mcpb, msix, linux-packages]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:

@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Linux packages on every release, next to the tarball: `newera-linux-x64.deb` (Debian, Ubuntu,
+  Mint, Pop!_OS: `sudo apt install ./newera-linux-x64.deb`), `newera-linux-x64.rpm` (Fedora, RHEL,
+  openSUSE) and `newera-linux-x64.AppImage` (any distro, one file). Each installs the `newera`
+  command, the menu entry, the icons and the `.newera` file type, and uninstalls cleanly.
 - The landing page shows the demo video: an AI designs a café from scratch, live, over MCP. It is a
   poster and a link until someone presses play, so the page loads nothing from YouTube before
   that, and the embed is YouTube's no-cookie one.
