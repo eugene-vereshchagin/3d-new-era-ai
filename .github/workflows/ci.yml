@@ -172,6 +172,8 @@ jobs:
       # The site's own endpoints — the usage count and the crash tunnel. Node
       # is already here and they answer in milliseconds, so they go first.
       - run: node --test scripts/ping.test.mjs
+      # Every public page shows a card when its link is shared.
+      - run: node --test scripts/share-preview.test.mjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
