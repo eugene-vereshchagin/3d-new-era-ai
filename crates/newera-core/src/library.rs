@@ -11,7 +11,13 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::furniture::{FarModel, Measure, ModelMaterial, ModelPart, ModelTransform, Reference};
+use crate::furniture::{
+    FarModel, Furniture, Measure, ModelMaterial, ModelPart, ModelTransform, Reference,
+};
+
+/// The property an imported piece keeps the unit of its file's numbers in,
+/// when it was said rather than guessed.
+pub const MODEL_UNIT_KEY: &str = "newera:model-unit";
 
 /// What a version says about itself, in `asset.json`.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -58,6 +64,37 @@ pub struct Entry {
     pub model_transform: Option<ModelTransform>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_far: Option<FarModel>,
+    /// The section the editor's catalog lists it under, as people name it:
+    /// `Quarto`, `Bedroom`, `Cadeiras de jantar`. None: a section of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// A small picture for the catalog's row, relative to the version's folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+}
+
+impl Entry {
+    /// What the version was approved with, given to a piece placed from it:
+    /// its photos, measurements, materials, parts, turn and lighter file, and
+    /// the product it reproduces and its file's unit where the piece does not
+    /// say them already.
+    pub fn fit(self, piece: &mut Furniture) {
+        if let Some(unit) = self.unit {
+            piece
+                .properties
+                .entry(MODEL_UNIT_KEY.to_owned())
+                .or_insert(unit);
+        }
+        piece.info.model_name = piece.info.model_name.take().or(self.title);
+        piece.info.brand = piece.info.brand.take().or(self.brand);
+        piece.info.url = piece.info.url.take().or(self.source);
+        piece.references = self.references;
+        piece.measures = self.measures;
+        piece.materials = self.materials;
+        piece.model_parts = self.model_parts;
+        piece.model_transform = self.model_transform.unwrap_or_default();
+        piece.model_far = self.model_far;
+    }
 }
 
 /// Where the library lives: `NEWERA_LIBRARY`, or `<config>/3d-new-era-ai/library`.
@@ -149,6 +186,9 @@ pub fn get(root: &Path, name: &str, version: Option<u32>) -> Result<(Entry, Path
     if let Some(far) = &mut entry.model_far {
         far.file = folder.join(&far.file).display().to_string();
     }
+    if let Some(icon) = &mut entry.icon {
+        *icon = folder.join(&*icon).display().to_string();
+    }
     Ok((entry, model))
 }
 
@@ -172,6 +212,25 @@ pub fn list(root: &Path) -> Vec<(String, Vec<Entry>)> {
                 .collect();
             (!entries.is_empty()).then_some((name, entries))
         })
+        .collect()
+}
+
+/// The latest version of every entry, by name, with the path of its model:
+/// what the editor's catalog lists. An entry whose `asset.json` cannot be
+/// read is left out rather than failing the others.
+#[must_use]
+pub fn latest(root: &Path) -> Vec<(Entry, PathBuf)> {
+    let mut names: Vec<String> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| e.file_name().to_str().map(str::to_owned))
+        .filter(|n| valid_name(n))
+        .collect();
+    names.sort();
+    names
+        .iter()
+        .filter_map(|name| get(root, name, None).ok())
         .collect()
 }
 
@@ -281,6 +340,16 @@ pub fn publish(root: &Path, model: &Path, mut entry: Entry) -> Result<Entry, Str
             copy(&from, &folder.join(&name))?;
             reference.file = name;
         }
+        if let Some(icon) = &mut entry.icon {
+            let from = PathBuf::from(&*icon);
+            let name = format!(
+                "icon.{}",
+                from.extension()
+                    .map_or_else(|| "png".into(), |e| e.to_string_lossy().to_lowercase())
+            );
+            copy(&from, &folder.join(&name))?;
+            *icon = name;
+        }
         entry.file = file_name;
         entry.version = version;
         let text = serde_json::to_string_pretty(&entry).map_err(|e| e.to_string())?;
@@ -330,6 +399,7 @@ mod tests {
         std::fs::create_dir_all(work.join("tex")).unwrap();
         std::fs::write(work.join("tex/trama.png"), b"png").unwrap();
         std::fs::write(work.join("frente.jpg"), b"jpg").unwrap();
+        std::fs::write(work.join("vista.PNG"), b"png").unwrap();
         let library = root.join("library");
         let entry = |notes: &str| Entry {
             name: "win".into(),
@@ -341,6 +411,8 @@ mod tests {
                 view: Some("front".into()),
                 ..Reference::default()
             }],
+            category: Some("Sala".into()),
+            icon: Some(work.join("vista.PNG").display().to_string()),
             ..Entry::default()
         };
         let first = publish(&library, &work.join("win.obj"), entry("primeira")).unwrap();
@@ -353,6 +425,7 @@ mod tests {
             "win.mtl",
             "tex/trama.png",
             "referencias/00-frente.jpg",
+            "icon.png",
             "asset.json",
         ] {
             assert!(folder.join(file).is_file(), "{file}");
@@ -362,6 +435,11 @@ mod tests {
         assert_eq!(
             Path::new(&latest.references[0].file),
             folder.join("referencias").join("00-frente.jpg")
+        );
+        assert_eq!(latest.category.as_deref(), Some("Sala"));
+        assert_eq!(
+            latest.icon.as_deref().map(Path::new),
+            Some(folder.join("icon.png").as_path())
         );
         let (older, _) = get(&library, "win", Some(1)).unwrap();
         assert_eq!(older.notes.as_deref(), Some("primeira"));
@@ -373,6 +451,16 @@ mod tests {
         assert!(get(&library, "sofa", None).is_err());
         let all = list(&library);
         assert_eq!((all.len(), all[0].1.len()), (1, 2));
+        // The catalog lists the latest version alone, and an entry it cannot
+        // read does not take the others down with it.
+        std::fs::create_dir_all(library.join("broken/v1")).unwrap();
+        std::fs::write(library.join("broken/v1/asset.json"), "{").unwrap();
+        let shown = super::latest(&library);
+        assert_eq!(shown.len(), 1);
+        assert_eq!(
+            (shown[0].0.version, &shown[0].1),
+            (2, &folder.join("win.obj"))
+        );
         assert!(
             publish(
                 &library,

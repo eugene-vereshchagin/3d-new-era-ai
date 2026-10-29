@@ -2934,7 +2934,7 @@ pub(crate) fn with_defaults(
 }
 
 /// The unit a piece's model file was placed with, when it was given.
-pub(crate) const MODEL_UNIT_KEY: &str = "newera:model-unit";
+pub(crate) use newera_core::library::MODEL_UNIT_KEY;
 
 /// A model's size from its natural one and the w/d/h asked: all three as
 /// given with `stretch`, else scaled evenly by the one or two given (they
@@ -3179,15 +3179,7 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
         piece.roll = spec.roll.unwrap_or(piece.roll);
         piece.name = spec.name.unwrap_or(piece.name);
         if let Some((entry, _)) = library {
-            piece.info.model_name = piece.info.model_name.take().or(entry.title);
-            piece.info.brand = piece.info.brand.take().or(entry.brand);
-            piece.info.url = piece.info.url.take().or(entry.source);
-            piece.references = entry.references;
-            piece.measures = entry.measures;
-            piece.materials = entry.materials;
-            piece.model_parts = entry.model_parts;
-            piece.model_transform = entry.model_transform.unwrap_or_default();
-            piece.model_far = entry.model_far;
+            entry.fit(&mut piece);
         }
         piece.color = spec.color.or(piece.color);
         if let Some(raw) = &spec.mat {

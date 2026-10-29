@@ -16,6 +16,8 @@ mod gpu;
 mod i18n;
 mod icon;
 mod jobs;
+#[cfg(not(target_arch = "wasm32"))]
+mod library;
 mod panels;
 mod photo;
 #[cfg(target_arch = "wasm32")]

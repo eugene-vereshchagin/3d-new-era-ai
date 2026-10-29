@@ -262,7 +262,7 @@ run it without asking, and asks before each change.
 | `measure` | Free floor around a piece, the gap between two, what a straight probe runs into, how far a piece can grow |
 | `model` | What an imported OBJ/glTF/GLB became: unit taken, size, triangles, materials, named parts, and what is not drawn; `check=clashes` finds parts passing through one another |
 | `edit_model` | Swap the file of placed pieces in one undo step (keeping ids, size, finishes and links), change a material or a part by name, or give a lighter file for distant views |
-| `library` / `edit_library` | A library of approved model versions, with their photos, measurements and source, placed in any project as `library:<name>@<v>` |
+| `library` / `edit_library` | A library of approved model versions, with their photos, measurements and source, placed in any project as `library:<name>@<v>` and listed in the desktop catalog to place by hand |
 | `accept` | Mark findings of any review as seen, with the reason |
 | `rules` | What a review checks against: the standards' tables, what each layout problem means, how ergonomics scores |
 | `materials` / `disciplines` / `annotations` | Finishes, visible projects and layers, dimension chains and schedules; `stale` finds notes that no longer match the drawing |

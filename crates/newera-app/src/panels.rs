@@ -321,10 +321,63 @@ fn catalog_row(app: &mut NewEraApp, ui: &mut egui::Ui, item: &'static CatalogIte
     }
 }
 
+/// A row of the model library: its picture (or a cube, without one), its
+/// title and size. A click puts it in the middle of the plan view.
+#[cfg(not(target_arch = "wasm32"))]
+fn library_row(app: &mut NewEraApp, ui: &mut egui::Ui, listed: &crate::library::Listed) {
+    let unit = app.unit();
+    let t = crate::theme::of(ui.visuals());
+    let icon = app.library.icon(ui.ctx(), listed);
+    let (response, ()) = row(ui, false, &listed.title, |ui| {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(30.0), Sense::hover());
+        ui.painter().rect_filled(rect, 4.0, t.inset);
+        if let Some(icon) = &icon {
+            let fit = icon.size_vec2() * (26.0 / icon.size_vec2().max_elem());
+            egui::Image::new((icon.id(), fit))
+                .paint_at(ui, egui::Rect::from_center_size(rect.center(), fit));
+        } else {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                icon::CUBE,
+                egui::FontId::proportional(15.0),
+                t.ink_dim,
+            );
+        }
+        ui.vertical(|ui| {
+            ui.add_space(1.0);
+            name(
+                ui,
+                &listed.title,
+                RichText::new(&listed.title).color(t.ink),
+                0.0,
+            );
+            ui.label(crate::theme::fig(
+                ui.visuals(),
+                &unit.format_size(listed.size),
+            ));
+        });
+    });
+    if response
+        .on_hover_text(crate::i18n::tr(
+            "Da sua biblioteca de modelos. Clique para pôr no centro da planta",
+        ))
+        .clicked()
+    {
+        app.place_from_library(&listed.name);
+    }
+}
+
 pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
     // Every name here names a row. Left selectable, egui hands the click to
     // the text — it comes out as a text selection and the row never hears it.
     ui.style_mut().interaction.selectable_labels = false;
+    #[cfg(not(target_arch = "wasm32"))]
+    app.library.refresh(ui.ctx());
+    #[cfg(not(target_arch = "wasm32"))]
+    let pieces = newera_catalog::CATALOG.len() + app.library.len();
+    #[cfg(target_arch = "wasm32")]
+    let pieces = newera_catalog::CATALOG.len();
     egui::Panel::top("catalog")
         .resizable(true)
         .default_size(ui.available_height() * 0.55)
@@ -333,11 +386,7 @@ pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
                 ui,
                 icon::ARMCHAIR,
                 crate::i18n::tr("Catálogo"),
-                &format!(
-                    "{} {}",
-                    newera_catalog::CATALOG.len(),
-                    crate::i18n::tr("peças")
-                ),
+                &format!("{pieces} {}", crate::i18n::tr("peças")),
             );
             let mut query = std::mem::take(&mut app.catalog_query);
             search(ui, &mut query);
@@ -355,13 +404,21 @@ pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
                                 .iter()
                                 .filter(|i| i.category == category)
                                 .collect();
+                            // The library's pieces filed under this section
+                            // come after the built-in ones.
+                            #[cfg(not(target_arch = "wasm32"))]
+                            let own = app.library.in_category(category);
+                            #[cfg(not(target_arch = "wasm32"))]
+                            let total = items.len() + own.len();
+                            #[cfg(target_arch = "wasm32")]
+                            let total = items.len();
                             band(
                                 ui,
                                 Band {
                                     id: egui::Id::unique(category.id()),
                                     glyph: category_icon(category),
                                     title: crate::i18n::tr(category.name()),
-                                    total: items.len(),
+                                    total,
                                     open: false,
                                     reveal: false,
                                 },
@@ -369,12 +426,42 @@ pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
                                     for item in items {
                                         catalog_row(app, ui, item);
                                     }
+                                    #[cfg(not(target_arch = "wasm32"))]
+                                    for listed in &own {
+                                        library_row(app, ui, listed);
+                                    }
+                                },
+                            );
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        for (title, listed) in app
+                            .library
+                            .own_sections(crate::i18n::tr("Minha biblioteca"))
+                        {
+                            band(
+                                ui,
+                                Band {
+                                    id: egui::Id::unique(("library-section", &title)),
+                                    glyph: icon::STACK,
+                                    title: &title,
+                                    total: listed.len(),
+                                    open: false,
+                                    reveal: false,
+                                },
+                                |ui| {
+                                    for listed in &listed {
+                                        library_row(app, ui, listed);
+                                    }
                                 },
                             );
                         }
                     } else {
                         let found = find(&query);
-                        if found.is_empty() {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let own = app.library.find(&query);
+                        #[cfg(target_arch = "wasm32")]
+                        let own: [(); 0] = [];
+                        if found.is_empty() && own.is_empty() {
                             ui.add_space(8.0);
                             ui.label(
                                 RichText::new(crate::i18n::tr("Nada encontrado."))
@@ -383,6 +470,10 @@ pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
                         }
                         for item in found {
                             catalog_row(app, ui, item);
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        for listed in &own {
+                            library_row(app, ui, listed);
                         }
                     }
                     ui.add_space(8.0);

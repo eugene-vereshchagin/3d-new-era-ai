@@ -135,6 +135,9 @@ pub(crate) struct NewEraApp {
     title: String,
     plan_rect: egui::Rect,
     pub(crate) catalog_query: String,
+    /// The model library, listed in the catalog beside the built-in pieces.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) library: crate::library::Shelf,
     /// AI clients already announced in the status bar, so a connection is
     /// said once and not on every frame.
     pub(crate) announced_agents: usize,
@@ -293,6 +296,8 @@ impl NewEraApp {
             #[cfg(target_arch = "wasm32")]
             mirrored: (0, Instant::now(), false),
             catalog_query: String::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            library: crate::library::Shelf::new(crate::library::root()),
             announced_agents: 0,
             announced_calls: 0,
             #[cfg(target_arch = "wasm32")]
@@ -3170,6 +3175,72 @@ mod tests {
 
         let lit = h.get_by_label("w1");
         assert_eq!(lit.accesskit_node().toggled(), Some(Toggled::True));
+    }
+
+    /// A model published to the library is taken from the catalog like any
+    /// built-in piece: found by its title, placed with one click at the size
+    /// it was approved at, with what it was approved with.
+    #[test]
+    fn a_library_model_is_placed_from_the_catalog() {
+        let root = std::env::temp_dir().join(format!("newera-app-library-{}", std::process::id()));
+        let work = root.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        std::fs::write(
+            work.join("ipe.obj"),
+            "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 0 1\nf 1 2 3\nf 1 3 4\n",
+        )
+        .unwrap();
+        let library = root.join("library");
+        newera_core::library::publish(
+            &library,
+            &work.join("ipe.obj"),
+            newera_core::library::Entry {
+                name: "ipe".into(),
+                title: Some("Armário Ipê".into()),
+                brand: Some("Example Furniture".into()),
+                unit: Some("m".into()),
+                size: [80.0, 85.0, 90.0],
+                category: Some("Sala de estar".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let mut h = app_with_wall();
+        h.state_mut().library = crate::library::Shelf::new(library);
+        h.state_mut().catalog_query = "armario ipe".into();
+        h.run_steps(3);
+        h.get_by(|node| {
+            node.role() == egui::accesskit::Role::Button
+                && node.label().as_deref() == Some("Armário Ipê")
+        })
+        .click();
+        for _ in 0..200 {
+            h.run_steps(1);
+            if h.state().job.is_none() && !h.state().document.read().home().furniture.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let doc = h.state().document.read();
+        let piece = &doc.home().furniture[0];
+        assert_eq!(piece.name, "Armário Ipê");
+        assert_eq!([piece.width, piece.depth, piece.height], [80.0, 85.0, 90.0]);
+        assert_eq!(piece.info.brand.as_deref(), Some("Example Furniture"));
+        assert_eq!(
+            piece
+                .properties
+                .get(newera_core::library::MODEL_UNIT_KEY)
+                .map(String::as_str),
+            Some("m")
+        );
+        assert!(
+            Path::new(piece.model.as_deref().unwrap()).ends_with("ipe/v1/ipe.obj"),
+            "{:?}",
+            piece.model
+        );
+        drop(doc);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

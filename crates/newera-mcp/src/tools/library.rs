@@ -32,6 +32,10 @@ pub(crate) struct EditLibraryParams {
     notes: Option<String>,
     /// publish: how far it can be trusted (what was estimated, what was measured).
     fidelity: Option<String>,
+    /// publish: the section the editor's catalog lists it under (`Bedroom`); kept from the last version when left out.
+    category: Option<String>,
+    /// publish: a small .png/.jpg for its catalog row; kept from the last version when left out.
+    icon: Option<String>,
 }
 
 /// The library, when this process may read it: a server confined to its
@@ -115,6 +119,19 @@ impl NewEraMcp {
             .home()
             .find_piece(id)
             .ok_or_else(|| invalid(format!("{} not found", p.id)))?;
+        // Where it is listed and the picture it is listed with carry over:
+        // a new revision of a chair is still a chair.
+        let last = library::get(&root, &p.name, None)
+            .ok()
+            .map(|(entry, _)| entry);
+        let category = p
+            .category
+            .filter(|c| !c.trim().is_empty())
+            .or_else(|| last.as_ref().and_then(|e| e.category.clone()));
+        let icon = p
+            .icon
+            .map(|file| doc.resolve_asset(&file).display().to_string())
+            .or_else(|| last.and_then(|e| e.icon));
         let model = piece.model.as_deref().ok_or_else(|| {
             invalid(format!(
                 "{} is built from the catalog, not an imported model",
@@ -164,6 +181,8 @@ impl NewEraMcp {
                 file: doc.resolve_asset(&far.file).display().to_string(),
                 ..far.clone()
             }),
+            category,
+            icon,
             ..Entry::default()
         };
         let published =
@@ -267,22 +286,32 @@ mod tests {
             });
             doc.execute(newera_core::Command::update(chair)).unwrap();
         }
-        let publish = |notes: &str| {
+        let publish = |notes: &str, more: &str| {
             first
                 .edit_library(Parameters(
                     serde_json::from_str(&format!(
-                        r#"{{"action":"publish","id":"f1","name":"win","notes":"{notes}","fidelity":"curvas estimadas"}}"#
+                        r#"{{"action":"publish","id":"f1","name":"win","notes":"{notes}","fidelity":"curvas estimadas"{more}}}"#
                     ))
                     .unwrap(),
                 ))
                 .unwrap()
         };
         assert_eq!(
-            publish("primeira"),
+            publish(
+                "primeira",
+                &format!(r#","category":"Sala","icon":"{photo}""#)
+            ),
             "ok published library:win@1 (1 photos, 1 measures)"
         );
         std::fs::write(work.join("win.obj"), obj(70.0)).unwrap();
-        assert!(publish("braços mais finos").starts_with("ok published library:win@2"));
+        assert!(publish("braços mais finos", "").starts_with("ok published library:win@2"));
+        // Where the catalog lists it, and its picture, carry over.
+        let (second_version, _) = library::get(&root().unwrap(), "win", Some(2)).unwrap();
+        assert_eq!(second_version.category.as_deref(), Some("Sala"));
+        assert!(
+            std::path::Path::new(second_version.icon.as_deref().unwrap())
+                .ends_with("win/v2/icon.png")
+        );
         // The originals can go: the library keeps its own copies.
         std::fs::remove_dir_all(&work).unwrap();
 

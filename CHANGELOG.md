@@ -26,6 +26,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The desktop catalog lists the model library beside the built-in pieces, so a model published
+  once is placed by hand like any sofa — found by the search, put in the middle of the plan with
+  one click, at the size and with the photos, measurements and edits it was approved with —
+  instead of imported from its file again. An entry goes under a built-in section when its
+  `category` names one (`bedroom`, `Quarto`, `Bedroom`), under a section of its own otherwise, and
+  under "My library" with none; `icon` gives its row a picture. `edit_library` takes both, and a
+  new version keeps the last one's. The list is read again when the window comes back into focus.
 - A press kit at `/press/`, in English and Portuguese: the project in one paragraph, key facts,
   the demo video, high-resolution images made in the app and the logo, free to use in coverage.
 - A page for people looking for a Sweet Home 3D alternative (`/sweet-home-3d-alternative/`): what

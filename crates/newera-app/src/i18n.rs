@@ -166,6 +166,12 @@ pub(crate) fn tr(pt: &'static str) -> &'static str {
     say(pt, lang())
 }
 
+/// The text in every language the window speaks, Portuguese first: what a
+/// name typed in any of them is matched against.
+pub(crate) fn every(pt: &'static str) -> impl Iterator<Item = &'static str> {
+    Lang::ALL.into_iter().map(move |lang| say(pt, lang))
+}
+
 /// The text in one named language, whatever the window is set to. The window
 /// itself always wants [`tr`]; this is for the tests, which run beside each
 /// other and must not shout across.
@@ -809,6 +815,11 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
         "Criar paredes" => ["Create walls", "Crear paredes", "Créer des murs"],
         "Curva suave" => ["Smooth curve", "Curva suave", "Courbe douce"],
         "Cômodos" => ["Rooms", "Habitaciones", "Pièces"],
+        "Da sua biblioteca de modelos. Clique para pôr no centro da planta" => [
+            "From your model library. Click to put it in the middle of the plan",
+            "De tu biblioteca de modelos. Haz clic para ponerlo en el centro del plano",
+            "De votre bibliothèque de modèles. Cliquez pour le poser au centre du plan",
+        ],
         "Descartar" => ["Discard", "Descartar", "Abandonner"],
         "Descrição" => ["Description", "Descripción", "Description"],
         "Desenhar linhas" => ["Draw lines", "Dibujar líneas", "Tracer des lignes"],
@@ -961,7 +972,13 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
         "Marca" => ["Brand", "Marca", "Marque"],
         "Me paga um café" => ["Buy me a coffee", "Invítame un café", "Offre-moi un café"],
         "Medida" => ["Measure", "Medida", "Mesure"],
+        "Minha biblioteca" => ["My library", "Mi biblioteca", "Ma bibliothèque"],
         "Modelo" => ["Model", "Modelo", "Modèle"],
+        "Modelo da biblioteca posicionado. Arraste para o lugar." => [
+            "Library model placed. Drag it into place.",
+            "Modelo de la biblioteca colocado. Arrástralo a su lugar.",
+            "Modèle de la bibliothèque posé. Faites-le glisser à sa place.",
+        ],
         "Modelo importado. Ajuste medidas com Enter ou pelas alças." => [
             "Model imported. Adjust sizes with Enter or the handles.",
             "Modelo importado. Ajuste las medidas con Enter o con los tiradores.",

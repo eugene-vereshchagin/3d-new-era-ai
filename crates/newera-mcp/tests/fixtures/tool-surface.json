@@ -2183,8 +2183,16 @@
           ],
           "type": "string"
         },
+        "category": {
+          "description": "publish: the section the editor's catalog lists it under (`Bedroom`); kept from the last version when left out",
+          "type": "string"
+        },
         "fidelity": {
           "description": "publish: how far it can be trusted (what was estimated, what was measured)",
+          "type": "string"
+        },
+        "icon": {
+          "description": "publish: a small .png/.jpg for its catalog row; kept from the last version when left out",
           "type": "string"
         },
         "id": {
@@ -5504,6 +5512,10 @@
               "description": "Label/dimension shown in 3D",
               "type": "boolean"
             },
+            "into": {
+              "$ref": "#/$defs/Point2",
+              "description": "Door: a point on the side it swings into"
+            },
             "italic": {
               "description": "Label italic text",
               "type": "boolean"
@@ -5617,10 +5629,6 @@
             "w": {
               "description": "Furniture width cm",
               "type": "number"
-            },
-            "into": {
-              "$ref": "#/$defs/Point2",
-              "description": "Door: a point on the side it swings into"
             }
           },
           "required": [
