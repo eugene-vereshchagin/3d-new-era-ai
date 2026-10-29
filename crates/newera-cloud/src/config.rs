@@ -45,85 +45,6 @@ impl std::fmt::Debug for Google {
     }
 }
 
-/// Buy Me a Coffee, where the paid plan is supported: it sells the
-/// membership on a page of its own and pays out through the Stripe account
-/// connected to it. This service only points people at that page and listens
-/// to what it says afterwards.
-#[derive(Clone)]
-pub struct BuyMeACoffee {
-    /// The page's name, the part after `buymeacoffee.com/`.
-    pub page: String,
-    /// The webhook's signing secret: only deliveries signed with it change a
-    /// plan.
-    pub webhook_secret: String,
-    /// The membership levels that pay for the plan, by id. Empty means every
-    /// level does, which is right for a page that sells only this.
-    pub levels: Vec<i64>,
-    /// Whether a test event from the dashboard (`live_mode: false`) may
-    /// change a plan. Off in production, where only real money should.
-    pub test_events: bool,
-}
-
-impl BuyMeACoffee {
-    /// Reads `BUYMEACOFFEE_*`: both the page and the webhook secret, or
-    /// neither (the paid plan off).
-    fn from_env(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<Option<Self>> {
-        let required = ["BUYMEACOFFEE_PAGE", "BUYMEACOFFEE_WEBHOOK_SECRET"];
-        let values: Vec<Option<String>> = required.iter().map(|name| var(name)).collect();
-        if values.iter().all(Option::is_none) {
-            tracing::warn!("no BUYMEACOFFEE_* settings: the paid plan is off");
-            return Ok(None);
-        }
-        let missing: Vec<&str> = required
-            .iter()
-            .zip(&values)
-            .filter(|(_, v)| v.is_none())
-            .map(|(name, _)| *name)
-            .collect();
-        anyhow::ensure!(missing.is_empty(), "missing {}", missing.join(", "));
-        let mut values = values.into_iter().map(Option::unwrap_or_default);
-        let mut next = || values.next().unwrap_or_default();
-        // A whole URL where a name was asked for is the easy mistake to make.
-        let page = next()
-            .trim()
-            .trim_start_matches("https://")
-            .trim_start_matches("http://")
-            .trim_start_matches("www.")
-            .trim_start_matches("buymeacoffee.com/")
-            .trim_matches('/')
-            .to_owned();
-        anyhow::ensure!(!page.is_empty(), "BUYMEACOFFEE_PAGE is empty");
-        let webhook_secret = next();
-        let levels = var("BUYMEACOFFEE_LEVELS")
-            .unwrap_or_default()
-            .split(',')
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-            .map(|l| l.parse::<i64>().context("BUYMEACOFFEE_LEVELS"))
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(Some(Self {
-            page,
-            webhook_secret,
-            levels,
-            test_events: matches!(
-                var("BUYMEACOFFEE_TEST_EVENTS").as_deref(),
-                Some("1" | "true")
-            ),
-        }))
-    }
-}
-
-impl std::fmt::Debug for BuyMeACoffee {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BuyMeACoffee")
-            .field("page", &self.page)
-            .field("webhook_secret", &"<hidden>")
-            .field("levels", &self.levels)
-            .field("test_events", &self.test_events)
-            .finish()
-    }
-}
-
 #[derive(Clone)]
 pub struct Config {
     /// Where this service is reached, without a trailing slash, e.g.
@@ -138,9 +59,6 @@ pub struct Config {
     pub google: Option<Google>,
     /// The browser editor, where "open in the editor" goes.
     pub editor_url: String,
-    /// The paid plan, supported through Buy Me a Coffee; `None` leaves every
-    /// account on the free plan and the account page without a way to pay.
-    pub buymeacoffee: Option<BuyMeACoffee>,
     /// The port to listen on, on every interface of the container; the
     /// Cloudflare tunnel in front is what reaches it.
     pub port: u16,
@@ -155,7 +73,6 @@ impl std::fmt::Debug for Config {
             .field("mail", &self.mail)
             .field("google", &self.google)
             .field("editor_url", &self.editor_url)
-            .field("buymeacoffee", &self.buymeacoffee)
             .field("port", &self.port)
             .finish()
     }
@@ -203,7 +120,6 @@ impl Config {
         };
         let editor_url =
             var("NEWERA_EDITOR_URL").unwrap_or_else(|| "https://3dneweraai.com/app/".to_owned());
-        let buymeacoffee = BuyMeACoffee::from_env(&var)?;
         let port = var("PORT")
             .map(|p| p.parse().context("PORT"))
             .transpose()?
@@ -215,7 +131,6 @@ impl Config {
             mail,
             google,
             editor_url,
-            buymeacoffee,
             port,
         })
     }

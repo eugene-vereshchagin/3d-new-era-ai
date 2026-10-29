@@ -13,11 +13,11 @@ apart.
  AI clients: Claude · ChatGPT · Codex · Cursor · VS Code · Gemini CLI · LM Studio · Zed ...
         │                                           │
         │ local: .mcpb, stdio, 127.0.0.1:7878       │ hosted: https://mcp.3dneweraai.com/mcp
-        │ (free, no account, nothing leaves         │ (OAuth; free with a quota,
-        │  the machine)                             │  the Supporter plan raises it)
+        │ (free, no account, nothing leaves         │ (OAuth; free, no limits,
+        │  the machine)                             │  nothing sold)
         ▼                                           ▼
  ┌──────────────────┐        ┌──────────────────────── newera-cloud ────────────────────────┐
- │ Desktop app      │        │ accounts + OAuth 2.1 (CIMD and DCR)   plans/quotas ◄─ Paddle │
+ │ Desktop app      │        │ accounts + OAuth 2.1 (CIMD and DCR)   plans (no limits)      │
  │ `newera`         │        │                                                              │
  └──────────────────┘        │ per-account session router:                                  │
                              │   ├─ the user's editor tab is open → relay → that tab        │
@@ -33,8 +33,8 @@ apart.
   [3dneweraai.com/app](https://3dneweraai.com/app/). A tab can join the relay and
   give an AI client a URL of its own.
 - **Hosted:** `crates/newera-cloud` mounts the relay (`crates/newera-relay`) and
-  adds accounts, OAuth, cloud projects, a job queue for heavy renders, and
-  billing. It exposes the same tools minus the ones that only make sense on the
+  adds accounts, OAuth, cloud projects and a job queue for heavy renders. It
+  exposes the same tools minus the ones that only make sense on the
   user's machine (`feedback`, `plugins`/`run_plugin`, and free file paths, which
   map to the account's own projects and 24-hour download links).
 
@@ -45,8 +45,8 @@ apart.
 2. The cloud is optional. A cloud project is the same `.newera` file as on the
    desktop and can be downloaded at any time.
 3. There is one tool surface. No channel gets a fork of `newera-mcp`.
-4. Only what costs server time is paid. Anything that runs on the user's machine
-   stays free.
+4. Nothing is sold. Everything is free, and anything that runs on the user's
+   machine stays free.
 
 ## Channels
 
@@ -90,7 +90,7 @@ them fails CI:
   (`every_hosted_tool_asks_for_the_account`).
 
 Inside an AI client nothing is sold: no prices, no upgrade buttons and no
-checkout links in tool output. The free plan must be useful on its own.
+checkout links in tool output.
 
 ## Release flow
 
@@ -158,37 +158,21 @@ than editing them by hand.
   Google).
 - **OAuth 2.1:** PKCE S256, client registration by CIMD and DCR, protected
   resource metadata (RFC 9728/8414), refresh rotation with reuse detection.
-- **Quotas:** every account has a plan (`free` or `supporter`) and tools check
-  quota, never "is this a paying user". Heavy renders go through a queue: one per
-  account, at most one per free core.
+- **Limits:** none. The `plans` rows (`free`, `supporter`) still exist and tools
+  still read a plan's limits, but every plan's `limits` is empty
+  (migration `0005_no_limits.sql`), and a limit that is not written is no limit.
+  A limit can come back as data, without code, if the server ever needs one.
+  Heavy renders go through a queue: one per account, at most one per free core.
 - **Storage:** the whole `.newera` file in Postgres (`bytea`) behind a storage
   layer, so it can move to object storage without touching the tools.
 - **Sandboxing:** project file reads are jailed (`newera_core::vfs::jail`); a
   project cannot read another project's files or the server's.
 
-### Billing
+### Donations
 
-The paid plan (Supporter, US$ 5 a month or US$ 48 a year) is sold through
-[Paddle](https://www.paddle.com) as merchant of record, which handles tax,
-receipts and refunds. The integration lives in
-[`crates/newera-cloud/src/billing.rs`](../crates/newera-cloud/src/billing.rs):
-
-- `GET /billing/checkout` opens Paddle.js checkout for the signed-in account,
-  with the account id in `custom_data`;
-- `POST /billing/paddle` receives `subscription.*` webhooks, verified with
-  `Paddle-Signature` (HMAC-SHA256 of `ts:body`, 5-minute tolerance, several
-  `h1` values accepted during secret rotation). `active` and `trialing` grant
-  Supporter; `past_due`, `paused` and `canceled` return to free;
-- `GET /billing/manage` opens the Paddle customer portal;
-- deleting an account cancels its subscription at the end of the paid period.
-
-Billing is off unless `PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET`,
-`PADDLE_PRICE_MONTHLY` and `PADDLE_PRICE_YEARLY` are all set. `PADDLE_API_KEY`
-enables the portal and cancellation, and `PADDLE_ENVIRONMENT=sandbox` points
-everything at the Paddle sandbox. The end-to-end tests in
-[`crates/newera-cloud/tests/flow.rs`](../crates/newera-cloud/tests/flow.rs) run
-against a mock Paddle API.
-
-The public pages the payment provider requires are part of the site:
-[pricing](https://3dneweraai.com/pricing/), [refunds](https://3dneweraai.com/refund/),
-[terms](https://3dneweraai.com/terms/) and [privacy](https://3dneweraai.com/privacy/).
+Nothing is sold: there is no paid plan, no checkout and no billing code. Supporting
+the project is a donation on [Buy Me a Coffee](https://buymeacoffee.com/leandrodaf),
+which gives nothing in return and is not tied to any account. The site explains it
+at [support](https://3dneweraai.com/pricing/), next to the
+[refunds](https://3dneweraai.com/refund/), [terms](https://3dneweraai.com/terms/)
+and [privacy](https://3dneweraai.com/privacy/) pages.

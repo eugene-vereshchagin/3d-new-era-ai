@@ -27,7 +27,7 @@ inglês, espanhol e francês.
 | **[Conector na nuvem](https://3dneweraai.com/connector/)** | Adicione `https://mcp.3dneweraai.com/mcp` no Claude ou no ChatGPT e projete pela conversa, com os projetos guardados na sua conta. | entrar com e-mail |
 
 O app e o editor no navegador são gratuitos, de código aberto e não pedem conta. O
-conector na nuvem é gratuito dentro de uma cota; veja os [preços](https://3dneweraai.com/pricing/).
+conector na nuvem também é gratuito, sem limites.
 
 ## Instalar
 
@@ -243,9 +243,9 @@ sem enviar nada sobre a instalação, e avisa na barra de status quando há uma 
 
 ## Apoie o projeto
 
-Tudo acima é gratuito e continua gratuito. Se o projeto te poupa tempo, o
-[plano Supporter](https://3dneweraai.com/pricing/) (US$ 5 por mês ou US$ 48 por ano)
-amplia as cotas da nuvem na sua conta e paga o servidor.
+Tudo acima é gratuito, sem limites, e continua gratuito. Não há plano pago. Se o projeto te
+poupa tempo, uma [doação no Buy Me a Coffee](https://buymeacoffee.com/leandrodaf) ajuda a
+pagar o servidor; ela não libera nada a mais. Veja [apoiar](https://3dneweraai.com/pricing/).
 
 ## Contribuir
 

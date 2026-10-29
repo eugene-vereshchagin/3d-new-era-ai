@@ -252,7 +252,8 @@ impl Engine {
     }
 
     /// Whether a photo of this kind would go over the plan, and what to say
-    /// if so: drafts are counted by the day, the rest by the month.
+    /// if so: drafts are counted by the day, the rest by the month. A plan
+    /// that names no limit for it has none.
     async fn over_quota(
         &self,
         db: &PgPool,
@@ -261,13 +262,14 @@ impl Engine {
         kind: &str,
     ) -> anyhow::Result<Option<String>> {
         let draft = kind == "draft_render";
-        let limit = plan.limits[if draft {
+        let Some(limit) = plan.limits[if draft {
             "draft_renders_per_day"
         } else {
             "hq_renders_per_month"
         }]
-        .as_i64()
-        .unwrap_or(0);
+        .as_i64() else {
+            return Ok(None);
+        };
         let used: i64 = sqlx::query_scalar(
             "select coalesce(sum(count), 0)::bigint from usage
              where account_id = $1 and kind = $2
@@ -327,8 +329,9 @@ impl Engine {
             .bind(account)
             .fetch_one(db)
             .await?;
-        let most = plan.limits["projects"].as_i64().unwrap_or(0);
-        if count >= most {
+        if let Some(most) = plan.limits["projects"].as_i64()
+            && count >= most
+        {
             return Ok(refused(format!(
                 "the {} plan keeps {most} projects; open one with file action=open, or delete one from the account page",
                 plan.name
@@ -485,9 +488,12 @@ impl Engine {
         .bind(&loaded.project)
         .fetch_one(db)
         .await?;
-        let limit = plan.limits["storage_mb"].as_i64().unwrap_or(0) * 1024 * 1024;
         let size = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
-        if others + size > limit {
+        if let Some(limit) = plan.limits["storage_mb"]
+            .as_i64()
+            .map(|mb| mb * 1024 * 1024)
+            && others + size > limit
+        {
             return Ok(Some(format!(
                 "the change is on screen but was not kept: the {} plan stores {} MB and this would take {} MB",
                 plan.name,

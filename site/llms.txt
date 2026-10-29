@@ -20,7 +20,7 @@ There are three ways to use it:
   reach through a relay that stores nothing.
 - **Hosted connector** at `https://mcp.3dneweraai.com/mcp` (OAuth, email sign-in):
   Claude, ChatGPT and other clients design from the chat, with projects kept in
-  the person's account. Free within a quota; a paid plan raises it. Setup:
+  the person's account. Free with no limits. Setup:
   https://3dneweraai.com/connector/
 
 The interface speaks Portuguese, English, Spanish and French.
@@ -57,7 +57,7 @@ Codex when they are installed. For other clients:
 - [Site](https://3dneweraai.com/): what it is, gallery, how to connect an AI.
 - [Editor in the browser](https://3dneweraai.com/app/): the full editor as WebAssembly, no install.
 - [Hosted connector](https://3dneweraai.com/connector/): connect Claude or ChatGPT without installing anything.
-- [Pricing](https://3dneweraai.com/pricing/): free, and the optional Supporter plan.
+- [Support](https://3dneweraai.com/pricing/): everything is free with no limits; no paid plan, donations only.
 - [Repository](https://github.com/leandrodaf/3d-new-era-ai): source, issues, releases.
 - [README](https://github.com/leandrodaf/3d-new-era-ai#readme): install, MCP tools, architecture.
 - [Roadmap](https://github.com/leandrodaf/3d-new-era-ai/blob/main/docs/ROADMAP.md): what is done and what is next.

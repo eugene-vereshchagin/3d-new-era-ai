@@ -13,11 +13,6 @@ use serde_json::{Value, json};
 use sha2::Digest as _;
 
 const SITE: &str = "http://127.0.0.1:8790";
-/// A webhook signing secret made up for the tests. Nothing real is written
-/// in the code.
-const BMC_SECRET: &str = concat!("whsec_", "test-key-not-a-secret");
-/// The Buy Me a Coffee page the tests sell from.
-const BMC_PAGE: &str = "newera-test";
 
 /// A fresh database for one test, migrated, and the service on a free port.
 async fn service() -> Option<(String, AppState)> {
@@ -49,12 +44,6 @@ async fn service() -> Option<(String, AppState)> {
         mail: Mail::Log,
         google: None,
         editor_url: format!("{SITE}/editor/"),
-        buymeacoffee: Some(newera_cloud::config::BuyMeACoffee {
-            page: BMC_PAGE.to_owned(),
-            webhook_secret: BMC_SECRET.to_owned(),
-            levels: vec![7],
-            test_events: false,
-        }),
         port: 0,
     };
     let state = AppState::new(config, db);
@@ -476,7 +465,7 @@ async fn an_ai_client_is_allowed_in_and_reaches_the_tab() {
         .unwrap();
     assert!(size > 100, "the change was kept");
 
-    // A draft photo counts; a good one is not in the free plan.
+    // A photo counts, and nothing is sold: a good one is everybody's too.
     let photo = call(42, "render_photo", json!({"w": 64, "h": 48})).await;
     assert_eq!(photo["isError"], false, "{photo}");
     let used: i32 = sqlx::query_scalar("select count from usage where kind = 'draft_render'")
@@ -490,13 +479,7 @@ async fn an_ai_client_is_allowed_in_and_reaches_the_tab() {
         json!({"w": 64, "h": 48, "quality": "good"}),
     )
     .await;
-    assert_eq!(good["isError"], true);
-    assert!(
-        good["content"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("Free plan")
-    );
+    assert_eq!(good["isError"], false, "{good}");
 
     // An export comes back as a link, and the link is the file.
     let exported = call(44, "export", json!({"path": "/etc/casa.pdf"})).await;
@@ -525,6 +508,11 @@ async fn an_ai_client_is_allowed_in_and_reaches_the_tab() {
     )
     .await;
     assert_eq!(made["isError"], false, "{made}");
+    // More projects than the free plan used to keep.
+    for (id, name) in [(51, "Escritório"), (52, "Sítio"), (53, "Loja")] {
+        let more = call(id, "file", json!({"action": "new", "name": name})).await;
+        assert_eq!(more["isError"], false, "{more}");
+    }
     let back = call(47, "file", json!({"action": "open", "path": "Projeto 1"})).await;
     assert_eq!(back["isError"], false, "{back}");
     let renamed = call(
@@ -534,6 +522,26 @@ async fn an_ai_client_is_allowed_in_and_reaches_the_tab() {
     )
     .await;
     assert_eq!(renamed["content"][0]["text"], "ok saved Apartamento");
+    // A limit written back into a plan holds again, with no code: one project,
+    // one draft photo a day (already taken) and no storage.
+    sqlx::query(
+        r#"update plans set limits = '{"projects": 1, "draft_renders_per_day": 1, "storage_mb": 0}'"#,
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+    for (id, name, arguments) in [
+        (54, "file", json!({"action": "new"})),
+        (55, "render_photo", json!({"w": 64, "h": 48})),
+        (56, "file", json!({"action": "save"})),
+    ] {
+        let limited = call(id, name, arguments).await;
+        assert_eq!(limited["isError"], true, "{name}: {limited}");
+    }
+    sqlx::query("update plans set limits = '{}'")
+        .execute(&state.db)
+        .await
+        .unwrap();
     // "Open in the editor" is this project, which the site may fetch with the
     // person's cookie — and nobody else may.
     let shown = call(50, "show_plan", json!({})).await;
@@ -758,397 +766,4 @@ async fn sign_in_never_redirects_elsewhere() {
         .await;
         assert_eq!(back, expected, "{asked}");
     }
-}
-
-/// A Buy Me a Coffee delivery of `kind` for `data`, signed as it signs.
-async fn bmc(base: &str, kind: &str, data: Value, live: bool, sign: bool) -> u16 {
-    bmc_at(base, kind, data, live, sign, 1_800_000_000).await
-}
-
-/// The same, with the `created` the envelope carries: what tells a replay
-/// from news.
-async fn bmc_at(base: &str, kind: &str, data: Value, live: bool, sign: bool, at: i64) -> u16 {
-    let body = json!({
-        "event_id": 1234,
-        "type": kind,
-        "live_mode": live,
-        "created": at,
-        "attempt": 1,
-        "data": data,
-    })
-    .to_string();
-    let mut request = client().post(format!("{base}/billing/buymeacoffee"));
-    if sign {
-        request = request.header(
-            "x-signature-sha256",
-            newera_cloud::billing::signature(BMC_SECRET, body.as_bytes()),
-        );
-    }
-    request.body(body).send().await.unwrap().status().as_u16()
-}
-
-/// A membership as Buy Me a Coffee sends it. The flags really do arrive as
-/// strings of `"true"`/`"false"`.
-fn membership(id: i64, email: &str, status: &str, ending: bool, level: i64) -> Value {
-    json!({
-        "object": "membership",
-        "id": id,
-        "psp_id": format!("sub_{id}"),
-        "duration_type": "month",
-        "status": status,
-        "canceled": if status == "canceled" { "true" } else { "false" },
-        "cancel_at_period_end": if ending { "true" } else { "false" },
-        "paused": if status == "paused" { "true" } else { "false" },
-        "supporter_id": 42,
-        "supporter_name": "Ana",
-        "supporter_email": email,
-        "amount": 5.0,
-        "currency": "USD",
-        "membership_level_id": level,
-        "membership_level_name": "Supporter",
-        "started_at": 1_800_000_000_i64,
-        "current_period_start": 1_800_000_000_i64,
-        // Far enough ahead that the plan is live while the test runs.
-        "current_period_end": 4_070_908_800_i64,
-    })
-}
-
-#[tokio::test]
-async fn a_membership_raises_the_plan_and_its_end_lowers_it() {
-    let Some((base, state)) = service().await else {
-        return;
-    };
-    let plan = |email: &'static str| {
-        let db = state.db.clone();
-        async move {
-            let account = newera_cloud::accounts::find_or_create(&db, email)
-                .await
-                .unwrap();
-            newera_cloud::accounts::plan_of(&db, &account.id)
-                .await
-                .unwrap()
-                .code
-        }
-    };
-    assert_eq!(plan("ana@example.com").await, "free");
-
-    let started = membership(1, "ana@example.com", "active", false, 7);
-    assert_eq!(
-        bmc(&base, "membership.started", started.clone(), true, false).await,
-        401,
-        "unsigned"
-    );
-    assert_eq!(
-        bmc(&base, "membership.started", started, true, true).await,
-        200
-    );
-    assert_eq!(plan("ana@example.com").await, "supporter");
-
-    // Cancelled for the end of the period: paid for until then.
-    assert_eq!(
-        bmc_at(
-            &base,
-            "membership.cancelled",
-            membership(1, "ana@example.com", "active", true, 7),
-            true,
-            true,
-            1_800_000_100,
-        )
-        .await,
-        200
-    );
-    assert_eq!(
-        plan("ana@example.com").await,
-        "supporter",
-        "the period already paid for runs out on its own"
-    );
-
-    // Paused: not paying, so not on the plan.
-    assert_eq!(
-        bmc_at(
-            &base,
-            "membership.paused",
-            membership(1, "ana@example.com", "paused", false, 7),
-            true,
-            true,
-            1_800_000_200,
-        )
-        .await,
-        200
-    );
-    assert_eq!(plan("ana@example.com").await, "free");
-
-    // A retry of the event before it must not undo the newer one.
-    assert_eq!(
-        bmc_at(
-            &base,
-            "membership.started",
-            membership(1, "ana@example.com", "active", false, 7),
-            true,
-            true,
-            1_800_000_000,
-        )
-        .await,
-        200
-    );
-    assert_eq!(
-        plan("ana@example.com").await,
-        "free",
-        "an older event leaves the row alone"
-    );
-
-    // Gone for good.
-    assert_eq!(
-        bmc_at(
-            &base,
-            "membership.cancelled",
-            membership(1, "ana@example.com", "canceled", false, 7),
-            true,
-            true,
-            1_800_000_300,
-        )
-        .await,
-        200
-    );
-    assert_eq!(plan("ana@example.com").await, "free");
-
-    // An address nobody signed in with yet gets the account the sign-in link
-    // would have made.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            membership(2, "BIA@example.com", "active", false, 7),
-            true,
-            true
-        )
-        .await,
-        200
-    );
-    assert_eq!(plan("bia@example.com").await, "supporter", "same address");
-
-    // Monthly support carries no level. While the page names the levels that
-    // pay for the plan, that is not one of them — otherwise any amount at all
-    // would buy the plan the levels were meant to fence off.
-    let mut monthly = membership(3, "caio@example.com", "active", false, 7);
-    monthly["object"] = json!("recurring_donation");
-    monthly
-        .as_object_mut()
-        .unwrap()
-        .remove("membership_level_id");
-    assert_eq!(
-        bmc(&base, "recurring_donation.started", monthly, true, true).await,
-        200
-    );
-    assert_eq!(plan("caio@example.com").await, "free");
-
-    // A level this page does not sell the plan for changes nothing.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            membership(4, "dan@example.com", "active", false, 99),
-            true,
-            true
-        )
-        .await,
-        200
-    );
-    assert_eq!(plan("dan@example.com").await, "free");
-
-    // Moved down to a level that does not pay for the plan: the plan goes
-    // with it. Left alone, the row would keep saying the account pays, and
-    // every later event for that membership — the cancellation included —
-    // would be dropped for having the wrong level.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            membership(5, "edu@example.com", "active", false, 7),
-            true,
-            true
-        )
-        .await,
-        200
-    );
-    assert_eq!(plan("edu@example.com").await, "supporter");
-    assert_eq!(
-        bmc_at(
-            &base,
-            "membership.updated",
-            membership(5, "edu@example.com", "active", false, 99),
-            true,
-            true,
-            1_800_000_400,
-        )
-        .await,
-        200
-    );
-    assert_eq!(
-        plan("edu@example.com").await,
-        "free",
-        "the plan does not outlive the level that bought it"
-    );
-
-    // A test event from the dashboard never gives the plan away.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            membership(5, "eva@example.com", "active", false, 7),
-            false,
-            true
-        )
-        .await,
-        202
-    );
-    assert_eq!(plan("eva@example.com").await, "free");
-
-    // A one-off coffee is thanked for and changes no plan.
-    assert_eq!(
-        bmc(
-            &base,
-            "donation.created",
-            json!({"supporter_email": "fab@example.com", "amount": 5.0}),
-            true,
-            true
-        )
-        .await,
-        202
-    );
-    assert_eq!(plan("fab@example.com").await, "free");
-
-    // A membership with nobody's address is accepted and dropped: retrying
-    // it would never go any better.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            json!({"id": 6, "status": "active", "membership_level_id": 7}),
-            true,
-            true
-        )
-        .await,
-        202
-    );
-}
-
-#[tokio::test]
-async fn the_account_page_sends_people_to_buy_me_a_coffee_and_back() {
-    let Some((base, state)) = service().await else {
-        return;
-    };
-    let http = client();
-    // The bare address sends a browser to the site.
-    let home = http.get(format!("{base}/")).send().await.unwrap();
-    assert_eq!(home.status(), 308);
-    assert_eq!(location(&home), format!("{SITE}/"));
-
-    // Signed out, the support page asks for the account first.
-    let away = http
-        .get(format!("{base}/billing/checkout"))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(away.status(), 303);
-    assert_eq!(location(&away), "/login?return_to=/billing/checkout");
-
-    let (cookie, _) = sign_in(&base, &state, "cid@example.com", "/account").await;
-    let account = |path: &'static str| {
-        let (http, cookie, base) = (http.clone(), cookie.clone(), base.clone());
-        async move {
-            http.get(format!("{base}{path}"))
-                .header("cookie", &cookie)
-                .send()
-                .await
-                .unwrap()
-        }
-    };
-    let page = account("/account").await.text().await.unwrap();
-    assert!(
-        page.contains(r#"href="/billing/checkout""#),
-        "free: offers the plan"
-    );
-
-    let checkout = account("/billing/checkout").await.text().await.unwrap();
-    let membership_url = format!("https://buymeacoffee.com/{BMC_PAGE}/membership");
-    assert!(checkout.contains(&membership_url), "the way to pay");
-    assert!(
-        checkout.contains("cid@example.com"),
-        "the address the plan comes back to"
-    );
-
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.started",
-            membership(9, "cid@example.com", "active", false, 7),
-            true,
-            true
-        )
-        .await,
-        200
-    );
-    let page = account("/account?paid=1").await.text().await.unwrap();
-    assert!(page.contains("Thank you") || page.contains("Obrigado"));
-    assert!(
-        page.contains(&membership_url),
-        "paying: managed on Buy Me a Coffee"
-    );
-    assert!(
-        !page.contains(r#"href="/billing/manage""#),
-        "there is no portal of ours to open"
-    );
-    assert!(
-        page.contains("Cancel the subscription first, where it is charged")
-            || page.contains("Cancele a assinatura antes, onde ela é cobrada"),
-        "closing the account cannot stop the charge"
-    );
-
-    // Closing the account stops the plan here; the charge is theirs to stop.
-    let csrf = field(&page, "csrf");
-    let closed = http
-        .post(format!("{base}/account/close"))
-        .header("cookie", &cookie)
-        .form(&[("csrf", csrf.as_str())])
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(closed.status(), 200);
-    let done = closed.text().await.unwrap();
-    assert!(
-        done.contains("still active") || done.contains("continua ativa"),
-        "said again on the way out"
-    );
-    let status: Option<String> = sqlx::query_scalar(
-        "select status from subscriptions where provider = 'buymeacoffee'
-         and provider_subscription = '9'",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .unwrap();
-    assert_eq!(status.as_deref(), Some("canceled"), "no longer paid here");
-
-    // Buy Me a Coffee goes on charging a membership nobody here can cancel,
-    // so another event for the closed address arrives sooner or later. It
-    // must not undo the deletion by making the account again.
-    assert_eq!(
-        bmc(
-            &base,
-            "membership.updated",
-            membership(9, "cid@example.com", "active", false, 7),
-            true,
-            true
-        )
-        .await,
-        200
-    );
-    let live: i64 = sqlx::query_scalar(
-        "select count(*) from accounts where lower(email) = lower($1) and deleted_at is null",
-    )
-    .bind("cid@example.com")
-    .fetch_one(&state.db)
-    .await
-    .unwrap();
-    assert_eq!(live, 0, "a closed account is not reopened by a payment");
 }

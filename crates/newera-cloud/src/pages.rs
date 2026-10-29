@@ -80,8 +80,8 @@ pub fn page(lang: Lang, title: &str, body: &str) -> Html<String> {
     ))
 }
 
-/// Where the support button goes. Charged in US dollars, wherever from.
-const SUPPORT_URL: &str = "https://buymeacoffee.com/leandrodaf/membership";
+/// Where the support button goes: a donation, which buys nothing.
+const SUPPORT_URL: &str = "https://buymeacoffee.com/leandrodaf";
 
 /// Buy Me a Coffee's button, on every page here.
 ///

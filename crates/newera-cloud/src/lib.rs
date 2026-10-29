@@ -5,7 +5,7 @@
 //! - **the relay**, unchanged: a browser tab opens a room and anybody holding
 //!   the room's secret URL reaches it — no account, as before;
 //! - **accounts**, signed into with an emailed link (or Google), each on a
-//!   plan whose limits the tools respect;
+//!   plan whose limits the tools respect (none, today: everything is free);
 //! - **OAuth 2.1** for AI clients (Claude, `ChatGPT`, Codex…): dynamic
 //!   registration and client metadata documents, PKCE, rotating refresh
 //!   tokens;
@@ -17,7 +17,6 @@
 
 pub mod account;
 pub mod accounts;
-pub mod billing;
 pub mod config;
 pub mod engine;
 pub mod files;
@@ -151,8 +150,6 @@ pub fn router(state: &AppState) -> Router {
         .route("/account/done", get(account::done))
         .route("/mcp", post(mcp::post).get(mcp::get))
         .route("/files/{token}", get(files::get))
-        .route("/billing/buymeacoffee", post(billing::webhook))
-        .route("/billing/checkout", get(billing::checkout))
         .merge(site)
         .with_state(state.clone());
     newera_relay::router_with(state.rooms.clone()).merge(cloud)

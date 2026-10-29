@@ -64,9 +64,8 @@ pub(crate) enum FurnitureLook {
 }
 
 const SETTINGS_KEY: &str = "newera-settings";
-/// Where the support button goes. The membership is charged in US dollars,
-/// wherever the app is being used from.
-const SUPPORT_URL: &str = "https://buymeacoffee.com/leandrodaf/membership";
+/// Where the support button goes: a donation, which buys nothing.
+const SUPPORT_URL: &str = "https://buymeacoffee.com/leandrodaf";
 /// Where issues and pull requests go.
 const REPOSITORY_URL: &str = "https://github.com/leandrodaf/3d-new-era-ai";
 /// Where a newer release is downloaded from.

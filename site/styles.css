@@ -489,8 +489,8 @@ button { font: inherit; color: inherit; }
 /* THE SUPPORT BUTTON
    Buy Me a Coffee's own button, drawn here rather than loaded from their CDN:
    no third-party request, no layout shift, and it follows the site's language.
-   The charge is always in US dollars, so the button carries no price — the
-   membership page states it.
+   It is a donation that unlocks nothing, so the button carries no price — the
+   donor picks the amount on that page.
 
    It is never hidden: no breakpoint below turns it off, only shrinks it. */
 .bmc {

@@ -26,8 +26,8 @@ plan inside the chat, as a 3D view, or as a photo rendered from the project itse
 an image made up by generative AI.
 
 Every change can be undone, and your projects stay in your account, ready to download and
-open in the browser editor or the free desktop app. The free plan is enough to design for
-real; a paid plan on the website raises the limits and adds high-quality photos.
+open in the browser editor or the free desktop app. Everything is free, with no limits,
+including high-quality photos; nothing is sold.
 
 ## Example prompts (Claude asks for at least 3)
 
@@ -64,19 +64,19 @@ Each starts in a new conversation, signed in with the review account.
 
 ## Review account
 
-A full account on the paid plan, no MFA: sign in at <https://mcp.3dneweraai.com/login> with
-the review address given in the form; the sign-in link arrives at that inbox. Paid features
-(high-quality photos, higher limits) are enabled on it.
+An ordinary account, no MFA: sign in at <https://mcp.3dneweraai.com/login> with the review
+address given in the form; the sign-in link arrives at that inbox. There is no paid plan, so
+any account sees everything, high-quality photos included.
 
 ## Checklist
 
 - [x] Every tool has a `title` and correct `readOnlyHint` / `destructiveHint` /
       `openWorldHint` (tests `every_tool_has_hints`, `reads_change_nothing`)
 - [x] Reads and writes in separate tools; names under 64 characters
-- [x] Errors say what to do next (for example, a quota error names the quality that still works)
+- [x] Errors say what to do next (for example, a limit error names the quality that still works; no limits are set today)
 - [x] Descriptions give no orders to the model and carry no promotion or upsell
 - [x] No selling, prices or checkout links inside the chat; no tool takes payments
-- [x] The free plan is useful on its own
+- [x] Everything is free, with no limits; nothing is sold
 - [x] Minimal data: email, projects and usage; never the conversation
 - [x] Privacy policy and terms published at 3dneweraai.com
 - [x] Public connector documentation
@@ -84,6 +84,6 @@ the review address given in the form; the sign-in link arrives at that inbox. Pa
 - [x] Images come from deterministic rendering of the project, said on the connector page
 - [x] The widget declares its CSP: it loads nothing from the network
 - [x] Screenshots of the widget ([images/connector/](images/connector/))
-- [ ] Review account on the paid plan
+- [ ] Review account (any account; there is no paid plan)
 - [ ] Claude Team organization (to submit to the Connectors Directory)
 - [ ] Verified identity on the OpenAI Platform
