@@ -103,7 +103,7 @@ impl NewEraMcp {
     }
 
     #[tool(
-        description = "Publish to the asset library: action=publish keeps a piece's model file — with its companion files, reference pictures, measured sizes, unit, box, brand and source link — as the next version of name, with notes on what changed and fidelity (what was estimated). A version never changes after; library lists them."
+        description = "Publish to the asset library: action=publish keeps a piece's model file — with its companion files, reference pictures, measured sizes, unit, box, height above the floor, brand and source link — as the next version of name, with notes on what changed and fidelity (what was estimated). A version never changes after; library lists them."
     )]
     pub(crate) fn edit_library(
         &self,
@@ -182,6 +182,9 @@ impl NewEraMcp {
                 ..far.clone()
             }),
             category,
+            // Where it hangs is part of what it is: a wall cabinet published
+            // at 140 cm comes back at 140 cm.
+            elevation: (piece.elevation > 0.0).then_some(piece.elevation),
             icon,
             ..Entry::default()
         };
@@ -241,7 +244,7 @@ mod tests {
             .unwrap();
         first
             .update(Parameters(
-                serde_json::from_str(r#"{"items":[{"id":"f1","brand":"Example Furniture","model_name":"Poltrona Win","url":"https://example.com/win"}]}"#)
+                serde_json::from_str(r#"{"items":[{"id":"f1","brand":"Example Furniture","model_name":"Poltrona Win","url":"https://example.com/win","elev":40}]}"#)
                     .unwrap(),
             ))
             .unwrap();
@@ -354,6 +357,11 @@ mod tests {
             placed.model
         );
         assert_eq!(placed.info.brand.as_deref(), Some("Example Furniture"));
+        assert!(
+            (placed.elevation - 40.0).abs() < 1e-9,
+            "{}",
+            placed.elevation
+        );
         assert_eq!((placed.references.len(), placed.measures.len()), (1, 1));
         assert!(std::path::Path::new(&placed.references[0].file).is_file());
         // The approved edits come along, the lighter file from the library.
@@ -384,6 +392,24 @@ mod tests {
             std::path::Path::new(piece(&second).model.as_deref().unwrap())
                 .ends_with("win/v1/win.obj"),
             "{reply}"
+        );
+        // A height asked for wins over the published one.
+        second
+            .place(Parameters(
+                serde_json::from_str(
+                    r#"{"items":[{"model":"library:win","at":[400,100],"elev":0}]}"#,
+                )
+                .unwrap(),
+            ))
+            .unwrap();
+        assert_eq!(
+            second
+                .document
+                .read()
+                .home()
+                .find_piece("f2".parse().unwrap())
+                .map(|f| f.elevation),
+            Some(0.0)
         );
         assert!(
             second

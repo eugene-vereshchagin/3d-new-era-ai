@@ -3200,6 +3200,7 @@ mod tests {
                 brand: Some("Example Furniture".into()),
                 unit: Some("m".into()),
                 size: [80.0, 85.0, 90.0],
+                elevation: Some(140.0),
                 category: Some("Sala de estar".into()),
                 ..Default::default()
             },
@@ -3226,6 +3227,7 @@ mod tests {
         let piece = &doc.home().furniture[0];
         assert_eq!(piece.name, "Armário Ipê");
         assert_eq!([piece.width, piece.depth, piece.height], [80.0, 85.0, 90.0]);
+        assert_eq!(piece.elevation, 140.0);
         assert_eq!(piece.info.brand.as_deref(), Some("Example Furniture"));
         assert_eq!(
             piece

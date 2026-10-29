@@ -204,7 +204,7 @@ fn read_icon(path: &Path) -> Option<egui::ColorImage> {
 
 impl NewEraApp {
     /// Puts the latest version of a library entry in the middle of the plan
-    /// view, at the size, in the unit and with the photos and edits it was
+    /// view, at the size, height, in the unit and with the photos and edits it was
     /// published with — what `place model=library:<name>` does.
     pub(crate) fn place_from_library(&mut self, name: &str) {
         if crate::jobs::busy(self) {
@@ -250,6 +250,7 @@ impl NewEraApp {
                 width: entry.size[0],
                 depth: entry.size[1],
                 height: entry.size[2],
+                elevation: entry.elevation.unwrap_or(0.0),
                 model: Some(path.display().to_string()),
                 visible: true,
                 ..Default::default()

@@ -2172,7 +2172,7 @@
       "readOnlyHint": false,
       "title": "Publish to the model library"
     },
-    "description": "Publish to the asset library: action=publish keeps a piece's model file — with its companion files, reference pictures, measured sizes, unit, box, brand and source link — as the next version of name, with notes on what changed and fidelity (what was estimated). A version never changes after; library lists them.",
+    "description": "Publish to the asset library: action=publish keeps a piece's model file — with its companion files, reference pictures, measured sizes, unit, box, height above the floor, brand and source link — as the next version of name, with notes on what changed and fidelity (what was estimated). A version never changes after; library lists them.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

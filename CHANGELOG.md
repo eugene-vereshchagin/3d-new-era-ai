@@ -33,6 +33,9 @@ All notable changes to this project are documented here. The format follows
   `category` names one (`bedroom`, `Quarto`, `Bedroom`), under a section of its own otherwise, and
   under "My library" with none; `icon` gives its row a picture. `edit_library` takes both, and a
   new version keeps the last one's. The list is read again when the window comes back into focus.
+- A library entry keeps the height above the floor it was published at (`elevation` in
+  `asset.json`): a wall cabinet or a hand dryer placed from the library, by hand or with `place
+  model=library:<name>`, goes up to where it hangs; `elev` in the call still says otherwise.
 - A press kit at `/press/`, in English and Portuguese: the project in one paragraph, key facts,
   the demo video, high-resolution images made in the app and the logo, free to use in coverage.
 - A page for people looking for a Sweet Home 3D alternative (`/sweet-home-3d-alternative/`): what

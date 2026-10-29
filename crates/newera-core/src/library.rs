@@ -65,9 +65,13 @@ pub struct Entry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_far: Option<FarModel>,
     /// The section the editor's catalog lists it under, as people name it:
-    /// `Quarto`, `Bedroom`, `Cadeiras de jantar`. None: a section of its own.
+    /// `Quarto`, `Bedroom`, `Cadeiras de jantar`. None: with the unfiled ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Height above the floor it is placed at, cm: a wall cabinet, a hand
+    /// dryer, a shelf. None: on the floor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elevation: Option<f64>,
     /// A small picture for the catalog's row, relative to the version's folder.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
@@ -412,6 +416,7 @@ mod tests {
                 ..Reference::default()
             }],
             category: Some("Sala".into()),
+            elevation: Some(120.0),
             icon: Some(work.join("vista.PNG").display().to_string()),
             ..Entry::default()
         };
@@ -437,6 +442,7 @@ mod tests {
             folder.join("referencias").join("00-frente.jpg")
         );
         assert_eq!(latest.category.as_deref(), Some("Sala"));
+        assert_eq!(latest.elevation, Some(120.0));
         assert_eq!(
             latest.icon.as_deref().map(Path::new),
             Some(folder.join("icon.png").as_path())

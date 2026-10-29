@@ -3174,7 +3174,12 @@ pub(crate) fn place_noting(doc: &mut Document, items: Vec<PlaceSpec>) -> EditRes
         piece.width = spec.w.unwrap_or(piece.width);
         piece.depth = spec.d.unwrap_or(piece.depth);
         piece.height = spec.h.unwrap_or(piece.height);
-        piece.elevation = spec.elev.unwrap_or(piece.elevation);
+        // A library piece goes up to the height it was published at, unless
+        // the call says another.
+        piece.elevation = spec
+            .elev
+            .or_else(|| library.as_ref().and_then(|(entry, _)| entry.elevation))
+            .unwrap_or(piece.elevation);
         piece.pitch = spec.pitch.unwrap_or(piece.pitch);
         piece.roll = spec.roll.unwrap_or(piece.roll);
         piece.name = spec.name.unwrap_or(piece.name);
