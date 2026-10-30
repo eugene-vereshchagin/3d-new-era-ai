@@ -56,7 +56,10 @@ impl Listed {
 /// The library as the catalog lists it: the latest version of each entry.
 pub(crate) struct Shelf {
     root: PathBuf,
-    items: Vec<(Entry, PathBuf)>,
+    /// Each entry with the built-in section its `category` names, resolved
+    /// once when the library is read: the panel asks every section for its
+    /// entries each frame.
+    items: Vec<(Entry, PathBuf, Option<Category>)>,
     /// Read since the window last came back into focus. The library changes
     /// from outside — an agent publishes, a folder is copied in — while the
     /// person is in another window, so coming back is when to look again.
@@ -88,7 +91,7 @@ impl Shelf {
         self.was_focused = focused;
         self.icons_this_frame = 0;
         if !self.fresh {
-            self.items = library::latest(&self.root);
+            self.items = shelved(library::latest(&self.root));
             self.fresh = true;
         }
     }
@@ -102,9 +105,8 @@ impl Shelf {
     pub(crate) fn in_category(&self, category: Category) -> Vec<Listed> {
         self.items
             .iter()
-            .map(|(entry, _)| entry)
-            .filter(|entry| entry.category.as_deref().and_then(builtin) == Some(category))
-            .map(Listed::of)
+            .filter(|(_, _, filed)| *filed == Some(category))
+            .map(|(entry, _, _)| Listed::of(entry))
             .collect()
     }
 
@@ -113,9 +115,11 @@ impl Shelf {
     /// `untitled`.
     pub(crate) fn own_sections(&self, untitled: &str) -> Vec<(String, Vec<Listed>)> {
         let mut sections: Vec<(String, Vec<Listed>)> = Vec::new();
-        for (entry, _) in &self.items {
+        for (entry, _, filed) in &self.items {
+            if filed.is_some() {
+                continue;
+            }
             let section = match entry.category.as_deref().map(str::trim) {
-                Some(name) if builtin(name).is_some() => continue,
                 Some(name) if !name.is_empty() => name,
                 _ => untitled,
             };
@@ -137,7 +141,7 @@ impl Shelf {
             .collect();
         self.items
             .iter()
-            .map(|(entry, _)| entry)
+            .map(|(entry, _, _)| entry)
             .filter(|entry| {
                 let text = newera_catalog::fold(&format!(
                     "{} {} {}",
@@ -177,6 +181,17 @@ impl Shelf {
         self.icons.insert(path, icon.clone());
         icon
     }
+}
+
+/// The entries as the shelf keeps them, each with its built-in section.
+fn shelved(entries: Vec<(Entry, PathBuf)>) -> Vec<(Entry, PathBuf, Option<Category>)> {
+    entries
+        .into_iter()
+        .map(|(entry, path)| {
+            let filed = entry.category.as_deref().and_then(builtin);
+            (entry, path, filed)
+        })
+        .collect()
 }
 
 /// The built-in section a `category` names, by id (`bedroom`) or by name in
@@ -280,18 +295,20 @@ mod tests {
 
     fn shelf(entries: &[(&str, Option<&str>)]) -> Shelf {
         let mut shelf = Shelf::new(PathBuf::new());
-        shelf.items = entries
-            .iter()
-            .map(|(name, category)| {
-                let entry = Entry {
-                    name: (*name).to_owned(),
-                    category: category.map(str::to_owned),
-                    size: [80.0, 85.0, 90.0],
-                    ..Entry::default()
-                };
-                (entry, PathBuf::from(format!("{name}.obj")))
-            })
-            .collect();
+        shelf.items = shelved(
+            entries
+                .iter()
+                .map(|(name, category)| {
+                    let entry = Entry {
+                        name: (*name).to_owned(),
+                        category: category.map(str::to_owned),
+                        size: [80.0, 85.0, 90.0],
+                        ..Entry::default()
+                    };
+                    (entry, PathBuf::from(format!("{name}.obj")))
+                })
+                .collect(),
+        );
         shelf.fresh = true;
         shelf
     }

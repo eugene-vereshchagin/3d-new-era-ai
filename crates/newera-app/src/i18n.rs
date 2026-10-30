@@ -168,6 +168,7 @@ pub(crate) fn tr(pt: &'static str) -> &'static str {
 
 /// The text in every language the window speaks, Portuguese first: what a
 /// name typed in any of them is matched against.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn every(pt: &'static str) -> impl Iterator<Item = &'static str> {
     Lang::ALL.into_iter().map(move |lang| say(pt, lang))
 }
