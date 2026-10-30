@@ -385,6 +385,10 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
+    /// Each publish is a new version beside the ones before: the model with its
+    /// companion files, the pictures, the section, the height above the floor
+    /// and the icon are copied in, and every version reads back as it was
+    /// published.
     #[test]
     fn versions_are_published_side_by_side_and_read_back() {
         let root = std::env::temp_dir().join(format!("newera-library-{}", std::process::id()));

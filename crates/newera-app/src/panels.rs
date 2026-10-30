@@ -290,6 +290,8 @@ fn find(query: &str) -> Vec<&'static CatalogItem> {
     found
 }
 
+/// A row of the built-in catalog: its thumbnail, name and size. A click
+/// picks the piece to place, and the next click on the plan puts it there.
 fn catalog_row(app: &mut NewEraApp, ui: &mut egui::Ui, item: &'static CatalogItem) {
     let selected = app.tool == Tool::Place(item.id);
     let unit = app.unit();
@@ -368,6 +370,9 @@ fn library_row(app: &mut NewEraApp, ui: &mut egui::Ui, listed: &crate::library::
     }
 }
 
+/// The catalog panel: the search box, then the built-in sections with the
+/// library's pieces filed under them, the library's own sections after. A
+/// search lists what matches from both instead.
 pub(crate) fn left(app: &mut NewEraApp, ui: &mut egui::Ui) {
     // Every name here names a row. Left selectable, egui hands the click to
     // the text — it comes out as a text selection and the row never hears it.

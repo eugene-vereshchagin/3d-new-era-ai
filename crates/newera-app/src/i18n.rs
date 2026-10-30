@@ -162,6 +162,9 @@ fn shown_in(name: &str, lang: Lang) -> String {
     translations(name).map_or_else(|| name.to_owned(), |row| row[column].to_owned())
 }
 
+/// The text in the language the window is set to: `pt` is the Portuguese
+/// the code is written in, and comes back as it is when there is no
+/// translation for it.
 pub(crate) fn tr(pt: &'static str) -> &'static str {
     say(pt, lang())
 }

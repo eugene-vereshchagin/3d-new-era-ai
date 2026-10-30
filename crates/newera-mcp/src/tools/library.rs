@@ -63,6 +63,8 @@ pub(crate) fn resolve(model: &str) -> Option<Result<(Entry, String), String>> {
 
 #[tool_router(router = library_router, vis = "pub(crate)")]
 impl NewEraMcp {
+    /// The `library` tool: every entry with its latest version, or with
+    /// `name`, every version of that one entry.
     #[allow(clippy::unused_self)] // tool methods need the receiver
     #[tool(
         description = "Versions kept in the asset library: approved revisions of model files, reusable in any project with place model=library:<name> or library:<name>@<v>; edit_model replace file=library:<name>@<v> goes back to an older one. Rows [name, latest, title, brand, versions]; name=<entry> lists its versions [v, title, size, unit, source, fidelity, notes, pictures, sizes]. edit_library publishes."
@@ -102,6 +104,9 @@ impl NewEraMcp {
         }
     }
 
+    /// The `edit_library` tool: publishes a piece of the open project as the
+    /// next version of `name`. The section and picture of the version before
+    /// carry over when they are not given again.
     #[tool(
         description = "Publish to the asset library: action=publish keeps a piece's model file — with its companion files, reference pictures, measured sizes, unit, box, height above the floor, brand and source link — as the next version of name, with notes on what changed and fidelity (what was estimated). A version never changes after; library lists them."
     )]
@@ -211,6 +216,9 @@ mod tests {
     use super::*;
     use crate::tools::server;
 
+    /// A chair published from one project is placed in another from the
+    /// library, at the height it was published at, and can be taken back to an
+    /// older version.
     #[test]
     fn a_published_chair_goes_into_another_project_and_back_a_version() {
         let dir = std::env::temp_dir().join(format!("newera-library-tool-{}", std::process::id()));

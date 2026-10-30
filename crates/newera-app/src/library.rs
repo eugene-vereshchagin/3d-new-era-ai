@@ -43,6 +43,8 @@ pub(crate) struct Listed {
 }
 
 impl Listed {
+    /// The row an entry is shown as: its title, or its name when it has none,
+    /// its size and its picture.
     fn of(entry: &Entry) -> Self {
         Self {
             name: entry.name.clone(),
@@ -70,6 +72,8 @@ pub(crate) struct Shelf {
 }
 
 impl Shelf {
+    /// A shelf over the library at `root`, still to be read: the first
+    /// [`Shelf::refresh`] reads it.
     pub(crate) fn new(root: PathBuf) -> Self {
         Self {
             root,
@@ -96,6 +100,8 @@ impl Shelf {
         }
     }
 
+    /// How many entries the library lists, one for each name: what the
+    /// catalog's count adds to the built-in pieces.
     pub(crate) fn len(&self) -> usize {
         self.items.len()
     }
@@ -204,6 +210,8 @@ fn builtin(name: &str) -> Option<Category> {
     })
 }
 
+/// An entry's picture, shrunk to [`ICON_PX`] on its longer side. `None`
+/// when the file is missing or is not an image: the row shows a cube.
 fn read_icon(path: &Path) -> Option<egui::ColorImage> {
     let bytes = newera_core::vfs::read(path).ok()?;
     let image = image::load_from_memory(&bytes)
@@ -244,6 +252,10 @@ impl NewEraApp {
         );
     }
 
+    /// Ends [`Self::place_from_library`] once the model is read: inserts the
+    /// piece at `at` as one step to undo, fitted the way the entry was published,
+    /// and selects it so it can be dragged into place. A model that failed to
+    /// read leaves the plan as it was and says why in the status bar.
     fn put_library_piece(
         &mut self,
         entry: Entry,
@@ -293,6 +305,8 @@ impl NewEraApp {
 mod tests {
     use super::*;
 
+    /// A shelf already read, with one entry for each name and `category`,
+    /// filed the way [`Shelf::refresh`] files what it reads.
     fn shelf(entries: &[(&str, Option<&str>)]) -> Shelf {
         let mut shelf = Shelf::new(PathBuf::new());
         shelf.items = shelved(
@@ -313,10 +327,14 @@ mod tests {
         shelf
     }
 
+    /// The names of the rows, in the order they are listed.
     fn names(listed: &[Listed]) -> Vec<&str> {
         listed.iter().map(|l| l.name.as_str()).collect()
     }
 
+    /// A `category` that names a built-in section by id or in any language
+    /// puts the piece under it; any other name makes a section of the library's
+    /// own, and the pieces without one go last, under `untitled`.
     #[test]
     fn a_category_naming_a_built_in_section_files_the_piece_there() {
         let shelf = shelf(&[
@@ -337,6 +355,8 @@ mod tests {
         assert_eq!(names(&own[2].1), ["stool"]);
     }
 
+    /// The search finds an entry by its name, its title or its section, in any
+    /// case.
     #[test]
     fn the_search_reads_name_title_and_section() {
         let mut shelf = shelf(&[("win", Some("Sala")), ("ares", None)]);

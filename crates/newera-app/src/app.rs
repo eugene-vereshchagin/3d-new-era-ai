@@ -218,6 +218,9 @@ impl std::fmt::Debug for NewEraApp {
 }
 
 impl NewEraApp {
+    /// The window as it opens: fonts, theme and the settings it was left with,
+    /// the document the agent shares with it, the address its MCP server
+    /// answers on, and the model library the catalog lists.
     pub(crate) fn new(
         cc: &eframe::CreationContext<'_>,
         document: SharedDocument,
