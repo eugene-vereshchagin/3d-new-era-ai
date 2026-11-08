@@ -1,5 +1,5 @@
 {
-  "total": 123529,
+  "total": 123571,
   "tools": {
     "accept": {
       "total": 1360,
@@ -26,9 +26,9 @@
       "output": 76
     },
     "cabinet_run": {
-      "total": 2608,
+      "total": 2599,
       "description": 824,
-      "input": 1266,
+      "input": 1257,
       "output": 294
     },
     "cameras": {
@@ -218,10 +218,10 @@
       "output": 295
     },
     "layout": {
-      "total": 2123,
-      "description": 871,
+      "total": 2165,
+      "description": 883,
       "input": 424,
-      "output": 651
+      "output": 681
     },
     "levels": {
       "total": 465,
@@ -323,7 +323,7 @@
       "total": 795,
       "description": 274,
       "input": 33,
-      "output": 181
+      "output": 175
     },
     "update": {
       "total": 9830,

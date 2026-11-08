@@ -14,8 +14,10 @@ description: Design kitchens, wardrobes and custom joinery in 3D New Era AI — 
 3. **One-off pieces.** `joinery` builds cabinets, slatted panels, countertops, plaster
    coves and sofas from parameters; workshop rules come back as notes and never refuse to
    draw. Change a build later with its `id` and only the new values.
-4. **Check.** `layout` finds cabinets whose doors open against a wall and appliances
-   a resized niche no longer holds; `ergonomics` checks counter heights and the work
+4. **Check.** `layout` finds cabinets whose doors open against a wall, doors, drawers and
+   appliance doors that hit a wall, a handle or the fridge while they open (`opens_into`: a
+   corner filler or the hinge on the other side clears it), and appliances a resized niche
+   no longer holds; `ergonomics` checks counter heights and the work
    triangle.
 5. **Cut list.** `cut_list` reads boards, edge banding and hardware; `export` with `what=cut_list`
    writes it as `.csv`, or `.dxf`/`.svg` sheets for the workshop.

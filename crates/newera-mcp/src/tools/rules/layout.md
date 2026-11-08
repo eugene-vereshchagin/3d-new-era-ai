@@ -11,6 +11,13 @@ the `key` it is accepted by and the elements involved (name, bounds and z).
   overlap_kinds counts them.
 - **blocked**: a cabinet, fridge or wardrobe whose opening face is against a solid. It
   cannot be used, and `angle` alone does not show it.
+- **opens_into** `{key, piece, front, against, how}`: a door, drawer or appliance door
+  (`how`: `door`, `drawer`, `flap`) that runs into a solid while it opens — the wall beside
+  its hinge, the fridge next to it, the handle of the drawer in the corner. Closed, nothing
+  touches, so no other check sees it. A door sweeps its width around the hinge to 90° and
+  stands past the hinge side by its thickness and handle; a drawer comes out by its slide; an
+  oven or dishwasher door drops by its height. A filler panel at the corner, the hinge on the
+  other side or a narrower handle clears it.
 - **in_wall** `{key, piece, wall}`: a piece inside a wall.
 - **blocks_door** `{key, door, by}`: includes a 60 cm approach on either face, even for
   sliding doors and passages.

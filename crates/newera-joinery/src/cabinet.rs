@@ -198,6 +198,15 @@ enum Grip {
     Leaf { right: bool },
 }
 
+/// How far the handle parts `handle` stand off a front whose face is the
+/// plane `face` (local y, cm): 0 for a groove or no handle.
+fn stand_off(handle: &[Part], face: f64) -> f64 {
+    handle
+        .iter()
+        .map(|p| p.at[1] + p.size[1] - face)
+        .fold(0.0, f64::max)
+}
+
 /// One front to put a handle on: `[x, width, z, height]` and its face plane y, cm.
 struct Front<'a> {
     label: &'a str,
@@ -846,6 +855,7 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                     front.finish.clone_from(&front_finish);
                     let rect = [front.at[0], front.size[0], front.at[2], front.size[2]];
                     parts.push(front);
+                    let front_at = parts.len() - 1;
                     add_handle(
                         p.handle,
                         handle_color,
@@ -858,6 +868,11 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                         &mut parts,
                         &mut handles,
                     );
+                    // Full-extension slides: the box comes out its whole length.
+                    parts[front_at].opens = Some(newera_core::opens::Front {
+                        motion: newera_core::opens::Motion::Drawer { travel: slide },
+                        handle: stand_off(&parts[front_at + 1..], d),
+                    });
                 }
             }
         }
@@ -1172,6 +1187,8 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                     } else {
                         k % 2 == 0 && k + 1 < n
                     };
+                    let door_at = parts.len() - 1;
+                    let before = parts.len();
                     add_handle(
                         p.handle,
                         handle_color,
@@ -1188,6 +1205,11 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                         &mut parts,
                         &mut handles,
                     );
+                    // Opening on the right side, it hinges on the left.
+                    parts[door_at].opens = Some(newera_core::opens::Front {
+                        motion: newera_core::opens::Motion::Hinge { left: right },
+                        handle: stand_off(&parts[before..], d),
+                    });
                 }
                 hinge_count += n * hinges(height);
             }
@@ -1755,6 +1777,64 @@ mod tests {
         assert_eq!(sofa.color, Some([216, 210, 198]));
         let run: crate::RunParams = serde_json::from_str(r##"{"color":"#d8d2c6"}"##).unwrap();
         assert_eq!(run.color, Some([216, 210, 198]));
+    }
+
+    /// Every door and drawer front says how it opens, with its handle, so
+    /// the layout check can see what it runs into; fixed panels say nothing.
+    #[test]
+    fn fronts_say_how_they_open() {
+        use newera_core::opens::{Front, Motion};
+        let single = generate(&CabinetParams {
+            w: 50.0,
+            ..CabinetParams::default()
+        })
+        .unwrap();
+        let door = part(&single, "Porta 1").opens.unwrap();
+        // A lone door opens on the right: it hinges on the left.
+        assert_eq!(door.motion, Motion::Hinge { left: true });
+        assert!(door.handle > 2.0, "a bar stands off the door: {door:?}");
+        let pair = generate(&CabinetParams {
+            w: 80.0,
+            doors: Some(2),
+            handle: HandleStyle::None,
+            ..CabinetParams::default()
+        })
+        .unwrap();
+        // A pair meets in the middle, hinged on the outer sides.
+        assert_eq!(
+            [part(&pair, "Porta 1").opens, part(&pair, "Porta 2").opens],
+            [
+                Some(Front {
+                    motion: Motion::Hinge { left: true },
+                    handle: 0.0
+                }),
+                Some(Front {
+                    motion: Motion::Hinge { left: false },
+                    handle: 0.0
+                }),
+            ]
+        );
+        let drawers = generate(&CabinetParams {
+            w: 60.0,
+            h: 87.0,
+            door: DoorType::Drawers,
+            drawers: 2,
+            ..CabinetParams::default()
+        })
+        .unwrap();
+        let front = part(&drawers, "Frente da gaveta 1").opens.unwrap();
+        let Motion::Drawer { travel } = front.motion else {
+            panic!("{front:?}");
+        };
+        assert!(travel >= 25.0, "slides of its depth: {travel}");
+        assert!(
+            drawers
+                .parts
+                .iter()
+                .filter(|p| p.opens.is_some())
+                .all(|p| p.name.starts_with("Frente")),
+            "only fronts move"
+        );
     }
 
     #[test]

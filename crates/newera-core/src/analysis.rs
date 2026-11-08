@@ -163,6 +163,19 @@ pub enum Issue {
         candidates: Vec<&'static str>,
         placed: &'static str,
     },
+    /// A door, a drawer or an appliance door that runs into a solid while it
+    /// opens — a handle, the wall beside its hinge, the fridge next to it.
+    /// Closed, nothing overlaps, so no other check sees it.
+    OpensInto {
+        /// The piece it belongs to: the build or the appliance itself.
+        piece: FurnitureId,
+        /// The front that moves.
+        front: FurnitureId,
+        /// What it meets.
+        against: crate::ids::ElementId,
+        /// How it moves: `door`, `drawer` or `flap`.
+        how: &'static str,
+    },
 }
 
 impl Issue {
@@ -184,6 +197,7 @@ impl Issue {
             Self::Turned { piece, .. } | Self::UnclearFront { piece, .. } => {
                 vec![(*piece).into()]
             }
+            Self::OpensInto { front, against, .. } => vec![(*front).into(), *against],
             Self::NoDoor { room, passages } => std::iter::once((*room).into())
                 .chain(passages.iter().map(|p| (*p).into()))
                 .collect(),
@@ -216,6 +230,7 @@ impl Issue {
             Self::NoDoor { .. } => "no_door",
             Self::UnratedLight(_) => "unrated_light",
             Self::AboveCeiling { .. } => "above_ceiling",
+            Self::OpensInto { .. } => "opens_into",
         }
     }
 
@@ -246,7 +261,8 @@ impl Issue {
     /// Whether an accepted key names a layout finding (and not an
     /// ergonomics one, which shares the project's list of acceptances).
     pub fn is_layout_key(key: &str) -> bool {
-        const FAMILIES: [&str; 15] = [
+        const FAMILIES: [&str; 16] = [
+            "opens_into",
             "backwards",
             "loose",
             "unrated_light",
@@ -652,6 +668,8 @@ pub fn check_layout_in(home: &Home, scope: Storeys) -> Vec<Issue> {
         }
     }
 
+    issues.extend(fronts_opening_into(home, &wanted));
+
     // A sofa, a bed, a toilet turned to face the wall its back belongs on.
     // Nothing overlaps and nothing is in a wall, so no other check sees it;
     // cabinets that open at the front are `Blocked` above instead.
@@ -1056,6 +1074,124 @@ fn distance_to_outline(points: &[Point2], p: Point2) -> f64 {
         .fold(f64::MAX, f64::min)
 }
 
+/// Area a front's sweep may share with a solid and still only graze it, cm²:
+/// far less than [`MIN_OVERLAP`], since a handle is a few square centimeters
+/// and is exactly what a door runs into.
+const SWEEP_GRAZE: f64 = 1.0;
+
+/// Every door, drawer and appliance door of the storeys `wanted` takes in
+/// that runs into a solid while it opens ([`crate::opens::Front::sweep`]):
+/// the handle of the drawer in the corner, the wall beside a hinge, the
+/// fridge next to a cabinet. Its own piece — the carcass, the other fronts
+/// of the same build — is left out: they move with it or behind it.
+///
+/// Solids are every visible part, handles and boards as thin as they come
+/// included, but not points of a project, openings or items set into a host.
+fn fronts_opening_into(home: &Home, wanted: &dyn Fn(Option<LevelId>) -> bool) -> Vec<Issue> {
+    struct Solid {
+        top: Option<FurnitureId>,
+        what: crate::ids::ElementId,
+        outline: Polygon<f64>,
+        /// Its plan box, to pass over the far side of the room without a
+        /// polygon intersection: this runs on every read of the issue count.
+        bounds: Option<geo::Rect<f64>>,
+        z: (f64, f64),
+    }
+    let solid = |top, what, outline: Polygon<f64>, z| Solid {
+        top,
+        what,
+        bounds: outline.bounding_rect(),
+        outline,
+        z,
+    };
+    // Solids of a storey, gathered once for all its fronts.
+    let mut storeys: Vec<(Option<LevelId>, Vec<Solid>)> = Vec::new();
+    let mut out = Vec::new();
+    for top in home.furniture.iter().filter(|f| wanted(f.level)) {
+        let level = home.resolve_level(top.level);
+        for leaf in top.visible_leaves() {
+            let Some(front) = crate::opens::Front::of(leaf) else {
+                continue;
+            };
+            if !storeys.iter().any(|(l, _)| *l == level) {
+                let view = home.level_view(level);
+                let mut solids: Vec<Solid> = view
+                    .walls
+                    .iter()
+                    .zip(view.wall_outlines())
+                    .filter(|(_, outline)| outline.len() >= 3)
+                    .map(|(wall, outline)| {
+                        solid(
+                            None,
+                            wall.id.into(),
+                            polygon(&outline),
+                            (0.0, wall.height.max(wall.height_at_end.unwrap_or(0.0))),
+                        )
+                    })
+                    .collect();
+                for other in &view.furniture {
+                    for part in other.visible_leaves() {
+                        if part.is_opening()
+                            || part.discipline.is_some()
+                            || part.properties.contains_key("joinery:embedded")
+                        {
+                            continue;
+                        }
+                        solids.push(solid(
+                            Some(other.id),
+                            part.id.into(),
+                            polygon(&part.projected_footprint()),
+                            part.height_range(),
+                        ));
+                    }
+                }
+                storeys.push((level, solids));
+            }
+            let solids = storeys
+                .iter()
+                .find(|(l, _)| *l == level)
+                .map(|(_, s)| s.as_slice())
+                .unwrap_or_default();
+            let (outline, z) = front.sweep(leaf);
+            let swept = polygon(&outline);
+            let reach = swept.bounding_rect();
+            let apart = |b: Option<geo::Rect<f64>>| match (reach, b) {
+                (Some(r), Some(b)) => {
+                    r.max().x < b.min().x
+                        || b.max().x < r.min().x
+                        || r.max().y < b.min().y
+                        || b.max().y < r.min().y
+                }
+                _ => true,
+            };
+            let how = match front.motion {
+                crate::opens::Motion::Hinge { .. } => "door",
+                crate::opens::Motion::Drawer { .. } => "drawer",
+                crate::opens::Motion::FlapDown => "flap",
+            };
+            let mut met: Vec<crate::ids::ElementId> = Vec::new();
+            for solid in solids {
+                if solid.top == Some(top.id)
+                    || met.contains(&solid.what)
+                    || shared_height(z, solid.z) < TOUCH
+                    || apart(solid.bounds)
+                    || swept.intersection(&solid.outline).unsigned_area() <= SWEEP_GRAZE
+                {
+                    continue;
+                }
+                met.push(solid.what);
+                out.push(Issue::OpensInto {
+                    piece: top.id,
+                    front: leaf.id,
+                    against: solid.what,
+                    how,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Room a door or a drawer needs in front of it before it is unusable, cm.
 const OPENING_ROOM: f64 = 5.0;
 /// A front this close to a wall, on a piece whose back belongs on one, is
@@ -1215,6 +1351,78 @@ mod tests {
             level: None,
             ..Default::default()
         }
+    }
+
+    /// A cabinet whose door hinges on the side a wall is on: closed, nothing
+    /// touches; open, the door and its handle go into the wall. A gap for a
+    /// filler panel clears it, and a fridge has the same problem on its own.
+    #[test]
+    fn a_front_that_opens_into_a_wall_is_found_and_a_gap_clears_it() {
+        let opens_into = |home: &Home| -> Vec<(FurnitureId, crate::ids::ElementId, &str)> {
+            check_layout(home)
+                .into_iter()
+                .filter_map(|i| match i {
+                    Issue::OpensInto {
+                        front,
+                        against,
+                        how,
+                        ..
+                    } => Some((front, against, how)),
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut home = room_home();
+        let left = home.walls[3].id;
+        let inside = home.walls[3].thickness / 2.0;
+        // A 60 × 56 × 72 cm wall-side cabinet: its carcass, and a door hinged
+        // at the left, against the left wall.
+        let cabinet = |id: u64, x: f64| {
+            let mut door = piece(id + 2, (x + 30.0, inside + 57.0), (60.0, 2.0, 70.0));
+            door.properties
+                .insert(crate::opens::OPENS_KEY.into(), "hinge-left handle 3".into());
+            let mut group = piece(id, (x + 30.0, inside + 29.0), (60.0, 58.0, 72.0));
+            group.catalog = "group".into();
+            group.children = vec![
+                piece(id + 1, (x + 30.0, inside + 28.0), (60.0, 56.0, 72.0)),
+                door,
+            ];
+            group
+        };
+        home.furniture.push(cabinet(10, inside));
+        assert_eq!(
+            opens_into(&home),
+            vec![(FurnitureId(12), left.into(), "door")],
+            "{:?}",
+            check_layout(&home)
+        );
+        let key = Issue::OpensInto {
+            piece: FurnitureId(10),
+            front: FurnitureId(12),
+            against: left.into(),
+            how: "door",
+        }
+        .key();
+        assert!(Issue::is_layout_key(&key), "{key}");
+        // Ten centimeters of filler and the door opens past the wall.
+        home.furniture[0] = cabinet(10, inside + 10.0);
+        assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
+        // A fridge hinged on its right, flush with the right wall.
+        let right = home.walls[1].id;
+        let mut fridge = piece(
+            20,
+            (500.0 - inside - 35.0, inside + 35.0),
+            (70.0, 70.0, 180.0),
+        );
+        fridge.catalog = "fridge".into();
+        home.furniture.push(fridge.clone());
+        assert_eq!(
+            opens_into(&home),
+            vec![(FurnitureId(20), right.into(), "door")]
+        );
+        fridge.position.x -= 10.0;
+        home.furniture[1] = fridge;
+        assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
     }
 
     fn room_home() -> Home {

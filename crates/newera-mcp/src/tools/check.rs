@@ -104,9 +104,10 @@ pub(crate) struct AcceptParams {
 
 /// Families whose keys name a pair or a set of ids, sorted: the layout
 /// check's. Its keys are accepted however the ids come.
-const LAYOUT_FAMILIES: [&str; 15] = [
+const LAYOUT_FAMILIES: [&str; 16] = [
     "overlap",
     "blocked",
+    "opens_into",
     "backwards",
     "in_wall",
     "blocks_door",
@@ -199,7 +200,7 @@ impl NewEraMcp {
     }
     #[tool(
         name = "layout",
-        description = "Layout problems on a storey — pieces colliding or clashing, blocked doors and windows: overlap, blocked, in_wall, blocks_door, blocks_window, no_door, backwards, turned, unrated_light, unclear_front, loose_opening, outgrew_niche, outside_rooms, loose and above_ceiling, as {kind: [rows]}; {} means none. Every row is an object with the `key` it is accepted by and the elements involved (name, bounds, z). Overlaps are classified collision (a real clash, first), nesting, served or cross_level, with extent [x,y,z] cm, counted in overlap_kinds. accepted {key, kind, why, extent} lists findings `accept` marked right as drawn; orphaned [[key, reason]] acceptances whose finding is gone. What each problem means and how to fix it: `rules` topic=layout. level: a storey id or `all` (default the one shown); areas {name|id: m²} compares room areas with a reference drawing."
+        description = "Layout problems on a storey — pieces colliding or clashing, blocked doors and windows: overlap, blocked, opens_into, in_wall, blocks_door, blocks_window, no_door, backwards, turned, unrated_light, unclear_front, loose_opening, outgrew_niche, outside_rooms, loose and above_ceiling, as {kind: [rows]}; {} means none. Every row is an object with the `key` it is accepted by and the elements involved (name, bounds, z). Overlaps are classified collision (a real clash, first), nesting, served or cross_level, with extent [x,y,z] cm, counted in overlap_kinds. accepted {key, kind, why, extent} lists findings `accept` marked right as drawn; orphaned [[key, reason]] acceptances whose finding is gone. What each problem means and how to fix it: `rules` topic=layout. level: a storey id or `all` (default the one shown); areas {name|id: m²} compares room areas with a reference drawing."
     )]
     pub(crate) fn read_check_layout(
         &self,
@@ -886,6 +887,61 @@ mod tests {
         ))
         .unwrap();
         assert!(check().get("unrated_light").is_none(), "{}", check());
+    }
+
+    #[test]
+    fn a_fridge_door_into_the_wall_is_named_with_its_piece_and_what_it_meets() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(
+                r#"{"walls":[{"pts":[[0,0],[400,0],[400,300],[0,300]],"closed":true}]}"#,
+            )
+            .unwrap(),
+        ))
+        .unwrap();
+        let check = || -> serde_json::Value {
+            serde_json::from_str(&s.check_layout(Parameters(CheckParams::default())).unwrap())
+                .unwrap()
+        };
+        // A fridge hinged on its right, its right side flush with the right wall.
+        let fridge = |x_gap: f64| {
+            let mut doc = s.document.write();
+            let inside = doc.home().walls[0].thickness / 2.0;
+            let id = doc.new_furniture_id();
+            doc.execute(newera_core::Command::insert(newera_core::Furniture {
+                id,
+                catalog: "fridge".into(),
+                name: "Geladeira".into(),
+                position: newera_core::Point2::new(400.0 - inside - 35.0 - x_gap, inside + 35.0),
+                width: 70.0,
+                depth: 70.0,
+                height: 180.0,
+                ..newera_core::Furniture::default()
+            }))
+            .unwrap();
+            id.to_string()
+        };
+        let id = fridge(0.0);
+        let found = check();
+        let row = &found["opens_into"][0];
+        assert_eq!(row["piece"]["id"], id, "{found}");
+        assert_eq!(row["front"]["id"], id, "{found}");
+        assert_eq!(row["how"], "door", "{found}");
+        assert!(
+            row["against"]["id"].as_str().unwrap().starts_with('w'),
+            "{found}"
+        );
+        assert!(
+            row["key"].as_str().unwrap().starts_with("opens_into:"),
+            "{found}"
+        );
+        // Ten centimeters from the wall, it opens.
+        s.delete(Parameters(
+            serde_json::from_str(&format!(r#"{{"ids":["{id}"]}}"#)).unwrap(),
+        ))
+        .unwrap();
+        fridge(10.0);
+        assert!(check().get("opens_into").is_none(), "{}", check());
     }
 
     #[test]

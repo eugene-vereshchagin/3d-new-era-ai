@@ -127,6 +127,9 @@ pub struct Part {
     /// Face shape `[x, z]` from its left-bottom corner instead of a rectangle
     /// (a board cut along a roof slope), swept through its depth.
     pub profile: Option<Vec<[f64; 2]>>,
+    /// How this part moves when it is opened — a hinged door, a drawer
+    /// front — so the layout check can see what it runs into.
+    pub opens: Option<newera_core::opens::Front>,
 }
 
 impl Part {
@@ -152,6 +155,7 @@ impl Part {
             cut: None,
             holes: Vec::new(),
             profile: None,
+            opens: None,
         }
     }
 
@@ -360,6 +364,9 @@ pub fn assemble(
                     EDGE_KEY.into(),
                     format!("{}+{}", part.edge[0], part.edge[1]),
                 );
+            }
+            if let Some(front) = &part.opens {
+                properties.insert(newera_core::opens::OPENS_KEY.into(), front.property());
             }
             Furniture {
                 id: next_id(),

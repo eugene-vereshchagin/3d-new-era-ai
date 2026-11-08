@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `layout` finds doors, drawers and appliance doors that run into something while they open
+  (`opens_into`): a door whose handle meets the wall beside its hinge, a drawer pulled into the
+  handle of the corner cabinet, a fridge hinged against a wall, an oven or dishwasher door that
+  drops onto a piece in front of it. Closed, nothing touches, so no other check saw it. A door
+  sweeps its width around the hinge to 90° and stands past the hinge side by its thickness and
+  handle, a drawer comes out by its slide, a dropped door by its height. Joinery fronts say how
+  they open (an `opens` property on each door and drawer front, with the handle's stand-off), and
+  a fridge, microwave, oven or dishwasher from the catalog opens the way such appliances do.
+
 ## [3.3.0] - 2026-11-02
 
 ### Fixed

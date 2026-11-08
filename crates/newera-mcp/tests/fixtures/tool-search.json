@@ -69,6 +69,7 @@
     ["lay pipe run", "edit_plumbing"],
     ["layout problems overlap blocked door", "layout"],
     ["furniture colliding", "layout"],
+    ["door or drawer clashing with something when opened", "layout"],
     ["ergonomics review", "ergonomics"],
     ["circulation clearance around bed accessibility wheelchair", "ergonomics"],
     ["kitchen work triangle", "ergonomics"],

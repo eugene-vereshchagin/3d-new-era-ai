@@ -680,6 +680,21 @@ pub(crate) fn issues(home: &Home, scope: newera_core::Storeys) -> Value {
                     ("over", num(top - ceiling)),
                 ]),
             ),
+            Issue::OpensInto {
+                piece,
+                front,
+                against,
+                how,
+            } => push(
+                "opens_into",
+                obj([
+                    ("key", json!(key)),
+                    ("piece", issue_ref(home, piece.into())),
+                    ("front", issue_ref(home, front.into())),
+                    ("against", issue_ref(home, against)),
+                    ("how", json!(how)),
+                ]),
+            ),
             Issue::UnratedLight(f) => push("unrated_light", keyed(issue_ref(home, f.into()), &key)),
             Issue::NoDoor { room, passages } => push(
                 "no_door",

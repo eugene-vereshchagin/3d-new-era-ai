@@ -3713,7 +3713,7 @@
       "readOnlyHint": true,
       "title": "Check the layout"
     },
-    "description": "Layout problems on a storey — pieces colliding or clashing, blocked doors and windows: overlap, blocked, in_wall, blocks_door, blocks_window, no_door, backwards, turned, unrated_light, unclear_front, loose_opening, outgrew_niche, outside_rooms, loose and above_ceiling, as {kind: [rows]}; {} means none. Every row is an object with the `key` it is accepted by and the elements involved (name, bounds, z). Overlaps are classified collision (a real clash, first), nesting, served or cross_level, with extent [x,y,z] cm, counted in overlap_kinds. accepted {key, kind, why, extent} lists findings `accept` marked right as drawn; orphaned [[key, reason]] acceptances whose finding is gone. What each problem means and how to fix it: `rules` topic=layout. level: a storey id or `all` (default the one shown); areas {name|id: m²} compares room areas with a reference drawing.",
+    "description": "Layout problems on a storey — pieces colliding or clashing, blocked doors and windows: overlap, blocked, opens_into, in_wall, blocks_door, blocks_window, no_door, backwards, turned, unrated_light, unclear_front, loose_opening, outgrew_niche, outside_rooms, loose and above_ceiling, as {kind: [rows]}; {} means none. Every row is an object with the `key` it is accepted by and the elements involved (name, bounds, z). Overlaps are classified collision (a real clash, first), nesting, served or cross_level, with extent [x,y,z] cm, counted in overlap_kinds. accepted {key, kind, why, extent} lists findings `accept` marked right as drawn; orphaned [[key, reason]] acceptances whose finding is gone. What each problem means and how to fix it: `rules` topic=layout. level: a storey id or `all` (default the one shown); areas {name|id: m²} compares room areas with a reference drawing.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3765,6 +3765,9 @@
           "type": "array"
         },
         "no_door": {
+          "type": "array"
+        },
+        "opens_into": {
           "type": "array"
         },
         "orphaned": {
