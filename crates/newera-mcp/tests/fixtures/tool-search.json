@@ -33,6 +33,7 @@
     ["kitchen cabinets along a wall", "cabinet_run"],
     ["embed sink cooktop oven in countertop", "embed"],
     ["cut list boards edge banding", "cut_list"],
+    ["chipboard sheet size and saw kerf for the panel layout", "cut_list"],
     ["export cut list dxf csv", "export"],
     ["roof fit walls", "fit_roof"],
     ["imported model materials textures lost", "model"],

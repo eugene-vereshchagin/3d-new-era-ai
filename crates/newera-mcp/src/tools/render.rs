@@ -54,6 +54,12 @@ pub(crate) struct ExportSchema {
     scale: Option<f64>,
     /// For `cut_list`: builds or drawn groups (default every one on this storey).
     ids: Option<Vec<String>>,
+    /// For `cut_list`: the workshop's sheet sizes, as `cut_list` takes them.
+    sheets: Option<std::collections::BTreeMap<String, [f64; 2]>>,
+    /// For `cut_list`: saw kerf (default 4).
+    kerf: Option<f64>,
+    /// For `cut_list`: edge cut off each sheet side (default 0).
+    trim: Option<f64>,
 }
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct ExportParams {

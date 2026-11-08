@@ -225,7 +225,7 @@ fn cut_list_fields() -> Vec<(&'static str, Value)> {
         sources(),
         ("drawn", strings("Hand-drawn builds left out")),
         ("skipped", list("[id, name] left out")),
-        ("sheets", list(".dxf/.svg: [board, sheets]")),
+        ("sheets", list("[board, sheets] the layout takes")),
     ]
 }
 

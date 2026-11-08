@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The cut list lays boards out on the workshop's own sheets: `sheets` gives `[length, width]` mm
+  by the start of the board name (`{"*": [2800, 2070]}` for 2800 × 2070 mm chipboard, `{"MDF 6":
+  [2440, 1220]}` for one board only, the longest match wins), `kerf` the saw blade (default 4 mm)
+  and `trim` the factory edge cut off each side of a sheet (default 0). `cut_list` and `export
+  what=cut_list` both take them, and a read already answers how many sheets each board takes.
+  Without them the layout is the one it always was: 2750 × 1830 mm panels, stone, gypsum and slats.
+
 ## [3.3.0] - 2026-11-02
 
 ### Fixed

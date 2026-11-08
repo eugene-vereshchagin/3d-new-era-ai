@@ -18,4 +18,5 @@ description: Design kitchens, wardrobes and custom joinery in 3D New Era AI — 
    a resized niche no longer holds; `ergonomics` checks counter heights and the work
    triangle.
 5. **Cut list.** `cut_list` reads boards, edge banding and hardware; `export` with `what=cut_list`
-   writes it as `.csv`, or `.dxf`/`.svg` sheets for the workshop.
+   writes it as `.csv`, or `.dxf`/`.svg` sheets for the workshop. Give the workshop's own stock
+   when it is not 2750 × 1830 mm: `sheets` by board name (`{"*":[2800,2070]}`), `kerf` and `trim`.

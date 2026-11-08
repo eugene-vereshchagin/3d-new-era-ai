@@ -106,17 +106,68 @@ pub fn cut_list_csv(rows: &[CutRow]) -> String {
     out
 }
 
-/// Sheet size for a board material, mm.
-fn sheet(board: &str) -> [f64; 2] {
-    if board.starts_with("Pedra") {
-        // Large granite and quartz slabs.
-        [3200.0, 1900.0]
-    } else if board.starts_with("Gesso") {
-        [2400.0, 1200.0]
-    } else if board.starts_with("Ripa") {
-        [3000.0, 300.0]
-    } else {
-        [2750.0, 1830.0]
+/// The sheets boards are cut from: their size by material, the saw kerf
+/// between two boards, and the factory edge trimmed off each side first.
+///
+/// Sheet sizes vary with the market — 2750 × 1830 mm MDF in Brazil,
+/// 2800 × 2070 mm chipboard in Russia, 2800 × 2070 or 2440 × 1220 mm in
+/// Europe — so the workshop's own stock replaces the defaults where it
+/// differs, through one table: a board takes the size whose key is the
+/// longest start of its name (`MDF 18` before `MDF`), and `*` any other.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetStock {
+    /// `(start of the board name, [length, width] mm)`; `*` matches any board.
+    pub sizes: Vec<(String, [f64; 2])>,
+    /// Saw kerf between two boards, mm.
+    pub kerf: f64,
+    /// Factory edge trimmed off each side of a sheet before cutting, mm.
+    pub trim: f64,
+}
+
+impl Default for SheetStock {
+    /// The stock the layouts were drawn with before it could be told:
+    /// 2750 × 1830 mm panels, stone slabs, gypsum boards and slat strips,
+    /// a 4 mm kerf and no trim.
+    fn default() -> Self {
+        let sizes = [
+            ("*", [2750.0, 1830.0]),
+            // Large granite and quartz slabs.
+            ("Pedra", [3200.0, 1900.0]),
+            ("Gesso", [2400.0, 1200.0]),
+            ("Ripa", [3000.0, 300.0]),
+        ];
+        Self {
+            sizes: sizes.map(|(k, v)| (k.to_owned(), v)).to_vec(),
+            kerf: 4.0,
+            trim: 0.0,
+        }
+    }
+}
+
+impl SheetStock {
+    /// The same stock with `sizes` taking the place of the entries of the
+    /// same key and joining the rest.
+    #[must_use]
+    pub fn with_sizes(mut self, sizes: impl IntoIterator<Item = (String, [f64; 2])>) -> Self {
+        for (key, size) in sizes {
+            match self.sizes.iter_mut().find(|(k, _)| *k == key) {
+                Some(entry) => entry.1 = size,
+                None => self.sizes.push((key, size)),
+            }
+        }
+        self
+    }
+
+    /// Sheet size for a board material, mm: the entry whose key is the
+    /// longest start of `board`, else `*`.
+    #[must_use]
+    pub fn size(&self, board: &str) -> [f64; 2] {
+        self.sizes
+            .iter()
+            .filter(|(k, _)| k != "*" && board.starts_with(k.as_str()))
+            .max_by_key(|(k, _)| k.len())
+            .or_else(|| self.sizes.iter().find(|(k, _)| k == "*"))
+            .map_or([2750.0, 1830.0], |(_, size)| *size)
     }
 }
 
@@ -130,10 +181,12 @@ struct Placed {
     holes: Vec<[f64; 4]>,
 }
 
-/// Boards laid out on sheets (shelf packing with a 4 mm saw kerf): sheet
-/// outlines, one rectangle per board, and how many sheets each material uses.
-fn pack(rows: &[CutRow]) -> (Vec<Placed>, Vec<(String, u32)>) {
-    const KERF: f64 = 4.0;
+/// Boards laid out on the sheets of `stock` (shelf packing, the kerf between
+/// boards, inside the trimmed edges): sheet outlines, one rectangle per
+/// board, and how many sheets each material uses.
+fn pack(rows: &[CutRow], stock: &SheetStock) -> (Vec<Placed>, Vec<(String, u32)>) {
+    let kerf = stock.kerf;
+    let trim = stock.trim;
     let mut placed = Vec::new();
     let mut sheets_used: Vec<(String, u32)> = Vec::new();
     let mut origin_y = 0.0;
@@ -146,7 +199,9 @@ fn pack(rows: &[CutRow]) -> (Vec<Placed>, Vec<(String, u32)>) {
     }
     for board in boards {
         let layer = board.replace([' ', ','], "_");
-        let [sw, sh] = sheet(board);
+        let [sw, sh] = stock.size(board);
+        // What is left to cut once the factory edges are off.
+        let (uw, uh) = (sw - 2.0 * trim, sh - 2.0 * trim);
         let outline = |x: f64| Placed {
             layer: layer.clone(),
             label: String::new(),
@@ -168,18 +223,18 @@ fn pack(rows: &[CutRow]) -> (Vec<Placed>, Vec<(String, u32)>) {
         placed.push(outline(sheet_x));
         for (name, mut w, mut h, mut holes) in pieces {
             // Turn pieces that only fit sideways.
-            if w > sw && h <= sw && w <= sh {
+            if w > uw && h <= uw && w <= uh {
                 std::mem::swap(&mut w, &mut h);
                 for hole in &mut holes {
                     *hole = [hole[1], hole[0], hole[3], hole[2]];
                 }
             }
-            if x + w > sw {
+            if x + w > uw {
                 x = 0.0;
-                y += shelf + KERF;
+                y += shelf + kerf;
                 shelf = 0.0;
             }
-            if y + h > sh {
+            if y + h > uh {
                 sheet_index += 1;
                 sheet_x += sw + 200.0;
                 x = 0.0;
@@ -189,26 +244,31 @@ fn pack(rows: &[CutRow]) -> (Vec<Placed>, Vec<(String, u32)>) {
             }
             placed.push(Placed {
                 layer: layer.clone(),
-                label: if w > sw || h > sh {
+                label: if w > uw || h > uh {
                     format!("{name} {w}x{h} MAIOR QUE A CHAPA: prever emenda")
                 } else {
                     format!("{name} {w}x{h}")
                 },
-                rect: [sheet_x + x, origin_y + y, w.min(sw), h.min(sh)],
+                rect: [
+                    sheet_x + trim + x,
+                    origin_y + trim + y,
+                    w.min(uw),
+                    h.min(uh),
+                ],
                 sheet: false,
                 holes: holes
                     .iter()
                     .map(|hole| {
                         [
-                            sheet_x + x + hole[0],
-                            origin_y + y + hole[1],
+                            sheet_x + trim + x + hole[0],
+                            origin_y + trim + y + hole[1],
                             hole[2],
                             hole[3],
                         ]
                     })
                     .collect(),
             });
-            x += w + KERF;
+            x += w + kerf;
             shelf = f64::max(shelf, h);
         }
         sheets_used.push((board.to_owned(), sheet_index + 1));
@@ -217,10 +277,18 @@ fn pack(rows: &[CutRow]) -> (Vec<Placed>, Vec<(String, u32)>) {
     (placed, sheets_used)
 }
 
+/// How many sheets of `stock` each material of `rows` takes, in the order
+/// the materials first appear.
+#[must_use]
+pub fn sheets_used(rows: &[CutRow], stock: &SheetStock) -> Vec<(String, u32)> {
+    pack(rows, stock).1
+}
+
 /// The sheet layout as a DXF (LINE and TEXT entities, one layer per
 /// material) for a CNC or a panel saw, and the sheets each material uses.
-pub fn cut_list_dxf(rows: &[CutRow]) -> (String, Vec<(String, u32)>) {
-    let (placed, sheets) = pack(rows);
+#[must_use]
+pub fn cut_list_dxf(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String, u32)>) {
+    let (placed, sheets) = pack(rows, stock);
     let mut entities = String::new();
     for p in &placed {
         let [x, y, w, h] = p.rect;
@@ -263,8 +331,9 @@ pub fn cut_list_dxf(rows: &[CutRow]) -> (String, Vec<(String, u32)>) {
 }
 
 /// The same sheet layout as an SVG (1 unit = 1 mm) to view or print.
-pub fn cut_list_svg(rows: &[CutRow]) -> (String, Vec<(String, u32)>) {
-    let (placed, sheets) = pack(rows);
+#[must_use]
+pub fn cut_list_svg(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String, u32)>) {
+    let (placed, sheets) = pack(rows, stock);
     let (w, h) = placed.iter().fold((0.0_f64, 0.0_f64), |(w, h), p| {
         (w.max(p.rect[0] + p.rect[2]), h.max(p.rect[1] + p.rect[3]))
     });
@@ -334,12 +403,13 @@ mod tests {
             csv.contains("Lateral esquerda;MDF 18;2;1900;532;18;1;0"),
             "{csv}"
         );
-        let (dxf, sheets) = cut_list_dxf(&rows);
+        let stock = SheetStock::default();
+        let (dxf, sheets) = cut_list_dxf(&rows, &stock);
         assert!(dxf.starts_with("0\nSECTION") && dxf.ends_with("EOF\n"));
         assert!(dxf.contains("Lateral esquerda 1900x532"));
         // Four boards near 1,9 m long don't share one 2750 × 1830 mm sheet.
         assert_eq!(sheets.iter().find(|(b, _)| b == "MDF 18").unwrap().1, 2);
-        let (svg, same) = cut_list_svg(&rows);
+        let (svg, same) = cut_list_svg(&rows, &stock);
         assert!(svg.starts_with("<svg") && svg.contains("Lateral esquerda 1900x532"));
         assert_eq!(same, sheets);
         // A stone top carries its cutouts to the workshop.
@@ -359,18 +429,84 @@ mod tests {
         let stone = rows.iter().find(|r| r.board.starts_with("Pedra")).unwrap();
         assert_eq!(stone.holes, vec![[920.0, 60.0, 560.0, 480.0]]);
         assert!(cut_list_csv(&rows).contains("560x480 em 920,60"));
-        assert!(cut_list_dxf(&rows).0.contains("RECORTES"));
-        assert!(cut_list_svg(&rows).0.contains("stroke-dasharray"));
+        assert!(cut_list_dxf(&rows, &stock).0.contains("RECORTES"));
+        assert!(cut_list_svg(&rows, &stock).0.contains("stroke-dasharray"));
         // Rows gathered from several builds, materials interleaved: one layout each.
         let mut mixed = cut_list(&out);
         mixed.extend(cut_list(&top));
         mixed.extend(cut_list(&out));
-        let (_, used) = cut_list_dxf(&mixed);
+        let (_, used) = cut_list_dxf(&mixed, &stock);
         let mut names: Vec<&str> = used.iter().map(|(b, _)| b.as_str()).collect();
         let count = names.len();
         names.dedup();
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), count, "{used:?}");
+    }
+
+    /// The workshop's own sheets, kerf and trim change the layout, and only
+    /// the materials they name.
+    #[test]
+    fn the_layout_follows_the_stock_of_the_workshop() {
+        let out = generate(&Build::Cabinet(CabinetParams {
+            w: 80.0,
+            h: 200.0,
+            d: 55.0,
+            ..CabinetParams::default()
+        }))
+        .unwrap();
+        let rows = cut_list(&out);
+        let count = |stock: &SheetStock, board: &str| {
+            sheets_used(&rows, stock)
+                .into_iter()
+                .find(|(b, _)| b == board)
+                .unwrap()
+                .1
+        };
+        let default = SheetStock::default();
+        assert_eq!(count(&default, "MDF 18"), 2);
+        // Every board without a closer key goes on the 2800 × 2070 mm sheet.
+        let chipboard = SheetStock::default().with_sizes([("*".to_owned(), [2800.0, 2070.0])]);
+        assert_eq!(chipboard.size("MDF 18"), [2800.0, 2070.0]);
+        assert!(count(&chipboard, "MDF 18") <= count(&default, "MDF 18"));
+        assert_eq!(
+            chipboard.size("Pedra 2"),
+            [3200.0, 1900.0],
+            "stone keeps its slab"
+        );
+        // The longest key wins: only the 18 mm board changes.
+        let only_18 = SheetStock::default().with_sizes([("MDF 18".to_owned(), [2800.0, 2070.0])]);
+        assert_eq!(only_18.size("MDF 18"), [2800.0, 2070.0]);
+        assert_eq!(only_18.size("MDF 6"), [2750.0, 1830.0]);
+        // Trimmed edges move every board in from the corner of its sheet.
+        let trimmed = SheetStock {
+            trim: 10.0,
+            ..chipboard.clone()
+        };
+        let (svg, _) = cut_list_svg(&rows, &trimmed);
+        let first_board = svg
+            .lines()
+            .find(|l| l.contains("#d9c3a0"))
+            .expect("a board on the sheet");
+        assert!(
+            first_board.starts_with("<rect x=\"10\" y=\"10\""),
+            "{first_board}"
+        );
+        // Boards that fill a sheet without kerf need a second one with it.
+        let tight = vec![CutRow {
+            name: "Faixa".into(),
+            board: "MDF 18".into(),
+            qty: 3,
+            size: [1000.0, 610.0, 18.0],
+            edge: [0, 0],
+            holes: Vec::new(),
+        }];
+        let exact = SheetStock {
+            kerf: 0.0,
+            ..SheetStock::default().with_sizes([("*".to_owned(), [1000.0, 1830.0])])
+        };
+        assert_eq!(sheets_used(&tight, &exact), vec![("MDF 18".to_owned(), 1)]);
+        let sawn = SheetStock { kerf: 4.0, ..exact };
+        assert_eq!(sheets_used(&tight, &sawn), vec![("MDF 18".to_owned(), 2)]);
     }
 }

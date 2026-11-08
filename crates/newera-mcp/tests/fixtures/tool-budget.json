@@ -1,5 +1,5 @@
 {
-  "total": 123529,
+  "total": 124412,
   "tools": {
     "accept": {
       "total": 1360,
@@ -26,9 +26,9 @@
       "output": 76
     },
     "cabinet_run": {
-      "total": 2608,
+      "total": 2599,
       "description": 824,
-      "input": 1266,
+      "input": 1257,
       "output": 294
     },
     "cameras": {
@@ -50,9 +50,9 @@
       "output": 255
     },
     "cut_list": {
-      "total": 1319,
-      "description": 668,
-      "input": 205,
+      "total": 1822,
+      "description": 763,
+      "input": 611,
       "output": 283
     },
     "delete": {
@@ -176,9 +176,9 @@
       "output": 345
     },
     "export": {
-      "total": 1697,
+      "total": 2077,
       "description": 360,
-      "input": 748,
+      "input": 1128,
       "output": 388
     },
     "feedback": {
@@ -323,7 +323,7 @@
       "total": 795,
       "description": 274,
       "input": 33,
-      "output": 181
+      "output": 175
     },
     "update": {
       "total": 9830,

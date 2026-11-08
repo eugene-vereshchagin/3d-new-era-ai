@@ -1020,7 +1020,7 @@
       "readOnlyHint": true,
       "title": "Cut list"
     },
-    "description": "Cut list of joinery builds, and of groups drawn by hand: each part of a drawn group up to 50 mm thick is a board at the size it was drawn (board is its finish and thickness, no edge banding), the groups are named in drawn and the parts that are not boards in skipped [[id,name]]. Rows [part,board,qty,length,width,thickness mm,edge long+short,cutouts [x,y,w,d] mm?] merged by size, hardware, sheets per board. export what=cut_list writes it as .csv, or .dxf/.svg (boards laid out on sheets). sources names the panel standards behind the boards: MDF is a dry-process fibreboard (NBR 15316), MDP a particleboard of 551 to 750 kg/m³ that holds screws better (NBR 14810).",
+    "description": "Cut list of joinery builds, and of groups drawn by hand: each part of a drawn group up to 50 mm thick is a board at the size it was drawn (board is its finish and thickness, no edge banding), the groups are named in drawn and the parts that are not boards in skipped [[id,name]]. Rows [part,board,qty,length,width,thickness mm,edge long+short,cutouts [x,y,w,d] mm?] merged by size, hardware, sheets per board. The workshop's stock sets the layout: sheets {\"MDF\":[2800,2070]} by board name, kerf, trim mm. export what=cut_list writes it as .csv, or .dxf/.svg (boards laid out on sheets). sources names the panel standards behind the boards: MDF is a dry-process fibreboard (NBR 15316), MDP a particleboard of 551 to 750 kg/m³ that holds screws better (NBR 14810).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1030,6 +1030,26 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "kerf": {
+          "description": "Saw kerf between boards (default 4)",
+          "type": "number"
+        },
+        "sheets": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "description": "Sheet `[length,width]` by board name prefix (`MDF 18`, `Pedra`; `*` any other); default 2750×1830",
+          "type": "object"
+        },
+        "trim": {
+          "description": "Factory edge cut off each side of a sheet (default 0)",
+          "type": "number"
         }
       },
       "type": "object"
@@ -3168,12 +3188,32 @@
           },
           "type": "array"
         },
+        "kerf": {
+          "description": "For `cut_list`: saw kerf (default 4)",
+          "type": "number"
+        },
         "path": {
           "description": "The file to write; its extension picks the format",
           "type": "string"
         },
         "scale": {
           "description": "For `plan`, `.pdf`: scale denominator (50 → 1:50); omitted fits the sheet",
+          "type": "number"
+        },
+        "sheets": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "description": "For `cut_list`: the workshop's sheet sizes, as `cut_list` takes them",
+          "type": "object"
+        },
+        "trim": {
+          "description": "For `cut_list`: edge cut off each sheet side (default 0)",
           "type": "number"
         },
         "w": {
