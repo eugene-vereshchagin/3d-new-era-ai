@@ -46,7 +46,8 @@ pub use cabinet::{CabinetParams, DoorType, HandleColor, HandleStyle, Niche};
 pub use ceiling::{CoveParams, CoveType, ShadowGapParams};
 pub use countertop::{CountertopParams, Cutout, CutoutKind, Support};
 pub use cutlist::{
-    CutRow, SheetStock, cut_list, cut_list_csv, cut_list_dxf, cut_list_svg, sheets_used,
+    CutRow, Gathered, SheetStock, cut_list, cut_list_csv, cut_list_dxf, cut_list_svg, gather,
+    sheets_used,
 };
 pub use embed::{EMBED_KEY, EmbedRequest, Fixture, carry_embedded, embed, fixture_of};
 pub use roof::fit_joinery_to_roof;

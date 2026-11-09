@@ -8,6 +8,7 @@ mod ai;
 mod ai_web;
 mod app;
 mod cabinets;
+mod cutlist;
 mod dialogs;
 mod ergonomics;
 mod files;

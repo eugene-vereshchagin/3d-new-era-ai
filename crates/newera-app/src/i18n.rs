@@ -307,6 +307,56 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
             "Armarios en la pared…",
             "Meubles sur le mur…",
         ],
+        "Lista de corte…" => ["Cut list…", "Lista de corte…", "Liste de débit…"],
+        "Lista de corte" => ["Cut list", "Lista de corte", "Liste de débit"],
+        "Nenhuma marcenaria neste pavimento: crie armários (Planta → Armários na parede…) ou desenhe um grupo com chapas." => {
+            [
+                "No joinery on this storey: make cabinets (Plan → Cabinets on the wall…) or draw a group of boards.",
+                "No hay carpintería en esta planta: crea armarios (Plano → Armarios en la pared…) o dibuja un grupo de tableros.",
+                "Aucune menuiserie à ce niveau : créez des meubles (Plan → Meubles sur le mur…) ou dessinez un groupe de panneaux.",
+            ]
+        }
+        "{} peças de marcenaria e {} grupos desenhados." => [
+            "{} joinery builds and {} drawn groups.",
+            "{} piezas de carpintería y {} grupos dibujados.",
+            "{} ouvrages de menuiserie et {} groupes dessinés.",
+        ],
+        "Salvar como" => ["Save as", "Guardar como", "Enregistrer en"],
+        "CSV: a tabela para a planilha ou o serviço de corte. DXF e SVG: as peças dispostas nas chapas, para a seccionadora ou o CNC." => {
+            [
+                "CSV: the table for a spreadsheet or a cutting service. DXF and SVG: the boards laid out on sheets, for the panel saw or the CNC.",
+                "CSV: la tabla para la hoja de cálculo o el servicio de corte. DXF y SVG: las piezas dispuestas en los tableros, para la seccionadora o el CNC.",
+                "CSV : le tableau pour le tableur ou le service de découpe. DXF et SVG : les pièces placées sur les panneaux, pour la scie à panneaux ou la CNC.",
+            ]
+        }
+        "Chapa da marcenaria" => [
+            "Workshop sheet",
+            "Tablero del taller",
+            "Panneau de l'atelier",
+        ],
+        "Serra" => ["Saw kerf", "Corte de sierra", "Trait de scie"],
+        "Refilo por lado" => ["Trim per side", "Recorte por lado", "Délignage par côté"],
+        "{}: {} peças, {} chapas" => [
+            "{}: {} pieces, {} sheets",
+            "{}: {} piezas, {} tableros",
+            "{} : {} pièces, {} panneaux",
+        ],
+        "{}: {} peças" => ["{}: {} pieces", "{}: {} piezas", "{} : {} pièces"],
+        "Nome da peça" => ["Part", "Pieza", "Pièce"],
+        "Qtd" => ["Qty", "Cant.", "Qté"],
+        "Comprimento × largura" => ["Length × width", "Largo × ancho", "Longueur × largeur"],
+        "Fita" => ["Edge banding", "Canto", "Chant"],
+        "Ferragens" => ["Hardware", "Herrajes", "Quincaillerie"],
+        "Fora da lista, não é chapa: {}" => [
+            "Left out, not a board: {}",
+            "Fuera de la lista, no es tablero: {}",
+            "Hors liste, pas un panneau : {}",
+        ],
+        "Lista de corte salva em {}" => [
+            "Cut list saved to {}",
+            "Lista de corte guardada en {}",
+            "Liste de débit enregistrée dans {}",
+        ],
         "Balcões" => ["Base cabinets", "Muebles bajos", "Meubles bas"],
         "Aéreos" => ["Wall cabinets", "Muebles altos", "Meubles hauts"],
         "Entre a norma e a lei do município, prevalece o mais restritivo." => [

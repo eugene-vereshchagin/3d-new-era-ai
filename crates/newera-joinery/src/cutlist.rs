@@ -5,6 +5,116 @@
 use std::fmt::Write as _;
 
 use crate::{Output, Part};
+use newera_core::{Furniture, FurnitureId};
+
+/// Thickest part of a drawn group read as a board, mm: a 50 mm stone or a
+/// double panel still is, a 30 cm body of a model is not.
+const DRAWN_BOARD_MM: f64 = 50.0;
+
+/// What a storey's joinery is cut from: the rows of every build and of every
+/// group drawn by hand with board parts, equal boards counted together.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Gathered {
+    pub rows: Vec<CutRow>,
+    /// Each build's hardware, with the build it goes into.
+    pub hardware: Vec<(FurnitureId, String)>,
+    /// How many joinery builds the rows came from.
+    pub builds: usize,
+    /// Groups drawn by hand whose board parts are in the rows.
+    pub drawn: Vec<FurnitureId>,
+    /// Parts of those groups that are not boards (a model, a solid too
+    /// thick to be one), named instead of guessed into a row.
+    pub skipped: Vec<(FurnitureId, String)>,
+}
+
+impl Gathered {
+    /// Whether there is nothing to cut: no build and no drawn group.
+    pub fn is_empty(&self) -> bool {
+        self.builds == 0 && self.drawn.is_empty()
+    }
+}
+
+/// The cut list of `furniture` (a storey's pieces), or of the pieces among
+/// them whose id is in `wanted`: every joinery build with the rows its
+/// generator gives, merged by board, size, banding and cutouts; and every
+/// group drawn by hand, each part thin enough to be a board one, at the size
+/// it was drawn, its finish and thickness for a board name.
+///
+/// # Errors
+/// A build whose stored parameters no longer read or generate, named by id.
+pub fn gather(furniture: &[Furniture], wanted: Option<&[FurnitureId]>) -> Result<Gathered, String> {
+    let chosen = |f: &Furniture| wanted.is_none_or(|ids| ids.contains(&f.id));
+    let mut out = Gathered::default();
+    for group in furniture
+        .iter()
+        .filter(|f| f.properties.contains_key(crate::PARAMS_KEY) && chosen(f))
+    {
+        let build: crate::Build = serde_json::from_str(&group.properties[crate::PARAMS_KEY])
+            .map_err(|e| format!("{}: {e}", group.id))?;
+        let output = crate::generate(&build).map_err(|e| format!("{}: {e}", group.id))?;
+        out.builds += 1;
+        out.hardware
+            .extend(output.hardware.iter().map(|h| (group.id, h.clone())));
+        for row in cut_list(&output) {
+            match out.rows.iter_mut().find(|r| {
+                r.board == row.board
+                    && r.edge == row.edge
+                    && r.holes == row.holes
+                    && same_size(r.size, row.size)
+            }) {
+                Some(existing) => existing.qty += row.qty,
+                None => out.rows.push(row),
+            }
+        }
+    }
+    for group in furniture
+        .iter()
+        .filter(|f| f.is_group() && !f.properties.contains_key(crate::PARAMS_KEY) && chosen(f))
+    {
+        let mut boards = 0;
+        let mut left = Vec::new();
+        for part in group.visible_leaves() {
+            let mut size =
+                [part.width, part.depth, part.height].map(|cm| (cm * 100.0).round() / 10.0);
+            size.sort_by(|a, b| b.total_cmp(a));
+            if part.model.is_some() || size[2] > DRAWN_BOARD_MM || size[2] <= 0.0 {
+                left.push((part.id, part.name.clone()));
+                continue;
+            }
+            boards += 1;
+            let board = part.texture.as_ref().map_or_else(
+                || format!("desenhado {} mm", size[2]),
+                |mat| format!("{mat} {} mm", size[2]),
+            );
+            let row = CutRow {
+                name: part.name.clone(),
+                board,
+                qty: 1,
+                size,
+                edge: [0, 0],
+                holes: Vec::new(),
+            };
+            match out
+                .rows
+                .iter_mut()
+                .find(|r| r.board == row.board && r.name == row.name && same_size(r.size, row.size))
+            {
+                Some(existing) => existing.qty += 1,
+                None => out.rows.push(row),
+            }
+        }
+        if boards > 0 {
+            out.drawn.push(group.id);
+            out.skipped.extend(left);
+        }
+    }
+    Ok(out)
+}
+
+/// Whether two boards are the same size, to a twentieth of a millimetre.
+fn same_size(a: [f64; 3], b: [f64; 3]) -> bool {
+    a.iter().zip(b).all(|(a, b)| (a - b).abs() < 0.05)
+}
 
 /// One line of a cut list.
 #[derive(Debug, Clone, PartialEq)]
@@ -379,6 +489,61 @@ mod tests {
 
     use super::*;
     use crate::{Build, CabinetParams, generate};
+
+    /// A storey's cut list counts two equal cabinets' boards together, reads
+    /// a group drawn by hand as its boards and names the part that is not
+    /// one, leaves out what is not wanted, and says when there is nothing.
+    #[test]
+    fn a_storey_gathers_its_builds_and_its_drawn_boards() {
+        let cabinet = |id: u64| {
+            let mut f = Furniture {
+                id: FurnitureId(id),
+                children: vec![Furniture::default()],
+                ..Furniture::default()
+            };
+            f.properties.insert(
+                crate::PARAMS_KEY.into(),
+                serde_json::to_string(&Build::Cabinet(CabinetParams::default())).unwrap(),
+            );
+            f
+        };
+        let board = |id: u64, name: &str, size: (f64, f64, f64)| Furniture {
+            id: FurnitureId(id),
+            name: name.into(),
+            width: size.0,
+            depth: size.1,
+            height: size.2,
+            ..Furniture::default()
+        };
+        let shelf = Furniture {
+            id: FurnitureId(30),
+            children: vec![
+                board(31, "Prateleira", (80.0, 25.0, 1.8)),
+                board(32, "Prateleira", (80.0, 25.0, 1.8)),
+                board(33, "Vaso", (20.0, 20.0, 30.0)),
+            ],
+            ..Furniture::default()
+        };
+        let one = gather(&[cabinet(10)], None).unwrap();
+        let home = [cabinet(10), cabinet(20), shelf];
+        let all = gather(&home, None).unwrap();
+        assert_eq!(all.builds, 2);
+        let qty = |g: &Gathered| g.rows.iter().map(|r| r.qty).sum::<u32>();
+        let shelves = all
+            .rows
+            .iter()
+            .find(|r| r.name == "Prateleira" && r.board.starts_with("desenhado"))
+            .unwrap();
+        assert_eq!(shelves.qty, 2);
+        assert_eq!(qty(&all), 2 * qty(&one) + 2, "{:?}", all.rows);
+        assert_eq!(all.drawn, vec![FurnitureId(30)]);
+        assert_eq!(all.skipped, vec![(FurnitureId(33), "Vaso".to_owned())]);
+        assert!(all.hardware.iter().any(|(id, _)| *id == FurnitureId(20)));
+        let wanted = gather(&home, Some(&[FurnitureId(20)])).unwrap();
+        assert_eq!((wanted.builds, wanted.drawn.len()), (1, 0));
+        assert_eq!(wanted.rows, one.rows);
+        assert!(gather(&[], None).unwrap().is_empty());
+    }
 
     #[test]
     fn equal_boards_are_counted_and_laid_out_on_sheets() {

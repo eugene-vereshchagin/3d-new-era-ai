@@ -117,9 +117,6 @@ fn sheet_stock(
     }
     Ok(stock)
 }
-/// Thickest part of a drawn group read as a board, mm: a 50 mm stone or a
-/// double panel still is, a 30 cm body of a model is not.
-const DRAWN_BOARD_MM: f64 = 50.0;
 
 #[tool_router(router = joinery_router, vis = "pub(crate)")]
 impl NewEraMcp {
@@ -369,95 +366,32 @@ impl NewEraMcp {
         let doc = self.document.read();
         let home = doc.home();
         let view = home.level_view(home.current_level());
-        let wanted: Option<Vec<String>> = p.ids.clone();
-        let mut rows: Vec<newera_joinery::CutRow> = Vec::new();
-        let mut hardware: Vec<String> = Vec::new();
-        let mut builds = 0;
-        for group in view.furniture.iter().filter(|f| {
-            f.properties.contains_key(newera_joinery::PARAMS_KEY)
-                && wanted
-                    .as_ref()
-                    .is_none_or(|ids| ids.contains(&f.id.to_string()))
-        }) {
-            let build: newera_joinery::Build =
-                serde_json::from_str(&group.properties[newera_joinery::PARAMS_KEY])
-                    .map_err(|e| invalid(format!("{}: {e}", group.id)))?;
-            let output = newera_joinery::generate(&build).map_err(invalid)?;
-            builds += 1;
-            hardware.extend(output.hardware.iter().map(|h| format!("{}: {h}", group.id)));
-            for row in newera_joinery::cut_list(&output) {
-                match rows.iter_mut().find(|r| {
-                    r.board == row.board
-                        && r.edge == row.edge
-                        && r.holes == row.holes
-                        && r.size
-                            .iter()
-                            .zip(row.size)
-                            .all(|(a, b)| (a - b).abs() < 0.05)
-                }) {
-                    Some(existing) => existing.qty += row.qty,
-                    None => rows.push(row),
-                }
-            }
-        }
-        // Joinery drawn by hand — a group of solids, boards and all — is cut
-        // from the same sheets: every part thin enough to be a board is one,
-        // with the size it was drawn at. What is not a board is named, not
-        // guessed into a row.
-        let mut drawn: Vec<String> = Vec::new();
-        let mut skipped: Vec<serde_json::Value> = Vec::new();
-        for group in view.furniture.iter().filter(|f| {
-            f.is_group()
-                && !f.properties.contains_key(newera_joinery::PARAMS_KEY)
-                && wanted
-                    .as_ref()
-                    .is_none_or(|ids| ids.contains(&f.id.to_string()))
-        }) {
-            let mut boards = 0;
-            let mut left = Vec::new();
-            for part in group.visible_leaves() {
-                let mut size =
-                    [part.width, part.depth, part.height].map(|cm| (cm * 100.0).round() / 10.0);
-                size.sort_by(|a, b| b.total_cmp(a));
-                if part.model.is_some() || size[2] > DRAWN_BOARD_MM || size[2] <= 0.0 {
-                    left.push(serde_json::json!([part.id.to_string(), part.name]));
-                    continue;
-                }
-                boards += 1;
-                let board = part.texture.as_ref().map_or_else(
-                    || format!("desenhado {} mm", size[2]),
-                    |mat| format!("{mat} {} mm", size[2]),
-                );
-                let row = newera_joinery::CutRow {
-                    name: part.name.clone(),
-                    board,
-                    qty: 1,
-                    size,
-                    edge: [0, 0],
-                    holes: Vec::new(),
-                };
-                match rows.iter_mut().find(|r| {
-                    r.board == row.board
-                        && r.name == row.name
-                        && r.size
-                            .iter()
-                            .zip(row.size)
-                            .all(|(a, b)| (a - b).abs() < 0.05)
-                }) {
-                    Some(existing) => existing.qty += 1,
-                    None => rows.push(row),
-                }
-            }
-            if boards > 0 {
-                drawn.push(group.id.to_string());
-                skipped.extend(left);
-            }
-        }
-        if builds == 0 && drawn.is_empty() {
+        // Ids that name nothing on this storey simply match nothing.
+        let wanted: Option<Vec<newera_core::FurnitureId>> = p.ids.as_ref().map(|ids| {
+            view.furniture
+                .iter()
+                .filter(|f| ids.contains(&f.id.to_string()))
+                .map(|f| f.id)
+                .collect()
+        });
+        let found = newera_joinery::gather(&view.furniture, wanted.as_deref()).map_err(invalid)?;
+        if found.is_empty() {
             return Err(invalid(
                 "no joinery here: no joinery builds (make one with the joinery tool) and no group drawn with board parts",
             ));
         }
+        let rows = found.rows;
+        let hardware: Vec<String> = found
+            .hardware
+            .iter()
+            .map(|(id, h)| format!("{id}: {h}"))
+            .collect();
+        let drawn: Vec<String> = found.drawn.iter().map(ToString::to_string).collect();
+        let skipped: Vec<serde_json::Value> = found
+            .skipped
+            .iter()
+            .map(|(id, name)| serde_json::json!([id.to_string(), name]))
+            .collect();
         // Where the project stands, before the document is let go: the panel
         // standards oblige here and inform elsewhere, like every other source.
         let place = doc.home().compass.place();
