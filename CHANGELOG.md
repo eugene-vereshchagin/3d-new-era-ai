@@ -33,6 +33,12 @@ All notable changes to this project are documented here. The format follows
   too tall (over 80 cm, a bi-fold fitting) or too wide (over 120 cm) for one leaf, or sits on a
   plinth under a countertop. `cabinet_run` takes `p.lift` on a wall row: every door module and the
   cabinet over the fridge get a flap, a blind corner keeps its hinged door.
+- Fronts are cut from their own board: a cabinet takes `board` (the carcass: `MDP` for
+  particleboard, `MDF` by default), `front_board` and `front_t` mm (the doors, drawer fronts and
+  blind panels), and `cabinet_run` gives the same to its cabinets and to the filler panels among
+  the fronts, keeping them when a wall is filled again. The cut list then lists and lays out each
+  board on its own sheets: MDF 19 fronts apart from an MDP 18 carcass. "Armários na parede…"
+  chooses them too, and offers the next wall the boards of the last one.
 - "Lista de corte…" in the editor (Planta menu): the desktop app cuts its own kitchen. It lists
   the boards of the storey's joinery (the cabinets made with "Armários na parede…", and groups
   drawn by hand with board parts) by material, with the sheets each takes, the edge banding and

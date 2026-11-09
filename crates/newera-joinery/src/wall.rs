@@ -46,7 +46,8 @@ pub struct CabinetRunParams {
     /// top (base countertop, true), `top_material`, sink / cooktop (center cm along
     /// the wall: its cabinet and cutout; null removes it), `sink_w` (80), `cooktop_w` (60),
     /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom),
-    /// lift (wall rows: lift-up flaps, false).
+    /// lift (wall rows: lift-up flaps, false), board (carcass: MDP chipboard or MDF, the
+    /// default), `front_board` and `front_t` mm (fronts and fillers cut apart, MDF 19 on MDP 18).
     pub p: Option<serde_json::Map<String, Value>>,
     /// Stretch to fill, cm from the wall start (default: all of it).
     pub from: Option<f64>,
@@ -516,6 +517,15 @@ fn plan(home: &Home, request: &Request) -> Result<Planned, String> {
         }
         if !given("handle_color") {
             params.handle_color = old.handle_color;
+        }
+        if !given("board") {
+            params.board = old.board;
+        }
+        if !given("front_board") {
+            params.front_board = old.front_board;
+        }
+        if !given("front_t") {
+            params.front_t = old.front_t;
         }
     }
     // A sink or cooktop already set into the old countertop keeps its place:

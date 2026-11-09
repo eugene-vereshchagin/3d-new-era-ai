@@ -357,6 +357,9 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
             "Lista de corte guardada en {}",
             "Liste de débit enregistrée dans {}",
         ],
+        "Chapa da caixa" => ["Carcass board", "Tablero del casco", "Panneau du caisson"],
+        "Chapa das frentes" => ["Front board", "Tablero de frentes", "Panneau des façades"],
+        "a mesma da caixa" => ["same as carcass", "el mismo del casco", "comme le caisson"],
         "Balcões" => ["Base cabinets", "Muebles bajos", "Meubles bas"],
         "Aéreos" => ["Wall cabinets", "Muebles altos", "Meubles hauts"],
         "Entre a norma e a lei do município, prevalece o mais restritivo." => [

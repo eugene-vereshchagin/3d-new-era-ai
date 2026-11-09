@@ -9,7 +9,9 @@ description: Design kitchens, wardrobes and custom joinery in 3D New Era AI — 
    corners, doors, windows, fridge and stove and splits them into even modules
    (`dry=true` shows the plan without drawing). `p.sink` and `p.cooktop` place those
    cabinets and their cutouts. On a wall row `p.lift=true` hangs lift-up flaps instead of
-   hinged doors (a `joinery` cabinet takes `door: lift`).
+   hinged doors (a `joinery` cabinet takes `door: lift`). `p.board: "MDP"` cuts the carcass
+   from particleboard, `p.front_board: "MDF"` with `p.front_t: 19` the fronts and fillers
+   from their own board: the cut list then gives each its rows and sheets.
 2. **Appliances.** `embed` sets a sink bowl or cooktop into a countertop with an exact
    cutout, or an oven or microwave into a cabinet niche; the item then moves with it.
 3. **One-off pieces.** `joinery` builds cabinets, slatted panels, countertops, plaster

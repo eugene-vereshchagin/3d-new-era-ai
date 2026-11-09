@@ -60,6 +60,17 @@ pub struct CabinetParams {
     #[serde(deserialize_with = "crate::cabinet::rgb_or_hex")]
     #[schemars(with = "Option<HandleColor>")]
     pub color: Option<[u8; 3]>,
+    /// Carcass board material, the start of its name in the cut list: `MDP`
+    /// for particleboard (chipboard, LDSP), `MDF` (default).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub board: Option<String>,
+    /// Board of the doors, drawer fronts and blind panels, cut apart from
+    /// the carcass: `MDF` fronts on an `MDP` carcass (default the carcass's).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub front_board: Option<String>,
+    /// Front board thickness, mm (default `t`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub front_t: Option<f64>,
     /// Door and drawer front finish, e.g. `wood` or `#5f6e4a`.
     pub front: Option<String>,
     /// Blind corner: cm of the front on the left covered by a fixed panel
@@ -147,6 +158,9 @@ impl Default for CabinetParams {
             cooktop: false,
             top_cutout: None,
             color: None,
+            board: None,
+            front_board: None,
+            front_t: None,
             front: None,
             blind_left: 0.0,
             blind_right: 0.0,
@@ -155,6 +169,21 @@ impl Default for CabinetParams {
             handle: HandleStyle::Bar,
             handle_color: None,
         }
+    }
+}
+
+/// A board material's name as the cut list writes it, `fallback` when none
+/// is given: `MDP`, `MDF`, `Compensado`.
+///
+/// # Errors
+/// An empty name, or one too long to head a cut list row.
+pub(crate) fn material(name: Option<&str>, fallback: &str) -> Result<String, String> {
+    match name.map(str::trim) {
+        None => Ok(fallback.to_owned()),
+        Some(name) if name.is_empty() || name.chars().count() > 30 => Err(format!(
+            "Chapa `{name}`: dê o nome do material, até 30 letras (MDF, MDP, Compensado)."
+        )),
+        Some(name) => Ok(name.to_owned()),
     }
 }
 
@@ -509,7 +538,23 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
     }
     let t = cm(p.t);
     let back = cm(p.back.clamp(3.0, 18.0));
-    let board = format!("MDF {}", num(p.t));
+    let carcass_board = material(p.board.as_deref(), "MDF")?;
+    let board = format!("{carcass_board} {}", num(p.t));
+    let front_mm = p.front_t.unwrap_or(p.t);
+    if !(3.0..=40.0).contains(&front_mm) {
+        return Err(format!(
+            "Frente de {} mm: use 3 a 40 mm (front_t).",
+            num(front_mm)
+        ));
+    }
+    // Fronts are cut from their own board when one is given; the same one
+    // as the carcass otherwise.
+    let ft = cm(front_mm);
+    let front_board = format!(
+        "{} {}",
+        material(p.front_board.as_deref(), &carcass_board)?,
+        num(front_mm)
+    );
     let back_board = format!("MDF {}", num(p.back));
     let carcass = p.color.unwrap_or(MDF_WHITE);
     let front_finish = p
@@ -581,9 +626,9 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
     let plinth = p.plinth.max(0.0);
     let front_t = match p.door {
         DoorType::None => 0.0,
-        DoorType::Hinged | DoorType::Drawers | DoorType::Lift => t,
+        DoorType::Hinged | DoorType::Drawers | DoorType::Lift => ft,
         // Two tracks of leaves.
-        DoorType::Sliding => 2.0 * t + 1.0,
+        DoorType::Sliding => 2.0 * ft + 1.0,
     };
     let dc = d - front_t;
     let hc = h - plinth;
@@ -861,8 +906,8 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                     let mut front = Part::board(
                         &format!("Frente da gaveta{label}"),
                         [x0 - t / 2.0 + GAP, dc, z0 + GAP],
-                        [bay + t - 2.0 * GAP, t, front_h - 2.0 * GAP],
-                        &board,
+                        [bay + t - 2.0 * GAP, ft, front_h - 2.0 * GAP],
+                        &front_board,
                         front_color,
                     )
                     .banded(2, 2);
@@ -1173,8 +1218,8 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                         let mut panel = Part::board(
                             name,
                             [x0 + GAP, dc, z0],
-                            [width - GAP, t, height],
-                            &board,
+                            [width - GAP, ft, height],
+                            &front_board,
                             front_color,
                         )
                         .banded(2, 2);
@@ -1187,8 +1232,8 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                     let mut door = Part::board(
                         &format!("{label} {}", k + 1),
                         [x, dc, z0],
-                        [leaf, t, height],
-                        &board,
+                        [leaf, ft, height],
+                        &front_board,
                         front_color,
                     )
                     .banded(2, 2);
@@ -1263,8 +1308,8 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
             let mut flap = Part::board(
                 "Porta basculante",
                 [x, dc, z0],
-                [width, t, height],
-                &board,
+                [width, ft, height],
+                &front_board,
                 front_color,
             )
             .banded(2, 2);
@@ -1304,12 +1349,12 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
             let leaf = (w + overlap * f64::from(n - 1)) / f64::from(n);
             for k in 0..n {
                 let x = f64::from(k) * (leaf - overlap);
-                let y = dc + if k % 2 == 0 { t + 1.0 } else { 0.0 };
+                let y = dc + if k % 2 == 0 { ft + 1.0 } else { 0.0 };
                 let mut door = Part::board(
                     &format!("Folha de correr {}", k + 1),
                     [x, y, plinth + drawer_zone],
-                    [leaf, t, door_h],
-                    &board,
+                    [leaf, ft, door_h],
+                    &front_board,
                     front_color,
                 )
                 .banded(2, 2);
@@ -1326,7 +1371,7 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                     &Front {
                         label: &format!("da folha {}", k + 1),
                         rect: [x, leaf, plinth + drawer_zone, door_h],
-                        face: y + t,
+                        face: y + ft,
                         grip: Grip::Leaf { right: k > 0 },
                     },
                     &mut parts,
@@ -1982,6 +2027,69 @@ mod tests {
             out.notes.iter().any(|n| n.contains("aéreos")),
             "{:?}",
             out.notes
+        );
+    }
+
+    /// A carcass of particleboard with MDF fronts of their own thickness:
+    /// the doors and drawer fronts are cut from the front board, everything
+    /// else from the carcass's, and the thicker fronts still close flush
+    /// with the depth asked for. Without them, fronts are the carcass's.
+    #[test]
+    fn fronts_are_cut_from_their_own_board() {
+        let base = CabinetParams {
+            w: 80.0,
+            h: 87.0,
+            d: 55.0,
+            door: DoorType::Hinged,
+            drawers: 1,
+            ..CabinetParams::default()
+        };
+        let out = generate(&CabinetParams {
+            board: Some("MDP".into()),
+            front_board: Some("MDF".into()),
+            front_t: Some(19.0),
+            ..base.clone()
+        })
+        .unwrap();
+        let rows = crate::cut_list(&out);
+        let board = |name: &str| {
+            rows.iter()
+                .find(|r| r.name.starts_with(name))
+                .map(|r| r.board.as_str())
+        };
+        assert_eq!(board("Porta"), Some("MDF 19"), "{rows:?}");
+        assert_eq!(board("Frente da gaveta"), Some("MDF 19"), "{rows:?}");
+        assert_eq!(board("Lateral"), Some("MDP 18"), "{rows:?}");
+        let door = out
+            .parts
+            .iter()
+            .find(|p| p.name.starts_with("Porta"))
+            .unwrap();
+        assert!((door.size[1] - 1.9).abs() < 1e-9, "{door:?}");
+        assert!(
+            (door.at[1] + door.size[1] - 55.0).abs() < 1e-9,
+            "flush: {door:?}"
+        );
+        assert_eq!(out.size[1], 55.0);
+        // Nothing said: one board for all, as before.
+        let plain = crate::cut_list(&generate(&base).unwrap());
+        assert!(
+            plain.iter().all(|r| r.board.starts_with("MDF")),
+            "{plain:?}"
+        );
+        assert!(
+            generate(&CabinetParams {
+                front_board: Some("  ".into()),
+                ..base.clone()
+            })
+            .is_err()
+        );
+        assert!(
+            generate(&CabinetParams {
+                front_t: Some(80.0),
+                ..base
+            })
+            .is_err()
         );
     }
 

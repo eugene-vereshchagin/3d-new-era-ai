@@ -168,6 +168,8 @@ pub(crate) struct NewEraApp {
     pub(crate) cabinets: Option<crate::cabinets::CabinetsWindow>,
     /// The "Lista de corte" window, while open.
     pub(crate) cut_list: Option<crate::cutlist::CutListWindow>,
+    /// The boards the last cabinets were cut from, offered for the next wall.
+    pub(crate) cabinet_boards: crate::cabinets::Boards,
     /// Top-view provider for the plan: `(look, asset dir, provider)`.
     top_views: Option<(
         FurnitureLook,
@@ -284,6 +286,7 @@ impl NewEraApp {
             ergonomics: None,
             cabinets: None,
             cut_list: None,
+            cabinet_boards: crate::cabinets::Boards::default(),
             top_views: None,
             top_view_generation: 0,
             #[cfg(not(target_arch = "wasm32"))]
@@ -1885,7 +1888,9 @@ impl NewEraApp {
                     single_wall.is_some(),
                 ) && let Some(id) = single_wall
                 {
-                    self.cabinets = Some(crate::cabinets::CabinetsWindow::new(id));
+                    let mut window = crate::cabinets::CabinetsWindow::new(id);
+                    window.boards = self.cabinet_boards.clone();
+                    self.cabinets = Some(window);
                     ui.close();
                 }
                 if menu_item(

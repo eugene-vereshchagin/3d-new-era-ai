@@ -9,6 +9,32 @@ use newera_joinery::{CabinetRunParams, RunRow};
 
 use crate::app::NewEraApp;
 
+/// Board materials a carcass is cut from in the window.
+const CARCASS_BOARDS: [&str; 2] = ["MDF", "MDP"];
+
+/// What the cabinets are cut from: kept from one wall to the next, since a
+/// kitchen is one workshop order.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Boards {
+    /// Carcass material (`MDF`, `MDP`).
+    pub(crate) board: String,
+    /// Fronts' own material, `None` for the carcass's.
+    pub(crate) front_board: Option<String>,
+    /// Fronts' thickness, mm.
+    pub(crate) front_t: f64,
+}
+
+impl Default for Boards {
+    /// One 18 mm MDF for everything, as cabinets were before.
+    fn default() -> Self {
+        Self {
+            board: "MDF".into(),
+            front_board: None,
+            front_t: 18.0,
+        }
+    }
+}
+
 /// Choices for the wall being filled, and the last plan.
 #[derive(Debug)]
 pub(crate) struct CabinetsWindow {
@@ -19,6 +45,7 @@ pub(crate) struct CabinetsWindow {
     front: [u8; 3],
     drawers: Option<u32>,
     top: bool,
+    pub(crate) boards: Boards,
     /// Reply of the last preview or build.
     pub(crate) result: Option<Result<serde_json::Value, String>>,
     built: bool,
@@ -34,6 +61,7 @@ impl CabinetsWindow {
             front: [238, 236, 230],
             drawers: None,
             top: true,
+            boards: Boards::default(),
             result: None,
             built: false,
         }
@@ -63,6 +91,18 @@ impl CabinetsWindow {
         }
         if let Some(n) = self.drawers {
             p.insert("drawers".into(), n.into());
+        }
+        // Said only when it is not the default, so a re-run of a wall made
+        // by the assistant keeps what it chose.
+        let boards = &self.boards;
+        if boards.board != "MDF" {
+            p.insert("board".into(), boards.board.clone().into());
+        }
+        if let Some(front) = &boards.front_board {
+            p.insert("front_board".into(), front.clone().into());
+        }
+        if (boards.front_t - 18.0).abs() > f64::EPSILON {
+            p.insert("front_t".into(), boards.front_t.into());
         }
         CabinetRunParams {
             wall: Some(self.wall.to_string()),
@@ -165,6 +205,7 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
                 ui.add(egui::DragValue::new(n).range(0..=6));
             }
         });
+        board_choices(ui, &mut window.boards);
         ui.weak(crate::i18n::tr(
             "Mede o trecho livre entre cantos, portas, janelas e eletrodomésticos e divide em módulos sem sobras; substitui os armários que já estão nessa parede.",
         ));
@@ -231,9 +272,41 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
         window.built = !dry && reply.is_ok();
         window.result = Some(reply);
     }
+    app.cabinet_boards = window.boards.clone();
     if open {
         app.cabinets = Some(window);
     }
+}
+
+/// The carcass board, and the fronts' own board and thickness when they are
+/// cut apart: the cut list then lists and lays out each on its own sheets.
+fn board_choices(ui: &mut egui::Ui, boards: &mut Boards) {
+    ui.horizontal(|ui| {
+        ui.label(crate::i18n::tr("Chapa da caixa"));
+        egui::ComboBox::from_id_salt("cabinet-board")
+            .selected_text(boards.board.as_str())
+            .show_ui(ui, |ui| {
+                for name in CARCASS_BOARDS {
+                    ui.selectable_value(&mut boards.board, name.to_owned(), name);
+                }
+            });
+        ui.label(crate::i18n::tr("Chapa das frentes"));
+        let same = crate::i18n::tr("a mesma da caixa");
+        egui::ComboBox::from_id_salt("cabinet-front-board")
+            .selected_text(boards.front_board.as_deref().unwrap_or(same))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut boards.front_board, None, same);
+                for name in CARCASS_BOARDS {
+                    ui.selectable_value(&mut boards.front_board, Some(name.to_owned()), name);
+                }
+            });
+        ui.add(
+            egui::DragValue::new(&mut boards.front_t)
+                .range(12.0..=25.0)
+                .speed(0.5)
+                .suffix(" mm"),
+        );
+    });
 }
 
 #[cfg(test)]
@@ -296,6 +369,56 @@ mod tests {
         let host = home.home().furniture.iter().find(|f| f.id == top).unwrap();
         assert!(host.children.iter().any(|c| c.id == cooktop), "embedded");
         assert!(!home.home().furniture.iter().any(|f| f.id == cooktop));
+    }
+
+    /// Cabinets made with a particleboard carcass and MDF fronts of 19 mm
+    /// are cut from the two boards apart, and the next wall is offered the
+    /// same boards.
+    #[test]
+    fn the_boards_chosen_for_a_wall_are_the_ones_cut() {
+        let mut doc = Document::default();
+        let corners = [(0.0, 0.0), (300.0, 0.0), (300.0, 240.0), (0.0, 240.0)];
+        let mut walls = Vec::new();
+        for k in 0..4 {
+            let (a, b) = (corners[k], corners[(k + 1) % 4]);
+            let id = doc.new_wall_id();
+            walls.push(id);
+            doc.execute(Command::insert(Wall::new(
+                id,
+                Point2::new(a.0, a.1),
+                Point2::new(b.0, b.1),
+            )))
+            .unwrap();
+        }
+        let document = SharedDocument::new(doc);
+        let shared = document.clone();
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(1280.0, 900.0))
+            .build_eframe(move |cc| NewEraApp::new(cc, document, None));
+        h.run_steps(3);
+        let mut window = CabinetsWindow::new(walls[0]);
+        window.boards = Boards {
+            board: "MDP".into(),
+            front_board: Some("MDF".into()),
+            front_t: 19.0,
+        };
+        h.state_mut().cabinets = Some(window);
+        h.run_steps(3);
+        h.get_by_label_contains("Criar armários").click();
+        h.run_steps(3);
+        let found = {
+            let doc = shared.read();
+            newera_joinery::gather(&doc.home().furniture, None).unwrap()
+        };
+        let boards: Vec<&str> = found.rows.iter().map(|r| r.board.as_str()).collect();
+        assert!(boards.contains(&"MDP 18"), "{boards:?}");
+        assert!(boards.contains(&"MDF 19"), "{boards:?}");
+        assert!(!boards.contains(&"MDF 18"), "{boards:?}");
+        assert_eq!(
+            h.state().cabinet_boards.board,
+            "MDP",
+            "kept for the next wall"
+        );
     }
 
     #[test]
