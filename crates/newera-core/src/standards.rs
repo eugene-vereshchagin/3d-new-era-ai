@@ -1207,7 +1207,7 @@ pub static FIGURES: &[Figure] = &[
         "clearance.laundry.past_door",
         AtLeast(45.0),
         Alerta,
-        "agachar e carregar a máquina diante da porta aberta",
+        "agachar e carregar a máquina diante da porta aberta, além do que a porta ocupa",
     ),
     practice(
         "clearance.desk.front",

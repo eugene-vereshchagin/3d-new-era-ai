@@ -919,25 +919,48 @@ impl Review<'_, '_> {
                     "entrar e sair do box",
                 )),
                 Use::Washer | Use::LaundrySink => {
-                    // A machine is loaded standing or crouched in front of
-                    // it, behind the door it opens: a washer's porthole, a
-                    // dryer's door dropped flat.
-                    let door = newera_core::opens::Front::of(u.piece)
-                        .map_or(0.0, |front| front.reach(u.piece));
-                    let past = self
-                        .fig("clearance.laundry.past_door")
-                        .map_or(0.0, |f| f.bound.value());
-                    found.extend(need(
+                    // The standard's room first, cited as the standard's.
+                    // Past it, what the machine's own door asks is common
+                    // practice and cited as that: a porthole swings aside
+                    // and the machine is loaded crouched in front of it, a
+                    // door that drops is opened flat and loaded from beside.
+                    let standard = need(
                         Side::Front,
                         self.fig("clearance.laundry.front"),
-                        if door > 0.0 { door + past } else { 0.0 },
+                        0.0,
                         whole,
-                        if door > 0.0 {
-                            "abrir a porta da máquina e agachar diante dela para carregar"
-                        } else {
-                            "uso do tanque e da máquina de lavar"
-                        },
-                    ));
+                        "uso do tanque e da máquina de lavar",
+                    );
+                    let front = newera_core::opens::Front::of(u.piece);
+                    let door = front.map_or(0.0, |f| f.reach(u.piece));
+                    let drops = front.is_some_and(|f| {
+                        matches!(
+                            f.motion,
+                            newera_core::opens::Motion::FlapDown
+                                | newera_core::opens::Motion::FlapUp
+                        )
+                    });
+                    let load = self.fig("clearance.laundry.past_door");
+                    let crouch = if drops {
+                        0.0
+                    } else {
+                        load.map_or(0.0, |f| f.bound.value())
+                    };
+                    found.extend(standard.or_else(|| {
+                        (door > 0.0).then(|| {
+                            need(
+                                Side::Front,
+                                load,
+                                door + crouch,
+                                whole,
+                                if drops {
+                                    "baixar a porta da máquina por inteiro"
+                                } else {
+                                    "abrir a porta da máquina e agachar diante dela para carregar"
+                                },
+                            )
+                        })?
+                    }));
                 }
                 Use::Desk => found.extend(need(
                     Side::Front,
@@ -4060,8 +4083,9 @@ mod tests {
 
     /// A front-loading washer needs its door's reach and room to crouch
     /// behind it, not only the standard's 50 cm: in a passage 70 cm deep it
-    /// opens but cannot be loaded, at 95 cm it can. A laundry sink, with no
-    /// door, keeps the 50 cm.
+    /// opens but cannot be loaded, at 95 cm it can, and below 50 cm it is
+    /// the standard's finding. A dryer needs the room its door drops into.
+    /// A laundry sink, with no door, keeps the 50 cm.
     #[test]
     fn a_washer_needs_room_to_open_its_door_and_crouch_in_front() {
         let crouch = |report: &Report| {
@@ -4084,6 +4108,34 @@ mod tests {
         };
         let narrow = laundry(70.0, "washer");
         assert!(crouch(&narrow), "{:#?}", narrow.findings);
+        // The standard asks 50 cm; past it the room is common practice's,
+        // and the finding does not cite the standard for it.
+        assert!(
+            narrow
+                .findings
+                .iter()
+                .filter(|f| f.message.contains("agachar diante dela"))
+                .all(|f| f.reference.is_none()),
+            "{:#?}",
+            narrow.findings
+        );
+        let cramped = laundry(40.0, "washer");
+        assert!(
+            cites(&cramped, Severity::Alerta, "nbr15575g"),
+            "{:#?}",
+            cramped.findings
+        );
+        assert!(!crouch(&cramped), "one finding, the standard's");
+        // A dryer's door drops flat and is loaded from beside it: about
+        // 74 cm of door, nothing to crouch behind.
+        let dryer = |free: f64| {
+            laundry(free, "dryer")
+                .findings
+                .iter()
+                .any(|f| f.message.contains("baixar a porta"))
+        };
+        assert!(dryer(65.0));
+        assert!(!dryer(80.0));
         assert!(
             narrow
                 .findings

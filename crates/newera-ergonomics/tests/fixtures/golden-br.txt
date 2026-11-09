@@ -449,8 +449,9 @@ web/demo.newera [Versão 1] / família
   -  Dica city_not_declared:r14 ref=coe-municipal | Código de obras não informado: o círculo livre no piso e as áreas mínimas da cozinha variam por município — informe a cidade para que sejam verificados.
   -  Dica city_not_declared:r18 ref=coe-municipal | Código de obras não informado: o círculo livre no piso e as áreas mínimas da cozinha variam por município — informe a cidade para que sejam verificados.
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / casal
-  score=33 [architecture=92 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  score=32 [architecture=87 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   refs nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B coe-municipal=A nbr16264=A
+  Alerta clearance:f315:front ref=- w=1 | 77,5 cm livres à frente em 11 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste Tanque com apoio — lavanderia f317 13 cm. | fix={"dx":13.0,"dy":0.0,"ids":["f317"],"tool":"move"}
   Alerta gas_window_not_vent:r14 ref=nbr13103 w=1 | Aparelho a gás: janela que fecha não é ventilação permanente. Preveja abertura permanente direta para o exterior (veneziana ou grelha, inferior e superior), como pedem a norma de aparelhos a gás e, em São Paulo, o Decreto 57.776 (3.M).
   Alerta elec:outlets:r14 ref=nbr5410 w=1 | 0 de 6 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (17,9 m).
   Alerta elec:outlets:r15 ref=nbr5410 w=1 | 0 de 4 tomadas de uso geral: a norma pede um a cada 5 m de perímetro (17,2 m).
@@ -511,13 +512,13 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / casal
   Dica plumb:drain:r23 ref=nbr8160 w=0 | Sem ralo: a área do box pede um ralo sifonado (caixa sifonada), que também recebe o lavatório.
   Dica plumb:grease ref=nbr8160 w=0 | Sem caixa de gordura: numa casa, uma pequena (18 L) ou simples (31 L) entre a pia e a rede; em prédio a pia desce por tubo de queda próprio até a caixa coletiva, e caixa individual no andar é vedada — nesse caso, aceite com esse motivo.
  @ são paulo
-  -  score=33 [architecture=92 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  -  score=32 [architecture=87 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   -  refs nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B coe-municipal=A nbr16264=A
   -  Dica city_not_declared:r14 ref=coe-municipal | Código de obras não informado: o círculo livre no piso e as áreas mínimas da cozinha variam por município — informe a cidade para que sejam verificados.
-  +  score=33 [architecture=93 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  +  score=32 [architecture=88 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   +  refs nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B nbr16264=A coe-municipal=A
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / cadeirante
-  score=15 [architecture=51 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  score=14 [architecture=50 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   refs nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B coe-municipal=A nbr16264=A
   Alerta clearance:f60:front ref=nbr9050 w=1 | 107,5 cm livres à frente em 81,4 dos 180 cm (giro de cadeira de rodas: mínimo 150 cm); afaste Armário de cozinha (baixo) f155 43 cm. | fix={"dx":0.0,"dy":43.0,"ids":["f155"],"tool":"move"}
   Alerta clearance:f65:front ref=nbr9050 w=1 | 142,5 cm livres à frente (giro de cadeira de rodas: mínimo 150 cm); afaste Ilha de cozinha f66 8 cm. | fix={"dx":0.0,"dy":8.0,"ids":["f66"],"tool":"move"}
@@ -527,6 +528,7 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / cadeirante
   Alerta clearance:f167:front ref=nbr9050 w=1 | 101 cm livres à frente em 28,5 dos 120 cm (aproximação frontal ao lavatório: mínimo 120 cm); afaste Vaso sanitário f97 19 cm. | fix={"dx":0.0,"dy":19.0,"ids":["f97"],"tool":"move"}
   Alerta clearance:f245:front ref=nbr9050 w=1 | 142,5 cm livres à frente (giro de cadeira de rodas: mínimo 150 cm); afaste Ilha de cozinha f66 8 cm. | fix={"dx":0.0,"dy":8.0,"ids":["f66"],"tool":"move"}
   Alerta clearance:f257:front ref=nbr9050 w=1 | 142,5 cm livres à frente (giro de cadeira de rodas: mínimo 150 cm); afaste Ilha de cozinha f66 8 cm. | fix={"dx":0.0,"dy":8.0,"ids":["f66"],"tool":"move"}
+  Alerta clearance:f315:front ref=- w=1 | 77,5 cm livres à frente em 11 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste Tanque com apoio — lavanderia f317 13 cm. | fix={"dx":13.0,"dy":0.0,"ids":["f317"],"tool":"move"}
   Alerta door_width_wheelchair:f37 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f38 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f39 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
@@ -600,16 +602,17 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / cadeirante
   Dica plumb:drain:r23 ref=nbr8160 w=0 | Sem ralo: a área do box pede um ralo sifonado (caixa sifonada), que também recebe o lavatório.
   Dica plumb:grease ref=nbr8160 w=0 | Sem caixa de gordura: numa casa, uma pequena (18 L) ou simples (31 L) entre a pia e a rede; em prédio a pia desce por tubo de queda próprio até a caixa coletiva, e caixa individual no andar é vedada — nesse caso, aceite com esse motivo.
  @ são paulo
-  -  score=15 [architecture=51 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  -  score=14 [architecture=50 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   -  refs nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B coe-municipal=A nbr16264=A
   -  Dica city_not_declared:r14 ref=coe-municipal | Código de obras não informado: o círculo livre no piso e as áreas mínimas da cozinha variam por município — informe a cidade para que sejam verificados.
-  +  score=15 [architecture=52 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  +  score=14 [architecture=51 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   +  refs nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B nbr16264=A coe-municipal=A
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / família
-  score=12 [architecture=47 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  score=11 [architecture=46 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   refs ibge-adensamento=D nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B blum-zonas=C panero-zelnik=C coe-municipal=A nbr16264=A
   Erro sleeping_places:casa ref=- w=12 | 7 moradores e 4 lugares para dormir: faltam 3 (camas de casal contam 2).
   Alerta bedroom_crowding:casa ref=ibge-adensamento w=1 | 3,5 moradores por dormitório: acima de 3 é adensamento excessivo; são necessários 3 dormitórios.
+  Alerta clearance:f315:front ref=- w=1 | 77,5 cm livres à frente em 11 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste Tanque com apoio — lavanderia f317 13 cm. | fix={"dx":13.0,"dy":0.0,"ids":["f317"],"tool":"move"}
   Alerta door_width_wheelchair:f37 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f38 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f39 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
@@ -682,10 +685,10 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / família
   Dica plumb:drain:r23 ref=nbr8160 w=0 | Sem ralo: a área do box pede um ralo sifonado (caixa sifonada), que também recebe o lavatório.
   Dica plumb:grease ref=nbr8160 w=0 | Sem caixa de gordura: numa casa, uma pequena (18 L) ou simples (31 L) entre a pia e a rede; em prédio a pia desce por tubo de queda próprio até a caixa coletiva, e caixa individual no andar é vedada — nesse caso, aceite com esse motivo.
  @ são paulo
-  -  score=12 [architecture=47 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  -  score=11 [architecture=46 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   -  refs ibge-adensamento=D nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B blum-zonas=C panero-zelnik=C coe-municipal=A nbr16264=A
   -  Dica city_not_declared:r14 ref=coe-municipal | Código de obras não informado: o círculo livre no piso e as áreas mínimas da cozinha variam por município — informe a cidade para que sejam verificados.
-  +  score=12 [architecture=48 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
+  +  score=11 [architecture=47 electrical=54 plumbing=51] capacity=Capacity { beds: 4, bedrooms: 2, bathrooms: 2, dining_seats: 8, living_seats: 8, wardrobe_cm: 520.0 }
   +  refs ibge-adensamento=D nbr9050=A nbr13103=A nbr5410=A nbr5626=A nbr8160=A nkba=B blum-zonas=C panero-zelnik=C nbr16264=A coe-municipal=A
 Quarto de três camas / casal
   score=50 [architecture=54 electrical=88 plumbing=100] capacity=Capacity { beds: 3, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
@@ -3414,12 +3417,13 @@ Sala #5 / família
   +  score=26 [architecture=41 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   +  refs nbr15575=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
 Área de serviço #1 / casal
-  score=40 [architecture=64 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=39 [architecture=59 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 89 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 1 cm.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (6,9 m).
   Alerta elec:mount:f112 ref=nbr5410 w=1 | switch f112 está no vão da porta door (f106): a caixa fica a pelo menos 10 cm do vão, fora do batente e do alizar; mova-o para o lado ou abaixo do peitoril.
@@ -3431,12 +3435,13 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
 Área de serviço #1 / cadeirante
-  score=39 [architecture=59 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=38 [architecture=54 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr9050=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 89 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 1 cm.
   Alerta switch_outlet_reach:casa ref=nbr9050 w=1 | 4 interruptor(es)/tomada(s) fora do alcance de quem usa cadeira de rodas: interruptores entre 60 e 100 cm, tomadas entre 40 e 100 cm.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (6,9 m).
@@ -3449,12 +3454,13 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
 Área de serviço #1 / família
-  score=40 [architecture=64 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=39 [architecture=59 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 7 moradores e 0 lugares para dormir: faltam 7 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 7 moradores: use uma mesa de 8 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 89 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 1 cm.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (6,9 m).
   Alerta elec:mount:f112 ref=nbr5410 w=1 | switch f112 está no vão da porta door (f106): a caixa fica a pelo menos 10 cm do vão, fora do batente e do alizar; mova-o para o lado ou abaixo do peitoril.
@@ -3521,12 +3527,13 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
 Área de serviço #3 / casal
-  score=38 [architecture=58 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 66 cm livres à frente em 51,5 dos 60 cm (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 7,7 cm.
   Alerta door_clear_width:f106 ref=- w=1 | Vão livre de cerca de 58 cm: abaixo de 60 cm não passa um móvel nem uma pessoa com volumes; use porta de 70 cm ou mais.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (5,2 m).
@@ -3540,18 +3547,19 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
  @ curitiba
-  -  score=38 [architecture=58 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  -  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   -  refs nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   -  Dica room_narrow_side:r105 ref=coe-municipal | Menor lado de 79 cm; para área de serviço a referência é pelo menos 90 cm.
-  +  score=39 [architecture=59 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  +  score=38 [architecture=54 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   +  refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
 Área de serviço #3 / cadeirante
-  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=36 [architecture=48 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr9050=A nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 66 cm livres à frente em 51,5 dos 60 cm (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 7,7 cm.
   Alerta door_clear_width:f106 ref=- w=1 | Vão livre de cerca de 58 cm: abaixo de 60 cm não passa um móvel nem uma pessoa com volumes; use porta de 70 cm ou mais.
   Alerta switch_outlet_reach:casa ref=nbr9050 w=1 | 4 interruptor(es)/tomada(s) fora do alcance de quem usa cadeira de rodas: interruptores entre 60 e 100 cm, tomadas entre 40 e 100 cm.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
@@ -3566,18 +3574,19 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
  @ curitiba
-  -  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  -  score=36 [architecture=48 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   -  refs nbr9050=A nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   -  Dica room_narrow_side:r105 ref=coe-municipal | Menor lado de 79 cm; para área de serviço a referência é pelo menos 90 cm.
-  +  score=38 [architecture=54 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  +  score=37 [architecture=49 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   +  refs nbr9050=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
 Área de serviço #3 / família
-  score=38 [architecture=58 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   Erro sleeping_places:casa ref=- w=12 | 7 moradores e 0 lugares para dormir: faltam 7 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 7 moradores: use uma mesa de 8 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 66 cm livres à frente em 51,5 dos 60 cm (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 7,7 cm.
   Alerta door_clear_width:f106 ref=- w=1 | Vão livre de cerca de 58 cm: abaixo de 60 cm não passa um móvel nem uma pessoa com volumes; use porta de 70 cm ou mais.
   Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (5,2 m).
@@ -3591,54 +3600,57 @@ Sala #5 / família
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
  @ curitiba
-  -  score=38 [architecture=58 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  -  score=37 [architecture=53 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   -  refs nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
   -  Dica room_narrow_side:r105 ref=coe-municipal | Menor lado de 79 cm; para área de serviço a referência é pelo menos 90 cm.
-  +  score=39 [architecture=59 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  +  score=38 [architecture=54 electrical=83 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   +  refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
 Área de serviço #4 / casal
-  score=41 [architecture=64 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=40 [architecture=59 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
-  Alerta no_bedroom:casa ref=- w=5 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
-  Alerta dining_seats:casa ref=- w=5 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
-  Alerta elec:light:r105 ref=nbr5410 w=5 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
-  Alerta elec:outlets:r105 ref=nbr5410 w=5 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
-  Alerta plumb:cold:f109 ref=nbr5626 w=5 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
-  Alerta plumb:sewer:f109 ref=nbr8160 w=5 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
+  Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
+  Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 53 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 20,7 cm.
+  Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
+  Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
+  Alerta plumb:cold:f109 ref=nbr5626 w=1 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
+  Alerta plumb:sewer:f109 ref=nbr8160 w=1 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
   Dica living_seats:casa ref=- w=1 | 0 lugares na sala para 2 moradores: todos sentam juntos com mais 2 lugar(es) (poltrona ou sofá maior).
   Dica wardrobe_capacity:casa ref=- w=1 | 0 cm de guarda-roupa nos dormitórios e closets; a norma de desempenho (anexo F) prevê 1,60 m no dormitório de casal e 1,20 m no de solteiro, uns 80 cm por adulto e metade por criança: 160 cm no total.
   Dica elec:network:r105 ref=nbr16264 w=1 | 0 de 2 pontos de rede RJ45: a norma de cabeamento residencial recomenda 2 neste cômodo, cada um com cabo de 4 pares até o distribuidor e uma tomada de energia ao lado.
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
 Área de serviço #4 / cadeirante
-  score=41 [architecture=64 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=40 [architecture=59 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 2 moradores e 0 lugares para dormir: faltam 2 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
-  Alerta no_bedroom:casa ref=- w=5 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
-  Alerta dining_seats:casa ref=- w=5 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
-  Alerta elec:light:r105 ref=nbr5410 w=5 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
-  Alerta elec:outlets:r105 ref=nbr5410 w=5 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
-  Alerta plumb:cold:f109 ref=nbr5626 w=5 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
-  Alerta plumb:sewer:f109 ref=nbr8160 w=5 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
+  Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
+  Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 53 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 20,7 cm.
+  Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
+  Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
+  Alerta plumb:cold:f109 ref=nbr5626 w=1 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
+  Alerta plumb:sewer:f109 ref=nbr8160 w=1 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
   Dica living_seats:casa ref=- w=1 | 0 lugares na sala para 2 moradores: todos sentam juntos com mais 2 lugar(es) (poltrona ou sofá maior).
   Dica wardrobe_capacity:casa ref=- w=1 | 0 cm de guarda-roupa nos dormitórios e closets; a norma de desempenho (anexo F) prevê 1,60 m no dormitório de casal e 1,20 m no de solteiro, uns 80 cm por adulto e metade por criança: 160 cm no total.
   Dica elec:network:r105 ref=nbr16264 w=1 | 0 de 2 pontos de rede RJ45: a norma de cabeamento residencial recomenda 2 neste cômodo, cada um com cabo de 4 pares até o distribuidor e uma tomada de energia ao lado.
   Dica elec:tv:r105 ref=nbr16264 w=1 | 0 de 1 pontos de TV: a norma de cabeamento residencial recomenda 1 neste cômodo (coaxial até 100 m do distribuidor).
   Dica plumb:drain:r105 ref=coe-municipal w=1 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
 Área de serviço #4 / família
-  score=41 [architecture=64 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
+  score=40 [architecture=59 electrical=88 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 0, bathrooms: 0, dining_seats: 0, living_seats: 0, wardrobe_cm: 0.0 }
   refs nbr5410=A nbr5626=A nbr8160=A nbr16264=A coe-municipal=A
   Erro sleeping_places:casa ref=- w=12 | 7 moradores e 0 lugares para dormir: faltam 7 (camas de casal contam 2).
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
-  Alerta no_bedroom:casa ref=- w=5 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
-  Alerta dining_seats:casa ref=- w=5 | 0 lugares à mesa para 7 moradores: use uma mesa de 8 lugares.
-  Alerta elec:light:r105 ref=nbr5410 w=5 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
-  Alerta elec:outlets:r105 ref=nbr5410 w=5 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
-  Alerta plumb:cold:f109 ref=nbr5626 w=5 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
-  Alerta plumb:sewer:f109 ref=nbr8160 w=5 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
+  Alerta no_bedroom:casa ref=- w=1 | Nenhum dormitório identificado: nomeie os cômodos (Quarto, Suíte) ou coloque camas.
+  Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 7 moradores: use uma mesa de 8 lugares.
+  Alerta clearance:f108:front ref=- w=1 | 53 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 20,7 cm.
+  Alerta elec:light:r105 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
+  Alerta elec:outlets:r105 ref=nbr5410 w=1 | 0 de 2 tomadas de uso geral: a norma pede um a cada 3,5 m de perímetro (4,4 m).
+  Alerta plumb:cold:f109 ref=nbr5626 w=1 | Sem ponto de água fria a até 90 cm: o tanque não tem de onde receber água.
+  Alerta plumb:sewer:f109 ref=nbr8160 w=1 | Sem ponto de esgoto ou ralo sifonado a até 90 cm: o tanque não tem para onde escoar (ramal de 40 mm).
   Dica living_seats:casa ref=- w=1 | 0 lugares na sala para 7 moradores: todos sentam juntos com mais 7 lugar(es) (poltrona ou sofá maior).
   Dica wardrobe_capacity:casa ref=- w=1 | 0 cm de guarda-roupa nos dormitórios e closets; a norma de desempenho (anexo F) prevê 1,60 m no dormitório de casal e 1,20 m no de solteiro, uns 80 cm por adulto e metade por criança: 480 cm no total.
   Dica elec:network:r105 ref=nbr16264 w=1 | 0 de 2 pontos de rede RJ45: a norma de cabeamento residencial recomenda 2 neste cômodo, cada um com cabo de 4 pares até o distribuidor e uma tomada de energia ao lado.
@@ -5005,16 +5017,19 @@ Apartamento #4 / família
   -  Alerta room_narrow_side:r106 ref=coe-municipal | Menor lado de 66 cm; para circulação a referência é pelo menos 90 cm.
   +  refs ibge-adensamento=D nbr15575g=A nbr9050=A nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
 Apartamento #5 / casal
-  score=0 [architecture=24 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
+  score=0 [architecture=17 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   refs nbr15575g=A coe-municipal=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Erro same_place:f130:f133 ref=- w=12 | Ocupa o mesmo lugar que wardrobe f133: não há lugar livre por perto, reorganize.
   Erro same_place:f131:f133 ref=- w=12 | Ocupa o mesmo lugar que wardrobe f133: movendo f131 120 cm fica livre. Isso deixa «0,5 cm livres à frente (passagem aos pés da cama: mínimo 50 cm); afaste 49,5 cm» em bed-single f131, mais leve. | fix={"dx":-120.0,"dy":0.0,"ids":["f131"],"tool":"move"}
   Erro same_place:f144:f146 ref=- w=12 | Ocupa o mesmo lugar que laundry-sink f146: movendo f146 5 cm fica livre. | fix={"dx":0.0,"dy":-5.0,"ids":["f146"],"tool":"move"}
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f110:front ref=- w=1 | 68,3 cm livres à frente em 6,7 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste dryer f111 22 cm. | fix={"dx":0.0,"dy":-22.0,"ids":["f111"],"tool":"move"}
+  Alerta clearance:f111:front ref=- w=1 | 72 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 1,7 cm.
   Alerta clearance:f130:left ref=nbr15575g w=1 | 5,4 cm livres à esquerda (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f130:right ref=nbr15575g w=1 | 14,6 cm livres à direita em 70 dos 150 cm (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f131:left ref=nbr15575g w=1 | 47,9 cm livres à esquerda (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
+  Alerta clearance:f144:front ref=- w=1 | 56 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 34 cm. Não cabem os dois: afastar isso cria «Ocupa o mesmo lugar que washer f144: não há lugar livre por perto, reorganize» em wardrobe f133; a posição atual é a melhor das duas — aceite o que ficar com o motivo.
   Alerta room_narrow_side:r106 ref=coe-municipal w=1 | Menor lado de 80 cm; para circulação a referência é pelo menos 90 cm.
   Alerta elec:light:r106 ref=nbr5410 w=1 | Sem ponto de luz: a norma pede ao menos um ponto de iluminação no teto de cada cômodo, comandado por interruptor.
   Alerta elec:outlets:r106 ref=nbr5410 w=1 | 0 de 5 tomadas de uso geral: a norma pede um a cada 5 m de perímetro (20,0 m).
@@ -5049,22 +5064,25 @@ Apartamento #5 / casal
   Dica plumb:drain:r107 ref=coe-municipal w=0 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
   Dica plumb:drain:r141 ref=coe-municipal w=0 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
  @ curitiba
-  -  score=0 [architecture=24 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
+  -  score=0 [architecture=17 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   -  refs nbr15575g=A coe-municipal=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A
   -  Alerta room_narrow_side:r106 ref=coe-municipal | Menor lado de 80 cm; para circulação a referência é pelo menos 90 cm.
-  +  score=0 [architecture=29 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
+  +  score=0 [architecture=18 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   +  refs nbr15575g=A nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
 Apartamento #5 / cadeirante
-  score=0 [architecture=14 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
+  score=0 [architecture=11 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   refs nbr9050=A nbr5410=A nbr5626=A nbr8160=A nbr15575g=A coe-municipal=A nbr16264=A
   Erro no_toilet:casa ref=- w=12 | Nenhum banheiro com vaso sanitário.
   Erro same_place:f130:f133 ref=- w=12 | Ocupa o mesmo lugar que wardrobe f133: não há lugar livre por perto, reorganize.
   Erro same_place:f131:f133 ref=- w=12 | Ocupa o mesmo lugar que wardrobe f133: movendo f131 120 cm fica livre. Isso deixa «0,5 cm livres à frente (passagem aos pés da cama: mínimo 50 cm); afaste 49,5 cm» em bed-single f131, mais leve. | fix={"dx":-120.0,"dy":0.0,"ids":["f131"],"tool":"move"}
   Erro same_place:f144:f146 ref=- w=12 | Ocupa o mesmo lugar que laundry-sink f146: movendo f146 5 cm fica livre. | fix={"dx":0.0,"dy":-5.0,"ids":["f146"],"tool":"move"}
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 2 moradores: use uma mesa de 4 lugares.
+  Alerta clearance:f110:front ref=- w=1 | 68,3 cm livres à frente em 6,7 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste dryer f111 22 cm. | fix={"dx":0.0,"dy":-22.0,"ids":["f111"],"tool":"move"}
+  Alerta clearance:f111:front ref=- w=1 | 72 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 1,7 cm.
   Alerta clearance:f130:left ref=nbr9050 w=1 | 5,4 cm livres à esquerda (transferência da cadeira: mínimo 90 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f130:right ref=nbr9050 w=1 | 14,6 cm livres à direita em 70 dos 150 cm (transferência da cadeira: mínimo 90 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f131:left ref=nbr9050 w=1 | 47,9 cm livres à esquerda (transferência da cadeira: mínimo 90 cm); não há espaço do outro lado: use peça menor ou reorganize.
+  Alerta clearance:f144:front ref=- w=1 | 56 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 34 cm. Não cabem os dois: afastar isso cria «Ocupa o mesmo lugar que washer f144: não há lugar livre por perto, reorganize» em wardrobe f133; a posição atual é a melhor das duas — aceite o que ficar com o motivo.
   Alerta door_width_wheelchair:f108 ref=nbr9050 w=1 | Vão livre de cerca de 71 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f118 ref=nbr9050 w=1 | Vão livre de cerca de 69 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f128 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
@@ -5114,9 +5132,12 @@ Apartamento #5 / família
   Erro same_place:f144:f146 ref=- w=12 | Ocupa o mesmo lugar que laundry-sink f146: movendo f146 5 cm fica livre. | fix={"dx":0.0,"dy":-5.0,"ids":["f146"],"tool":"move"}
   Alerta bedroom_crowding:casa ref=ibge-adensamento w=1 | 7 moradores por dormitório: acima de 3 é adensamento excessivo; são necessários 3 dormitórios.
   Alerta dining_seats:casa ref=- w=1 | 0 lugares à mesa para 7 moradores: use uma mesa de 8 lugares.
+  Alerta clearance:f110:front ref=- w=1 | 68,3 cm livres à frente em 6,7 dos 60 cm (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste dryer f111 22 cm. | fix={"dx":0.0,"dy":-22.0,"ids":["f111"],"tool":"move"}
+  Alerta clearance:f111:front ref=- w=1 | 72 cm livres à frente (baixar a porta da máquina por inteiro: mínimo 73,7 cm); afaste 1,7 cm.
   Alerta clearance:f130:left ref=nbr15575g w=1 | 5,4 cm livres à esquerda (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f130:right ref=nbr15575g w=1 | 14,6 cm livres à direita em 70 dos 150 cm (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
   Alerta clearance:f131:left ref=nbr15575g w=1 | 47,9 cm livres à esquerda (circulação ao lado da cama: mínimo 50 cm); não há espaço do outro lado: use peça menor ou reorganize.
+  Alerta clearance:f144:front ref=- w=1 | 56 cm livres à frente (abrir a porta da máquina e agachar diante dela para carregar: mínimo 90 cm); afaste 34 cm. Não cabem os dois: afastar isso cria «Ocupa o mesmo lugar que washer f144: não há lugar livre por perto, reorganize» em wardrobe f133; a posição atual é a melhor das duas — aceite o que ficar com o motivo.
   Alerta door_width_wheelchair:f108 ref=nbr9050 w=1 | Vão livre de cerca de 71 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f118 ref=nbr9050 w=1 | Vão livre de cerca de 69 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
   Alerta door_width_wheelchair:f128 ref=nbr9050 w=1 | Vão livre de cerca de 76 cm: cadeira de rodas e andador pedem 80 cm livres; use porta de 90 cm.
@@ -5158,10 +5179,8 @@ Apartamento #5 / família
   Dica plumb:drain:r107 ref=coe-municipal w=0 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
   Dica plumb:drain:r141 ref=coe-municipal w=0 | Sem ralo no piso: o Código Sanitário de SP obriga captação de água no piso de banheiros, cozinhas, copas e lavanderias (pode ser ralo seco).
  @ curitiba
-  -  score=0 [architecture=0 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   -  refs ibge-adensamento=D nbr15575g=A nbr9050=A coe-municipal=A nbr5410=A nbr5626=A nbr8160=A nbr16264=A
   -  Alerta room_narrow_side:r106 ref=coe-municipal | Menor lado de 80 cm; para circulação a referência é pelo menos 90 cm.
-  +  score=0 [architecture=1 electrical=55 plumbing=68] capacity=Capacity { beds: 4, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 4, wardrobe_cm: 180.0 }
   +  refs ibge-adensamento=D nbr15575g=A nbr9050=A nbr5410=A nbr5626=A nbr8160=A coe-municipal=A nbr16264=A
 Apartamento #6 / casal
   score=27 [architecture=52 electrical=61 plumbing=89] capacity=Capacity { beds: 0, bedrooms: 1, bathrooms: 0, dining_seats: 0, living_seats: 1, wardrobe_cm: 180.0 }

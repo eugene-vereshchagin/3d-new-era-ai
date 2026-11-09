@@ -25,9 +25,10 @@ All notable changes to this project are documented here. The format follows
   dishwasher or dryer from the catalog opens the way such appliances do. A flap that lifts past
   the ceiling of its room meets the room; a piece already through the ceiling is `above_ceiling`'s.
 - The review asks for room to load a washer or a dryer, not only the 50 cm NBR 15575-1 keeps in
-  front of it: the reach of its door (45 cm for a washer's porthole, about 74 for a dryer's dropped
-  door) and 45 cm more to crouch in front of it, 90 cm in all for a washer. Set in a passage, the
-  machine opens and cannot be used, and says so.
+  front of it: a washer's porthole (45 cm) and 45 cm more to crouch in front of it, 90 cm in all; a
+  dryer the 74 cm its door drops into, since it is loaded from beside the door. Set in a passage,
+  the machine opens and cannot be used, and says so. Below 50 cm the finding cites the standard;
+  past it, common practice.
 - `joinery` cabinets take `door: lift`: one flap across the front hinged at its top, pulled by its
   lower edge, with cup hinges and a pair of lift-up fittings in the hardware, and a note when it is
   too tall (over 80 cm, a bi-fold fitting) or too wide (over 120 cm) for one leaf, or sits on a
