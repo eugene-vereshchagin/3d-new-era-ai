@@ -45,6 +45,8 @@ pub(crate) struct CabinetsWindow {
     front: [u8; 3],
     drawers: Option<u32>,
     top: bool,
+    /// Wall row: lift-up flaps instead of hinged doors.
+    lift: bool,
     pub(crate) boards: Boards,
     /// Reply of the last preview or build.
     pub(crate) result: Option<Result<serde_json::Value, String>>,
@@ -61,6 +63,7 @@ impl CabinetsWindow {
             front: [238, 236, 230],
             drawers: None,
             top: true,
+            lift: false,
             boards: Boards::default(),
             result: None,
             built: false,
@@ -91,6 +94,9 @@ impl CabinetsWindow {
         }
         if let Some(n) = self.drawers {
             p.insert("drawers".into(), n.into());
+        }
+        if self.row == RunRow::Wall && self.lift {
+            p.insert("lift".into(), true.into());
         }
         // Said only when it is not the default, so a re-run of a wall made
         // by the assistant keeps what it chose.
@@ -192,6 +198,12 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
                 length,
             );
             ui.checkbox(&mut window.top, crate::i18n::tr("Bancada de pedra por cima"));
+        }
+        if window.row == RunRow::Wall {
+            ui.checkbox(
+                &mut window.lift,
+                crate::i18n::tr("Portas basculantes (abrem para cima)"),
+            );
         }
         ui.horizontal(|ui| {
             ui.label(crate::i18n::tr("Frentes"));
@@ -369,6 +381,43 @@ mod tests {
         let host = home.home().furniture.iter().find(|f| f.id == top).unwrap();
         assert!(host.children.iter().any(|c| c.id == cooktop), "embedded");
         assert!(!home.home().furniture.iter().any(|f| f.id == cooktop));
+    }
+
+    /// A wall row with lift-up flaps ticked hangs cabinets whose one front
+    /// lifts; a base row never asks for them.
+    #[test]
+    fn a_wall_row_hangs_lift_up_flaps_when_ticked() {
+        let mut window = CabinetsWindow::new(newera_core::WallId(1));
+        window.lift = true;
+        let base = window.params(true).p.unwrap();
+        assert!(!base.contains_key("lift"), "{base:?}");
+        window.row = RunRow::Wall;
+        assert_eq!(window.params(true).p.unwrap()["lift"], true);
+        let mut doc = Document::default();
+        let corners = [(0.0, 0.0), (300.0, 0.0), (300.0, 240.0), (0.0, 240.0)];
+        let mut first = None;
+        for k in 0..4 {
+            let (a, b) = (corners[k], corners[(k + 1) % 4]);
+            let id = doc.new_wall_id();
+            first.get_or_insert(id);
+            doc.execute(Command::insert(Wall::new(
+                id,
+                Point2::new(a.0, a.1),
+                Point2::new(b.0, b.1),
+            )))
+            .unwrap();
+        }
+        window.wall = first.unwrap();
+        newera_joinery::cabinet_run(&mut doc, &window.params(false)).unwrap();
+        let found = newera_joinery::gather(&doc.home().furniture, None).unwrap();
+        assert!(
+            found
+                .rows
+                .iter()
+                .any(|r| r.name.starts_with("Porta basculante")),
+            "{:?}",
+            found.rows
+        );
     }
 
     /// Cabinets made with a particleboard carcass and MDF fronts of 19 mm

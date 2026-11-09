@@ -39,6 +39,8 @@ All notable changes to this project are documented here. The format follows
   the fronts, keeping them when a wall is filled again. The cut list then lists and lays out each
   board on its own sheets: MDF 19 fronts apart from an MDP 18 carcass. "Armários na parede…"
   chooses them too, and offers the next wall the boards of the last one.
+- "Armários na parede…" hangs lift-up flaps on a wall row ("Portas basculantes"), as
+  `cabinet_run` does with `p.lift`.
 - "Lista de corte…" in the editor (Planta menu): the desktop app cuts its own kitchen. It lists
   the boards of the storey's joinery (the cabinets made with "Armários na parede…", and groups
   drawn by hand with board parts) by material, with the sheets each takes, the edge banding and
