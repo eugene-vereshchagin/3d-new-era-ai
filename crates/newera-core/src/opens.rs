@@ -2,7 +2,8 @@
 //!
 //! A closed kitchen can look right in every view and still not work: a door
 //! whose handle meets the fridge beside it, a drawer that pulls out into the
-//! corner cabinet's handle, a dishwasher whose door drops onto the island. The
+//! corner cabinet's handle, a dishwasher whose door drops onto the island, a
+//! wall cabinet's lift-up door that swings into the hood above it. The
 //! boxes never overlap, so nothing else notices. A front that knows how it
 //! moves can say what it runs into.
 //!
@@ -25,8 +26,11 @@ pub enum Motion {
     /// A drawer pulled straight out by `travel` cm (its slide length).
     Drawer { travel: f64 },
     /// A door hinged at its bottom edge that drops to horizontal: an oven,
-    /// a dishwasher.
+    /// a dishwasher, a built-in dryer.
     FlapDown,
+    /// A door hinged at its top edge that lifts to horizontal: a wall
+    /// cabinet's lift-up flap.
+    FlapUp,
 }
 
 /// A moving front: how it moves, and how far its handle stands off its
@@ -43,7 +47,7 @@ const APPLIANCE_HANDLE: f64 = 4.0;
 
 impl Front {
     /// Reads the text [`Front::property`] writes: `hinge-left`,
-    /// `hinge-right`, `drawer 45` or `flap-down`, each optionally followed
+    /// `hinge-right`, `drawer 45`, `flap-down` or `flap-up`, each optionally followed
     /// by ` handle 3.7`.
     pub fn parse(text: &str) -> Option<Self> {
         let mut words = text.split_whitespace();
@@ -54,6 +58,7 @@ impl Front {
                 travel: words.next()?.parse().ok().filter(|t: &f64| *t > 0.0)?,
             },
             "flap-down" => Motion::FlapDown,
+            "flap-up" => Motion::FlapUp,
             _ => return None,
         };
         let handle = match (words.next(), words.next()) {
@@ -71,6 +76,7 @@ impl Front {
             Motion::Hinge { left: false } => "hinge-right".to_owned(),
             Motion::Drawer { travel } => format!("drawer {}", round(travel)),
             Motion::FlapDown => "flap-down".to_owned(),
+            Motion::FlapUp => "flap-up".to_owned(),
         };
         if self.handle > 0.0 {
             format!("{motion} handle {}", round(self.handle))
@@ -80,8 +86,13 @@ impl Front {
     }
 
     /// How `piece` opens: what it says under [`OPENS_KEY`], or what an
-    /// appliance of its catalog does — a fridge or a microwave swings its
-    /// door, an oven or a dishwasher drops it. `None` for anything else.
+    /// appliance of its catalog does — a fridge, a freezer, a microwave or a
+    /// front-loading washer swings its door, an oven, a dishwasher or a dryer
+    /// drops it. `None` for anything else.
+    ///
+    /// A fridge or a freezer hinges on its right, as they come from the
+    /// factory; a microwave and a washer on their left, the round porthole
+    /// swinging the whole width of the machine's face at most.
     pub fn of(piece: &Furniture) -> Option<Self> {
         if let Some(text) = piece.properties.get(OPENS_KEY) {
             return Self::parse(text);
@@ -90,9 +101,9 @@ impl Front {
             return None;
         }
         let motion = match piece.catalog.as_str() {
-            "fridge" => Motion::Hinge { left: false },
-            "microwave" => Motion::Hinge { left: true },
-            "oven" | "dishwasher" => Motion::FlapDown,
+            "fridge" | "freezer" => Motion::Hinge { left: false },
+            "microwave" | "washer" => Motion::Hinge { left: true },
+            "oven" | "dishwasher" | "dryer" => Motion::FlapDown,
             _ => return None,
         };
         Some(Self {
@@ -108,8 +119,10 @@ impl Front {
     /// A door sweeps a quarter disc of its own width around the hinge and,
     /// at 90°, stands beside it with its thickness and its handle: the part
     /// that meets a wall or a neighbour on the hinge side. A drawer comes
-    /// out by its travel, a dropped door by its height, each with the handle
-    /// in front.
+    /// out by its travel, a dropped or lifted door by its height, each with
+    /// the handle in front. Lying flat, a dropped door spans its hinge line at
+    /// the bottom with the handle hanging under it, a lifted one its hinge
+    /// line at the top with the handle standing over it.
     pub fn sweep(&self, piece: &Furniture) -> (Vec<Point2>, (f64, f64)) {
         let (w, depth) = (piece.width, piece.depth);
         let face = depth / 2.0;
@@ -149,7 +162,7 @@ impl Front {
                     (-w / 2.0, reach),
                 ]
             }
-            Motion::FlapDown => {
+            Motion::FlapDown | Motion::FlapUp => {
                 let reach = face + (top - bottom) + self.handle;
                 vec![
                     (-w / 2.0, face),
@@ -160,8 +173,11 @@ impl Front {
             }
         };
         let heights = match self.motion {
-            // Lying flat at its hinge line, the door is as tall as it is thick.
-            Motion::FlapDown => (bottom - d, bottom + d + self.handle),
+            // Lying flat at its hinge line, the door is as tall as it is
+            // thick; its outer face, and the handle on it, turn down when it
+            // drops and up when it lifts.
+            Motion::FlapDown => (bottom - d - self.handle, bottom + d),
+            Motion::FlapUp => (top - d, top + d + self.handle),
             _ => (bottom, top),
         };
         (
@@ -213,6 +229,7 @@ mod tests {
             "hinge-right handle 3.7",
             "drawer 45 handle 2",
             "flap-down",
+            "flap-up handle 2.5",
         ] {
             assert_eq!(Front::parse(text).unwrap().property(), text);
         }
@@ -222,6 +239,8 @@ mod tests {
             "drawer",
             "drawer -3",
             "flap-down handle",
+            "flap-up 3",
+            "flap-sideways",
             "hinge-left knob 2",
         ] {
             assert_eq!(Front::parse(bad), None, "{bad}");
@@ -238,6 +257,27 @@ mod tests {
             Front::of(&fridge).unwrap().motion,
             Motion::Hinge { left: false }
         );
+        for (catalog, motion) in [
+            ("freezer", Motion::Hinge { left: false }),
+            ("washer", Motion::Hinge { left: true }),
+        ] {
+            let appliance = Furniture {
+                catalog: catalog.into(),
+                ..Furniture::default()
+            };
+            assert_eq!(Front::of(&appliance).unwrap().motion, motion, "{catalog}");
+        }
+        for catalog in ["oven", "dishwasher", "dryer"] {
+            let appliance = Furniture {
+                catalog: catalog.into(),
+                ..Furniture::default()
+            };
+            assert_eq!(
+                Front::of(&appliance).unwrap().motion,
+                Motion::FlapDown,
+                "{catalog}"
+            );
+        }
         let sofa = Furniture {
             catalog: "sofa".into(),
             ..Furniture::default()
@@ -262,6 +302,28 @@ mod tests {
         let right = door("hinge-right handle 3");
         let (outline, _) = Front::of(&right).unwrap().sweep(&right);
         assert_eq!(outline.iter().map(|p| p.x).fold(f64::MIN, f64::max), 35.0);
+    }
+
+    /// A flap lies flat at its hinge line: a dropped one at its bottom edge
+    /// with the handle under it, a lifted one at its top edge with the handle
+    /// over it; in plan both come out by the door's height.
+    #[test]
+    fn a_flap_lies_flat_at_its_hinge_line_with_the_handle_outward() {
+        // The door is 70 cm tall, 10 to 80 cm above the floor, 2 cm thick.
+        let down = door("flap-down handle 3");
+        let (outline, z) = Front::of(&down).unwrap().sweep(&down);
+        assert_eq!(z, (5.0, 12.0));
+        assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 74.0);
+        let up = door("flap-up handle 3");
+        let (outline, z) = Front::of(&up).unwrap().sweep(&up);
+        assert_eq!(z, (78.0, 85.0));
+        assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 74.0);
+        // Nothing behind the face, nothing past its sides.
+        assert!(
+            outline
+                .iter()
+                .all(|p| p.y >= 1.0 - 1e-9 && p.x.abs() <= 30.0 + 1e-9)
+        );
     }
 
     #[test]

@@ -889,6 +889,61 @@ mod tests {
         assert!(check().get("unrated_light").is_none(), "{}", check());
     }
 
+    /// A lift-up flap hung up to the kitchen ceiling meets the room, named;
+    /// ten centimeters lower it lifts clear.
+    #[test]
+    fn a_flap_lifted_into_the_ceiling_names_the_room() {
+        let s = server();
+        s.create(Parameters(
+            serde_json::from_str(
+                r#"{"walls":[{"pts":[[0,0],[400,0],[400,300],[0,300]],"closed":true}],
+                    "rooms":[{"name":"Cozinha","at":[200,150]}]}"#,
+            )
+            .unwrap(),
+        ))
+        .unwrap();
+        let check = || -> serde_json::Value {
+            serde_json::from_str(&s.check_layout(Parameters(CheckParams::default())).unwrap())
+                .unwrap()
+        };
+        // A 60 × 2 × 40 cm flap whose top is `gap` under the ceiling.
+        let flap = |gap: f64| {
+            let mut doc = s.document.write();
+            let inside = doc.home().walls[0].thickness / 2.0;
+            let mut piece = newera_core::Furniture {
+                catalog: "box".into(),
+                name: "Basculante".into(),
+                position: newera_core::Point2::new(200.0, inside + 36.0),
+                width: 60.0,
+                depth: 2.0,
+                height: 40.0,
+                ..newera_core::Furniture::default()
+            };
+            let ceiling = newera_core::mounting::ceiling_over(doc.home(), &piece).unwrap();
+            piece.id = doc.new_furniture_id();
+            piece.elevation = ceiling - gap - 40.0;
+            piece.properties.insert(
+                newera_core::opens::OPENS_KEY.into(),
+                "flap-up handle 3".into(),
+            );
+            let id = piece.id;
+            doc.execute(newera_core::Command::insert(piece)).unwrap();
+            id.to_string()
+        };
+        let id = flap(1.0);
+        let found = check();
+        let row = &found["opens_into"][0];
+        assert_eq!(row["front"]["id"], id, "{found}");
+        assert_eq!(row["how"], "flap_up", "{found}");
+        assert_eq!(row["against"]["name"], "Cozinha", "{found}");
+        s.delete(Parameters(
+            serde_json::from_str(&format!(r#"{{"ids":["{id}"]}}"#)).unwrap(),
+        ))
+        .unwrap();
+        flap(10.0);
+        assert!(check().get("opens_into").is_none(), "{}", check());
+    }
+
     #[test]
     fn a_fridge_door_into_the_wall_is_named_with_its_piece_and_what_it_meets() {
         let s = server();

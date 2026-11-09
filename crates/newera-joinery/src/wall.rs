@@ -45,7 +45,8 @@ pub struct CabinetRunParams {
     /// drawers (drawer units), max (widest module, 90), target (60),
     /// top (base countertop, true), `top_material`, sink / cooktop (center cm along
     /// the wall: its cabinet and cutout; null removes it), `sink_w` (80), `cooktop_w` (60),
-    /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom).
+    /// interior shelves|hanging|wardrobe (tall rows; wardrobe by default facing a bedroom),
+    /// lift (wall rows: lift-up flaps, false).
     pub p: Option<serde_json::Map<String, Value>>,
     /// Stretch to fill, cm from the wall start (default: all of it).
     pub from: Option<f64>,

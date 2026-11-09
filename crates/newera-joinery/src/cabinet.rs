@@ -19,6 +19,9 @@ pub enum DoorType {
     Sliding,
     /// Drawers over the whole height.
     Drawers,
+    /// One flap across the front hinged at its top, held open over the
+    /// cabinet by lift-up fittings: a wall cabinet's.
+    Lift,
 }
 
 /// A cabinet. Sizes in cm, board thicknesses in mm.
@@ -175,6 +178,12 @@ const STEEL: [u8; 3] = [190, 192, 196];
 const GROOVE_SHADOW: [u8; 3] = [46, 44, 42];
 /// Doors at least this tall get a long handle at hand height, cm.
 const TALL_DOOR: f64 = 120.0;
+/// Tallest lift-up flap a single-leaf fitting opens within reach, cm: the
+/// common swing-up fittings take cabinets up to 80 cm, so a 70 cm wall row
+/// lifts without a note.
+const MAX_LIFT: f64 = 80.0;
+/// Widest lift-up flap before the board bows, cm.
+const MAX_LIFT_WIDTH: f64 = 120.0;
 /// Center of a tall door's handle above the floor, cm.
 const HAND_HEIGHT: f64 = 105.0;
 /// How far a bar pull stands off the front, cm.
@@ -194,6 +203,9 @@ enum Grip {
     },
     /// Horizontal, centered near the top.
     Drawer,
+    /// Horizontal, centered near the bottom: a lift-up flap is pulled up
+    /// by its lower edge.
+    Flap,
     /// A sliding leaf, pulled at its `right` or left edge.
     Leaf { right: bool },
 }
@@ -301,6 +313,7 @@ fn add_handle(
     // Vertical or horizontal, the handle's center and the length it may take.
     let (vertical, cx, cz, room) = match front.grip {
         Grip::Drawer => (false, x + width / 2.0, z + height - 3.5, width - 8.0),
+        Grip::Flap => (false, x + width / 2.0, z + 3.5, width - 8.0),
         Grip::Leaf { right } => (
             true,
             if right { x + width - 3.5 } else { x + 3.5 },
@@ -334,6 +347,7 @@ fn add_handle(
             let band = 1.8;
             let (at, size) = match front.grip {
                 Grip::Drawer => ([x, y, z + height - band], [width, depth, band]),
+                Grip::Flap => ([x, y, z], [width, depth, band]),
                 Grip::Door {
                     upper, tall: false, ..
                 } => {
@@ -567,7 +581,7 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
     let plinth = p.plinth.max(0.0);
     let front_t = match p.door {
         DoorType::None => 0.0,
-        DoorType::Hinged | DoorType::Drawers => t,
+        DoorType::Hinged | DoorType::Drawers | DoorType::Lift => t,
         // Two tracks of leaves.
         DoorType::Sliding => 2.0 * t + 1.0,
     };
@@ -1217,6 +1231,73 @@ pub(crate) fn generate(p: &CabinetParams) -> Result<Output, String> {
                 "{hinge_count} dobradiças de caneco 35 mm (folga de 2 mm entre portas)"
             ));
         }
+        DoorType::Lift if door_h > 10.0 => {
+            if p.doors.is_some_and(|n| n > 1) {
+                notes.push(
+                    "Porta basculante é uma folha só na largura toda: doors foi ignorado."
+                        .to_owned(),
+                );
+            }
+            if plinth > 0.0 {
+                notes.push(
+                    "Porta basculante abre para cima: serve a aéreos; num armário de chão ela bate no tampo."
+                        .to_owned(),
+                );
+            }
+            let (x, z0) = (GAP, plinth + drawer_zone + GAP);
+            let (width, height) = (w - 2.0 * GAP, door_h - 2.0 * GAP);
+            if height > MAX_LIFT {
+                notes.push(format!(
+                    "Porta basculante de {} cm de altura: acima de {} cm ela sobe alto demais para alcançar e pede articulador de duas folhas (dobrável).",
+                    num(height),
+                    num(MAX_LIFT)
+                ));
+            }
+            if width > MAX_LIFT_WIDTH {
+                notes.push(format!(
+                    "Porta basculante de {} cm de largura: acima de {} cm a folha empena; divida em dois módulos.",
+                    num(width),
+                    num(MAX_LIFT_WIDTH)
+                ));
+            }
+            let mut flap = Part::board(
+                "Porta basculante",
+                [x, dc, z0],
+                [width, t, height],
+                &board,
+                front_color,
+            )
+            .banded(2, 2);
+            flap.finish.clone_from(&front_finish);
+            parts.push(flap);
+            let flap_at = parts.len() - 1;
+            add_handle(
+                p.handle,
+                handle_color,
+                &Front {
+                    label: "Porta basculante",
+                    rect: [x, width, z0, height],
+                    face: d,
+                    grip: Grip::Flap,
+                },
+                &mut parts,
+                &mut handles,
+            );
+            // Hinged at its top edge, it lifts flat over the cabinet.
+            parts[flap_at].opens = Some(newera_core::opens::Front {
+                motion: newera_core::opens::Motion::FlapUp,
+                handle: stand_off(&parts[flap_at + 1..], d),
+            });
+            hardware.push(format!(
+                "{} dobradiças de caneco 35 mm no topo da porta basculante",
+                hinges(width)
+            ));
+            hardware.push(format!(
+                "1 par de articuladores basculantes (braço com pistão) para porta de {} × {} cm",
+                num(width),
+                num(height)
+            ));
+        }
         DoorType::Sliding if door_h > 10.0 => {
             let n = p.doors.unwrap_or(2).max(2);
             let overlap = 3.0;
@@ -1834,6 +1915,73 @@ mod tests {
                 .filter(|p| p.opens.is_some())
                 .all(|p| p.name.starts_with("Frente")),
             "only fronts move"
+        );
+    }
+
+    /// A lift-up wall cabinet has one flap across its front, pulled by its
+    /// lower edge, that says it lifts; its fittings go to the hardware, and a
+    /// flap too tall or too wide for them is said.
+    #[test]
+    fn a_lift_up_cabinet_has_one_flap_that_lifts() {
+        use newera_core::opens::Motion;
+        let wall = CabinetParams {
+            w: 60.0,
+            h: 40.0,
+            d: 35.0,
+            plinth: 0.0,
+            shelves: 1,
+            door: DoorType::Lift,
+            ..CabinetParams::default()
+        };
+        let out = generate(&wall).unwrap();
+        let flap = part(&out, "Porta basculante");
+        let opens = flap.opens.unwrap();
+        assert_eq!(opens.motion, Motion::FlapUp);
+        assert!(opens.handle > 2.0, "a bar stands off the flap: {opens:?}");
+        assert_eq!(
+            out.parts.iter().filter(|p| p.opens.is_some()).count(),
+            1,
+            "one flap"
+        );
+        // The bar lies along the flap's lower edge.
+        let bar = part(&out, "Puxador Porta basculante");
+        assert!(bar.size[0] > bar.size[2], "horizontal: {bar:?}");
+        assert!(bar.at[2] < flap.at[2] + flap.size[2] / 2.0, "low: {bar:?}");
+        assert!(
+            out.hardware
+                .iter()
+                .any(|h| h.contains("articuladores basculantes")),
+            "{:?}",
+            out.hardware
+        );
+        assert!(out.notes.is_empty(), "{:?}", out.notes);
+        // Too tall and too wide for one leaf, on a floor cabinet.
+        let out = generate(&CabinetParams {
+            w: 130.0,
+            h: 90.0,
+            ..wall.clone()
+        })
+        .unwrap();
+        assert!(
+            out.notes.iter().any(|n| n.contains("duas folhas")),
+            "{:?}",
+            out.notes
+        );
+        assert!(
+            out.notes.iter().any(|n| n.contains("dois módulos")),
+            "{:?}",
+            out.notes
+        );
+        let out = generate(&CabinetParams {
+            plinth: 10.0,
+            h: 87.0,
+            ..wall
+        })
+        .unwrap();
+        assert!(
+            out.notes.iter().any(|n| n.contains("aéreos")),
+            "{:?}",
+            out.notes
         );
     }
 

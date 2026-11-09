@@ -1,5 +1,5 @@
 {
-  "total": 123571,
+  "total": 123616,
   "tools": {
     "accept": {
       "total": 1360,
@@ -26,9 +26,9 @@
       "output": 76
     },
     "cabinet_run": {
-      "total": 2599,
+      "total": 2639,
       "description": 824,
-      "input": 1257,
+      "input": 1297,
       "output": 294
     },
     "cameras": {
@@ -212,8 +212,8 @@
       "output": 481
     },
     "joinery": {
-      "total": 3078,
-      "description": 1176,
+      "total": 3083,
+      "description": 1181,
       "input": 1411,
       "output": 295
     },

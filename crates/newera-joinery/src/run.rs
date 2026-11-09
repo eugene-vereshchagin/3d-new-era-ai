@@ -149,6 +149,9 @@ pub struct RunParams {
     pub sink_real: Option<[f64; 2]>,
     /// A real cooktop `[w, d]` stays in the cutout.
     pub cooktop_real: Option<[f64; 2]>,
+    /// Wall row: lift-up flaps (porta basculante) instead of hinged doors,
+    /// over the fridge too; a blind corner keeps its hinged door.
+    pub lift: bool,
 }
 
 impl Default for RunParams {
@@ -175,6 +178,7 @@ impl Default for RunParams {
             interior: None,
             sink_real: None,
             cooktop_real: None,
+            lift: false,
         }
     }
 }
@@ -455,6 +459,14 @@ pub fn plan_run(
         ));
     }
     let plinth = if p.row == RunRow::Wall { 0.0 } else { 10.0 };
+    // Lift-up flaps open over a wall cabinet; under a countertop or on a
+    // tall unit they have nowhere to go.
+    let lift = p.lift && p.row == RunRow::Wall;
+    if p.lift && !lift {
+        rules.push(
+            "lift vale só para a fileira de aéreos (row = wall): as portas saíram de giro.".into(),
+        );
+    }
     let shelves = match p.row {
         RunRow::Base | RunRow::Wall => 1,
         RunRow::Tall => 4,
@@ -663,6 +675,9 @@ pub fn plan_run(
                     }
                     c.blind_left = left;
                     c.blind_right = right;
+                    if lift && left + right <= 0.0 {
+                        c.door = DoorType::Lift;
+                    }
                     if left + right > 0.0 {
                         blind_note = true;
                         (Role::Corner, Build::Cabinet(c))
@@ -737,9 +752,19 @@ pub fn plan_run(
             continue;
         }
         let w = o.to - o.from;
-        let mut params = cabinet(w, DoorType::Hinged, 0, height, 0);
+        let mut params = cabinet(
+            w,
+            if lift {
+                DoorType::Lift
+            } else {
+                DoorType::Hinged
+            },
+            0,
+            height,
+            0,
+        );
         params.plinth = 0.0;
-        params.doors = Some(if w > 60.0 { 2 } else { 1 });
+        params.doors = (!lift).then_some(if w > 60.0 { 2 } else { 1 });
         modules.push(RunModule {
             from: o.from,
             width: w,
@@ -1125,6 +1150,63 @@ mod tests {
                 .iter()
                 .all(|r| *r != Role::Drawers && *r != Role::Countertop)
         );
+    }
+
+    /// A wall row of the default height with `lift` hangs flaps that lift
+    /// instead of hinged doors, over the fridge too, without a note; the
+    /// blind corner keeps its hinged door, and a base row ignores it and
+    /// says so.
+    #[test]
+    fn a_lift_up_wall_row_hangs_flaps() {
+        let gaps = [RunGap {
+            from: 0.0,
+            to: 240.0,
+            start: EndKind::Wall,
+            end: EndKind::Wall,
+            blind_start: 60.0,
+            blind_end: 0.0,
+        }];
+        let over = [RunOver {
+            from: 240.0,
+            to: 310.0,
+            bottom: 165.0,
+        }];
+        let p = RunParams {
+            row: RunRow::Wall,
+            lift: true,
+            ..RunParams::default()
+        };
+        let (modules, notes) = plan_run(&gaps, &over, &[], &p).unwrap();
+        let doors = |m: &RunModule| match &m.build {
+            Build::Cabinet(c) => Some(c.door),
+            _ => None,
+        };
+        let corner = modules.iter().find(|m| m.role == Role::Corner).unwrap();
+        assert_eq!(doors(corner), Some(DoorType::Hinged));
+        let plain: Vec<_> = modules.iter().filter(|m| m.role == Role::Doors).collect();
+        assert!(!plain.is_empty(), "{modules:?}");
+        assert!(
+            plain.iter().all(|m| doors(m) == Some(DoorType::Lift)),
+            "{modules:?}"
+        );
+        let fridge = modules.iter().find(|m| m.role == Role::Over).unwrap();
+        assert_eq!(doors(fridge), Some(DoorType::Lift));
+        assert!(notes.iter().all(|n| !n.contains("lift")), "{notes:?}");
+        let (modules, notes) = plan_run(
+            &gaps,
+            &[],
+            &[],
+            &RunParams {
+                row: RunRow::Base,
+                ..p
+            },
+        )
+        .unwrap();
+        assert!(
+            modules.iter().all(|m| doors(m) != Some(DoorType::Lift)),
+            "{modules:?}"
+        );
+        assert!(notes.iter().any(|n| n.contains("lift")), "{notes:?}");
     }
 
     #[test]
