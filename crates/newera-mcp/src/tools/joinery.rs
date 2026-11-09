@@ -52,6 +52,12 @@ pub(crate) struct CutListParams {
     /// Write `.csv` (spreadsheet), `.dxf` (sheets for CNC) or `.svg` (sheets to view).
     #[schemars(skip)]
     path: Option<String>,
+    /// Sheet `[length,width]` by board name prefix (`MDF 18`, `Pedra`; `*` any other); default 2750×1830.
+    sheets: Option<std::collections::BTreeMap<String, [f64; 2]>>,
+    /// Saw kerf between boards (default 4).
+    kerf: Option<f64>,
+    /// Factory edge cut off each side of a sheet (default 0).
+    trim: Option<f64>,
 }
 /// Where to write a cut list.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
@@ -61,6 +67,55 @@ pub(crate) struct CutListExportParams {
     ids: Option<Vec<String>>,
     /// `.csv` (spreadsheet), `.dxf` (sheets for CNC) or `.svg` (sheets to view).
     path: String,
+    /// Sheet `[length,width]` mm by board name prefix; `*` any other.
+    sheets: Option<std::collections::BTreeMap<String, [f64; 2]>>,
+    /// Saw kerf between boards, mm (default 4).
+    kerf: Option<f64>,
+    /// Factory edge cut off each side of a sheet, mm (default 0).
+    trim: Option<f64>,
+}
+
+/// The workshop's sheets: the defaults with what the call changed, or why
+/// the numbers cannot be cut from.
+fn sheet_stock(
+    sheets: Option<&std::collections::BTreeMap<String, [f64; 2]>>,
+    kerf: Option<f64>,
+    trim: Option<f64>,
+) -> Result<newera_joinery::SheetStock, ErrorData> {
+    let mut stock = newera_joinery::SheetStock::default();
+    if let Some(kerf) = kerf {
+        if !(0.0..=10.0).contains(&kerf) {
+            return Err(invalid(format!(
+                "kerf {kerf} mm: a saw blade takes 0 to 10 mm (default 4)"
+            )));
+        }
+        stock.kerf = kerf;
+    }
+    if let Some(trim) = trim {
+        if !(0.0..=50.0).contains(&trim) {
+            return Err(invalid(format!(
+                "trim {trim} mm: the edge cut off each side is 0 to 50 mm (default 0)"
+            )));
+        }
+        stock.trim = trim;
+    }
+    if let Some(sheets) = sheets {
+        for (board, [length, width]) in sheets {
+            if !(100.0..=6000.0).contains(length) || !(100.0..=6000.0).contains(width) {
+                return Err(invalid(format!(
+                    "sheets.{board} {length}×{width} mm: give [length, width] in mm, each 100 to 6000 (e.g. [2800, 2070])"
+                )));
+            }
+            if length.min(*width) <= 2.0 * stock.trim {
+                return Err(invalid(format!(
+                    "sheets.{board} {length}×{width} mm: nothing is left once {} mm is trimmed off each side",
+                    stock.trim
+                )));
+            }
+        }
+        stock = stock.with_sizes(sheets.iter().map(|(k, v)| (k.clone(), *v)));
+    }
+    Ok(stock)
 }
 /// Thickest part of a drawn group read as a board, mm: a 50 mm stone or a
 /// double panel still is, a 30 cm body of a model is not.
@@ -278,7 +333,7 @@ impl NewEraMcp {
     }
     #[tool(
         name = "cut_list",
-        description = "Cut list of joinery builds, and of groups drawn by hand: each part of a drawn group up to 50 mm thick is a board at the size it was drawn (board is its finish and thickness, no edge banding), the groups are named in drawn and the parts that are not boards in skipped [[id,name]]. Rows [part,board,qty,length,width,thickness mm,edge long+short,cutouts [x,y,w,d] mm?] merged by size, hardware, sheets per board. export what=cut_list writes it as .csv, or .dxf/.svg (boards laid out on sheets). sources names the panel standards behind the boards: MDF is a dry-process fibreboard (NBR 15316), MDP a particleboard of 551 to 750 kg/m³ that holds screws better (NBR 14810)."
+        description = "Cut list of joinery builds, and of groups drawn by hand: each part of a drawn group up to 50 mm thick is a board at the size it was drawn (board is its finish and thickness, no edge banding), the groups are named in drawn and the parts that are not boards in skipped [[id,name]]. Rows [part,board,qty,length,width,thickness mm,edge long+short,cutouts [x,y,w,d] mm?] merged by size, hardware, sheets per board. The workshop's stock sets the layout: sheets {\"MDF\":[2800,2070]} by board name, kerf, trim mm. export what=cut_list writes it as .csv, or .dxf/.svg (boards laid out on sheets). sources names the panel standards behind the boards: MDF is a dry-process fibreboard (NBR 15316), MDP a particleboard of 551 to 750 kg/m³ that holds screws better (NBR 14810)."
     )]
     pub(crate) fn read_cut_list(
         &self,
@@ -299,6 +354,9 @@ impl NewEraMcp {
         self.cut_list(Parameters(CutListParams {
             ids: p.ids,
             path: Some(p.path),
+            sheets: p.sheets,
+            kerf: p.kerf,
+            trim: p.trim,
         }))
     }
     /// The cut list, written to a file when a path is given.
@@ -306,6 +364,8 @@ impl NewEraMcp {
         &self,
         Parameters(p): Parameters<CutListParams>,
     ) -> Result<String, ErrorData> {
+        // Numbers that cannot be cut from are said before anything is read.
+        let stock = sheet_stock(p.sheets.as_ref(), p.kerf, p.trim)?;
         let doc = self.document.read();
         let home = doc.home();
         let view = home.level_view(home.current_level());
@@ -402,15 +462,15 @@ impl NewEraMcp {
         // standards oblige here and inform elsewhere, like every other source.
         let place = doc.home().compass.place();
         drop(doc);
-        let mut sheets = Vec::new();
+        let mut sheets = newera_joinery::sheets_used(&rows, &stock);
         if let Some(path) = &p.path {
             let ext = std::path::Path::new(path)
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(str::to_ascii_lowercase);
             let layout = match ext.as_deref() {
-                Some("dxf") => Some(newera_joinery::cut_list_dxf(&rows)),
-                Some("svg") => Some(newera_joinery::cut_list_svg(&rows)),
+                Some("dxf") => Some(newera_joinery::cut_list_dxf(&rows, &stock)),
+                Some("svg") => Some(newera_joinery::cut_list_svg(&rows, &stock)),
                 Some("csv") => None,
                 _ => return Err(invalid("path must end in .csv, .dxf or .svg")),
             };
@@ -732,6 +792,7 @@ mod tests {
             &s.cut_list(Parameters(CutListParams {
                 ids: None,
                 path: Some(csv.display().to_string()),
+                ..CutListParams::default()
             }))
             .unwrap(),
         )
@@ -763,6 +824,7 @@ mod tests {
             &s.cut_list(Parameters(CutListParams {
                 ids: Some(vec![id]),
                 path: Some(dxf.display().to_string()),
+                ..CutListParams::default()
             }))
             .unwrap(),
         )
@@ -773,9 +835,42 @@ mod tests {
         s.cut_list(Parameters(CutListParams {
             ids: None,
             path: Some(svg.display().to_string()),
+            ..CutListParams::default()
         }))
         .unwrap();
         assert!(std::fs::read_to_string(&svg).unwrap().starts_with("<svg"));
         std::fs::remove_dir_all(dir).ok();
+
+        // The workshop's own sheets: a read already says how many it takes.
+        let read = |json: &str| {
+            s.read_cut_list(Parameters(serde_json::from_str(json).unwrap()))
+                .map(|r| serde_json::from_str::<serde_json::Value>(&r).unwrap())
+        };
+        let sheets_of = |reply: &serde_json::Value, board: &str| {
+            reply["sheets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r[0] == board)
+                .map(|r| r[1].as_u64().unwrap())
+                .unwrap()
+        };
+        let stock = read("{}").unwrap();
+        let chipboard = read(r#"{"sheets":{"*":[2800,2070]},"kerf":3,"trim":10}"#).unwrap();
+        assert!(
+            sheets_of(&chipboard, "MDF 18") <= sheets_of(&stock, "MDF 18"),
+            "{stock} {chipboard}"
+        );
+        // Numbers nobody can cut from are refused, saying what to give.
+        let blade = read(r#"{"kerf":20}"#).unwrap_err();
+        assert!(blade.message.contains("0 to 10 mm"), "{}", blade.message);
+        let tiny = read(r#"{"sheets":{"MDF":[50,2070]}}"#).unwrap_err();
+        assert!(tiny.message.contains("[2800, 2070]"), "{}", tiny.message);
+        let eaten = read(r#"{"sheets":{"MDF":[100,100]},"trim":50}"#).unwrap_err();
+        assert!(
+            eaten.message.contains("nothing is left"),
+            "{}",
+            eaten.message
+        );
     }
 }
