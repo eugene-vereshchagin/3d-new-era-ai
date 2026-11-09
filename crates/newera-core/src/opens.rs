@@ -132,7 +132,8 @@ impl Front {
     /// turns about a hinge standing off the face at the machine's edge, its
     /// rim sweeping a disc sector to past the side: what a niche no deeper
     /// than the hinge's stand-off never meets. A drawer comes
-    /// out by its travel, a dropped or lifted door by its height, each with
+    /// out by its travel, a dropped or lifted door by its height (an
+    /// appliance's door, not its body: its plinth and panel stay), each with
     /// the handle in front. Lying flat, a dropped door spans its hinge line at
     /// the bottom with the handle hanging under it, a lifted one its hinge
     /// line at the top with the handle standing over it.
@@ -171,8 +172,9 @@ impl Front {
                 let pivot = (-side * w / 2.0, face + PORTHOLE_PIVOT);
                 let r = PORTHOLE_REACH.min(w) + self.handle;
                 let mut out = vec![pivot];
-                for step in 0..=ARC_STEPS {
-                    let a = PORTHOLE_ANGLE.to_radians() * f64::from(step) / f64::from(ARC_STEPS);
+                for step in 0..=PORTHOLE_STEPS {
+                    let a =
+                        PORTHOLE_ANGLE.to_radians() * f64::from(step) / f64::from(PORTHOLE_STEPS);
                     out.push((pivot.0 + side * r * a.cos(), pivot.1 + r * a.sin()));
                 }
                 out
@@ -187,7 +189,14 @@ impl Front {
                 ]
             }
             Motion::FlapDown | Motion::FlapUp => {
-                let reach = face + (top - bottom) + self.handle;
+                // A door board is the piece; an appliance's door leaves its
+                // plinth and its control panel behind.
+                let leaf = if depth > MAX_DOOR {
+                    (top - bottom) * APPLIANCE_FLAP
+                } else {
+                    top - bottom
+                };
+                let reach = face + leaf + self.handle;
                 vec![
                     (-w / 2.0, face),
                     (w / 2.0, face),
@@ -211,9 +220,29 @@ impl Front {
     }
 }
 
+impl Front {
+    /// How far in front of `piece`'s face this front comes while it opens,
+    /// cm: a door's width, a drawer's travel, a washer's porthole half open,
+    /// a flap's height (an appliance's door, not its body), each with its
+    /// handle — the room somebody using it
+    /// stands behind.
+    pub fn reach(&self, piece: &Furniture) -> f64 {
+        let (outline, _) = self.sweep(piece);
+        outline
+            .into_iter()
+            .map(|p| piece.to_local(p).1 - piece.depth / 2.0)
+            .fold(0.0, f64::max)
+    }
+}
+
 /// Thickest a door is taken to be, cm: a piece deeper than this is a body
 /// with a door on its face (a fridge, an oven), not the door itself.
 const MAX_DOOR: f64 = 6.0;
+
+/// Share of an appliance's height its dropping door takes, the rest its
+/// plinth and its control panel: a dryer 85 cm tall drops a door of about
+/// 70 cm.
+const APPLIANCE_FLAP: f64 = 0.82;
 
 /// How far in from a door's free edge its handle reaches, cm: bars and
 /// knobs sit within it.
@@ -230,6 +259,10 @@ const PORTHOLE_REACH: f64 = 41.0;
 /// How far a washer's porthole opens, degrees: fully open, the 60 cm
 /// machine's door stands about 30 cm past its side and 33 cm out.
 const PORTHOLE_ANGLE: f64 = 135.0;
+
+/// Points along a washer's porthole sweep: one every 11.25°, so the door
+/// standing straight out at 90° is one of them.
+const PORTHOLE_STEPS: u32 = 12;
 
 /// Points along a door's sweep.
 const ARC_STEPS: u32 = 8;
@@ -381,6 +414,39 @@ mod tests {
         let (outline, _) = Front::of(&right).unwrap().sweep(&right);
         let max_x = outline.iter().map(|p| p.x).fold(f64::MIN, f64::max);
         assert!((max_x - (30.0 + 29.0)).abs() < 0.5, "{max_x}");
+    }
+
+    /// A front's reach is how far it comes out of the face: a washer's
+    /// porthole half open, a drawer's travel and handle, wherever the piece
+    /// stands and however it is turned.
+    #[test]
+    fn a_front_reaches_out_of_its_face_by_its_sweep() {
+        let mut washer = Furniture {
+            catalog: "washer".into(),
+            position: Point2::new(200.0, 100.0),
+            angle: 90.0,
+            width: 60.0,
+            depth: 60.0,
+            height: 85.0,
+            ..Furniture::default()
+        };
+        let reach = Front::of(&washer).unwrap().reach(&washer);
+        assert!((reach - 45.0).abs() < 0.5, "{reach}");
+        washer.mirrored = true;
+        let reach = Front::of(&washer).unwrap().reach(&washer);
+        assert!((reach - 45.0).abs() < 0.5, "{reach}");
+        let dryer = Furniture {
+            catalog: "dryer".into(),
+            ..washer.clone()
+        };
+        let reach = Front::of(&dryer).unwrap().reach(&dryer);
+        assert!(
+            (reach - (69.7 + 4.0)).abs() < 0.1,
+            "about 70 cm and its handle: {reach}"
+        );
+        let drawer = door("drawer 45 handle 3");
+        let reach = Front::of(&drawer).unwrap().reach(&drawer);
+        assert!((reach - 48.0).abs() < 1e-9, "{reach}");
     }
 
     /// A flap lies flat at its hinge line: a dropped one at its bottom edge

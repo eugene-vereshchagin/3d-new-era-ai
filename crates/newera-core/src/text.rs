@@ -962,6 +962,10 @@ pub static ENGLISH: &[(&str, &str)] = &[
         "using the laundry sink and the washing machine",
     ),
     (
+        "abrir a porta da máquina e agachar diante dela para carregar",
+        "opening the machine's door and crouching in front of it to load",
+    ),
+    (
         "cadeira e levantar-se da mesa",
         "a chair and getting up from the desk",
     ),

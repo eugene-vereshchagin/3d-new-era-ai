@@ -21,7 +21,8 @@ the `key` it is accepted by and the elements involved (name, bounds and z).
   about 45 cm out and 30 cm past its hinge side, so it clears a niche 4 cm deep but not a wall or
   tall cabinet right beside it; a drawer comes out by its slide; an oven, dishwasher or dryer door
   drops flat at its bottom edge and a lift-up flap (`opens: flap-up`) rises flat at its top
-  edge, each reaching out by its height. A filler panel at the corner, the hinge on the other
+  edge, each reaching out by its height (an appliance's door, not its plinth and panel: about
+  70 cm of a dryer 85 cm tall). A filler panel at the corner, the hinge on the other
   side, a narrower handle or more room in front clears it. A flap that lifts past the ceiling
   meets the room (`against` is the room's id): hang the cabinet lower or give it hinged doors.
 - **in_wall** `{key, piece, wall}`: a piece inside a wall.

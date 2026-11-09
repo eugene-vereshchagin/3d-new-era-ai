@@ -1588,8 +1588,8 @@ mod tests {
             .push(piece(31, (100.0, inside + 50.0), (60.0, 30.0, 90.0)));
         assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
 
-        // A built-in dryer, 60 × 60 × 85 cm on the floor: its door drops 85 cm
-        // out in front of its face, at the floor.
+        // A built-in dryer, 60 × 60 × 85 cm on the floor: its door, about
+        // 70 cm of it, drops out in front of its face, at the floor.
         let mut home = room_home();
         let inside = home.walls[0].thickness / 2.0;
         let mut dryer = piece(40, (300.0, inside + 30.0), (60.0, 60.0, 85.0));

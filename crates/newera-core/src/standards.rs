@@ -1204,6 +1204,12 @@ pub static FIGURES: &[Figure] = &[
         "NBR 15575-1 anexo F: 0,50 m diante de tanque e máquina",
     ),
     practice(
+        "clearance.laundry.past_door",
+        AtLeast(45.0),
+        Alerta,
+        "agachar e carregar a máquina diante da porta aberta",
+    ),
+    practice(
         "clearance.desk.front",
         AtLeast(75.0),
         Dica,

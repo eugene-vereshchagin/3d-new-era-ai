@@ -918,13 +918,27 @@ impl Review<'_, '_> {
                     (0.2, 0.8),
                     "entrar e sair do box",
                 )),
-                Use::Washer | Use::LaundrySink => found.extend(need(
-                    Side::Front,
-                    self.fig("clearance.laundry.front"),
-                    0.0,
-                    whole,
-                    "uso do tanque e da máquina de lavar",
-                )),
+                Use::Washer | Use::LaundrySink => {
+                    // A machine is loaded standing or crouched in front of
+                    // it, behind the door it opens: a washer's porthole, a
+                    // dryer's door dropped flat.
+                    let door = newera_core::opens::Front::of(u.piece)
+                        .map_or(0.0, |front| front.reach(u.piece));
+                    let past = self
+                        .fig("clearance.laundry.past_door")
+                        .map_or(0.0, |f| f.bound.value());
+                    found.extend(need(
+                        Side::Front,
+                        self.fig("clearance.laundry.front"),
+                        if door > 0.0 { door + past } else { 0.0 },
+                        whole,
+                        if door > 0.0 {
+                            "abrir a porta da máquina e agachar diante dela para carregar"
+                        } else {
+                            "uso do tanque e da máquina de lavar"
+                        },
+                    ));
+                }
                 Use::Desk => found.extend(need(
                     Side::Front,
                     self.fig("clearance.desk.front"),
@@ -4041,6 +4055,54 @@ mod tests {
         assert!(
             !says(&report, Severity::Dica, "84,5 cm"),
             "read by name, it is still an appliance: {report:#?}"
+        );
+    }
+
+    /// A front-loading washer needs its door's reach and room to crouch
+    /// behind it, not only the standard's 50 cm: in a passage 70 cm deep it
+    /// opens but cannot be loaded, at 95 cm it can. A laundry sink, with no
+    /// door, keeps the 50 cm.
+    #[test]
+    fn a_washer_needs_room_to_open_its_door_and_crouch_in_front() {
+        let crouch = |report: &Report| {
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("agachar diante dela"))
+        };
+        let laundry = |free: f64, catalog: &str| {
+            let mut home = Home::default();
+            square(&mut home, "Lavanderia", 200.0, 15.0 + 60.0 + free);
+            home.furniture.push(piece(
+                21,
+                catalog,
+                (100.0, 7.5 + 30.0),
+                (60.0, 60.0, 85.0),
+                0.0,
+            ));
+            review(&home, &Profile::default())
+        };
+        let narrow = laundry(70.0, "washer");
+        assert!(crouch(&narrow), "{:#?}", narrow.findings);
+        assert!(
+            narrow
+                .findings
+                .iter()
+                .any(|f| f.message.to_string().contains("mínimo 90 cm")),
+            "45 cm of door and 45 to crouch: {:#?}",
+            narrow.findings
+        );
+        let roomy = laundry(95.0, "washer");
+        assert!(!crouch(&roomy), "{:#?}", roomy.findings);
+        let sink = laundry(70.0, "laundry-sink");
+        assert!(!crouch(&sink), "{:#?}", sink.findings);
+        assert!(
+            !sink
+                .findings
+                .iter()
+                .any(|f| f.message.contains("uso do tanque")),
+            "{:#?}",
+            sink.findings
         );
     }
 
