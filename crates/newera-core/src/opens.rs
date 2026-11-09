@@ -25,6 +25,10 @@ pub enum Motion {
     Hinge { left: bool },
     /// A drawer pulled straight out by `travel` cm (its slide length).
     Drawer { travel: f64 },
+    /// The round door of a front-loading washer on its `left` edge or its
+    /// right one: a hinge that stands off the face, so the door clears a
+    /// niche a few cm deep, and swings past the side to about 135°.
+    Porthole { left: bool },
     /// A door hinged at its bottom edge that drops to horizontal: an oven,
     /// a dishwasher, a built-in dryer.
     FlapDown,
@@ -47,13 +51,15 @@ const APPLIANCE_HANDLE: f64 = 4.0;
 
 impl Front {
     /// Reads the text [`Front::property`] writes: `hinge-left`,
-    /// `hinge-right`, `drawer 45`, `flap-down` or `flap-up`, each optionally followed
-    /// by ` handle 3.7`.
+    /// `hinge-right`, `porthole-left`, `porthole-right`, `drawer 45`,
+    /// `flap-down` or `flap-up`, each optionally followed by ` handle 3.7`.
     pub fn parse(text: &str) -> Option<Self> {
         let mut words = text.split_whitespace();
         let motion = match words.next()? {
             "hinge-left" => Motion::Hinge { left: true },
             "hinge-right" => Motion::Hinge { left: false },
+            "porthole-left" => Motion::Porthole { left: true },
+            "porthole-right" => Motion::Porthole { left: false },
             "drawer" => Motion::Drawer {
                 travel: words.next()?.parse().ok().filter(|t: &f64| *t > 0.0)?,
             },
@@ -74,6 +80,8 @@ impl Front {
         let motion = match self.motion {
             Motion::Hinge { left: true } => "hinge-left".to_owned(),
             Motion::Hinge { left: false } => "hinge-right".to_owned(),
+            Motion::Porthole { left: true } => "porthole-left".to_owned(),
+            Motion::Porthole { left: false } => "porthole-right".to_owned(),
             Motion::Drawer { travel } => format!("drawer {}", round(travel)),
             Motion::FlapDown => "flap-down".to_owned(),
             Motion::FlapUp => "flap-up".to_owned(),
@@ -86,13 +94,13 @@ impl Front {
     }
 
     /// How `piece` opens: what it says under [`OPENS_KEY`], or what an
-    /// appliance of its catalog does — a fridge, a freezer, a microwave or a
-    /// front-loading washer swings its door, an oven, a dishwasher or a dryer
-    /// drops it. `None` for anything else.
+    /// appliance of its catalog does — a fridge, a freezer or a microwave
+    /// swings its door, a front-loading washer its porthole, an oven, a
+    /// dishwasher or a dryer drops it. `None` for anything else.
     ///
     /// A fridge or a freezer hinges on its right, as they come from the
-    /// factory; a microwave and a washer on their left, the round porthole
-    /// swinging the whole width of the machine's face at most.
+    /// factory; a microwave on its left, and a washer's porthole too, its
+    /// handle in the door's rim.
     pub fn of(piece: &Furniture) -> Option<Self> {
         if let Some(text) = piece.properties.get(OPENS_KEY) {
             return Self::parse(text);
@@ -102,14 +110,16 @@ impl Front {
         }
         let motion = match piece.catalog.as_str() {
             "fridge" | "freezer" => Motion::Hinge { left: false },
-            "microwave" | "washer" => Motion::Hinge { left: true },
+            "microwave" => Motion::Hinge { left: true },
+            "washer" => Motion::Porthole { left: true },
             "oven" | "dishwasher" | "dryer" => Motion::FlapDown,
             _ => return None,
         };
-        Some(Self {
-            motion,
-            handle: APPLIANCE_HANDLE,
-        })
+        let handle = match motion {
+            Motion::Porthole { .. } => 0.0,
+            _ => APPLIANCE_HANDLE,
+        };
+        Some(Self { motion, handle })
     }
 
     /// What `piece` takes while this front opens: a plan outline and the
@@ -118,7 +128,10 @@ impl Front {
     ///
     /// A door sweeps a quarter disc of its own width around the hinge and,
     /// at 90°, stands beside it with its thickness and its handle: the part
-    /// that meets a wall or a neighbour on the hinge side. A drawer comes
+    /// that meets a wall or a neighbour on the hinge side. A washer's porthole
+    /// turns about a hinge standing off the face at the machine's edge, its
+    /// rim sweeping a disc sector to past the side: what a niche no deeper
+    /// than the hinge's stand-off never meets. A drawer comes
     /// out by its travel, a dropped or lifted door by its height, each with
     /// the handle in front. Lying flat, a dropped door spans its hinge line at
     /// the bottom with the handle hanging under it, a lifted one its hinge
@@ -151,6 +164,17 @@ impl Front {
                     (leaf, face + w - band),
                     (leaf, face),
                 ]);
+                out
+            }
+            Motion::Porthole { left } => {
+                let side = if left { 1.0 } else { -1.0 };
+                let pivot = (-side * w / 2.0, face + PORTHOLE_PIVOT);
+                let r = PORTHOLE_REACH.min(w) + self.handle;
+                let mut out = vec![pivot];
+                for step in 0..=ARC_STEPS {
+                    let a = PORTHOLE_ANGLE.to_radians() * f64::from(step) / f64::from(ARC_STEPS);
+                    out.push((pivot.0 + side * r * a.cos(), pivot.1 + r * a.sin()));
+                }
                 out
             }
             Motion::Drawer { travel } => {
@@ -195,7 +219,19 @@ const MAX_DOOR: f64 = 6.0;
 /// knobs sit within it.
 const HANDLE_BAND: f64 = 10.0;
 
-/// Points along a door's quarter-disc sweep.
+/// How far a washer's porthole hinge stands off the machine's face, cm: the
+/// door clears a niche this deep.
+const PORTHOLE_PIVOT: f64 = 4.0;
+
+/// From a washer's porthole hinge to the far side of its rim, cm: measured
+/// on a 60 cm machine, whose door half open comes 45 cm out of its face.
+const PORTHOLE_REACH: f64 = 41.0;
+
+/// How far a washer's porthole opens, degrees: fully open, the 60 cm
+/// machine's door stands about 30 cm past its side and 33 cm out.
+const PORTHOLE_ANGLE: f64 = 135.0;
+
+/// Points along a door's sweep.
 const ARC_STEPS: u32 = 8;
 
 fn round(cm: f64) -> f64 {
@@ -227,6 +263,8 @@ mod tests {
         for text in [
             "hinge-left",
             "hinge-right handle 3.7",
+            "porthole-left",
+            "porthole-right handle 1",
             "drawer 45 handle 2",
             "flap-down",
             "flap-up handle 2.5",
@@ -259,7 +297,7 @@ mod tests {
         );
         for (catalog, motion) in [
             ("freezer", Motion::Hinge { left: false }),
-            ("washer", Motion::Hinge { left: true }),
+            ("washer", Motion::Porthole { left: true }),
         ] {
             let appliance = Furniture {
                 catalog: catalog.into(),
@@ -302,6 +340,47 @@ mod tests {
         let right = door("hinge-right handle 3");
         let (outline, _) = Front::of(&right).unwrap().sweep(&right);
         assert_eq!(outline.iter().map(|p| p.x).fold(f64::MIN, f64::max), 35.0);
+    }
+
+    /// A washer's porthole, measured on a 60 cm machine: half open it comes
+    /// 45 cm out of the face, fully open it stands about 30 cm past the
+    /// hinge side and 33 cm out, and nothing of it is beside the machine
+    /// within 4 cm of the face, so a niche that deep lets it open.
+    #[test]
+    fn a_washer_porthole_swings_past_its_hinge_side_clear_of_a_niche() {
+        let washer = Furniture {
+            catalog: "washer".into(),
+            position: Point2::new(0.0, 0.0),
+            width: 60.0,
+            depth: 60.0,
+            height: 85.0,
+            ..Furniture::default()
+        };
+        let (outline, z) = Front::of(&washer).unwrap().sweep(&washer);
+        assert_eq!(z, (0.0, 85.0));
+        let max_y = outline.iter().map(|p| p.y).fold(f64::MIN, f64::max);
+        assert!((max_y - (30.0 + 45.0)).abs() < 0.5, "{max_y}");
+        let min_x = outline.iter().map(|p| p.x).fold(f64::MAX, f64::min);
+        assert!((min_x - (-30.0 - 29.0)).abs() < 0.5, "{min_x}");
+        let far = outline.last().unwrap();
+        assert!((far.y - (30.0 + 33.0)).abs() < 0.5, "{far:?}");
+        // Beside the machine (past its left edge), only beyond the niche.
+        assert!(
+            outline
+                .iter()
+                .filter(|p| p.x < -30.0 - 1e-9)
+                .all(|p| p.y >= 30.0 + 4.0 - 1e-9),
+            "{outline:?}"
+        );
+        // Never past the other side, never behind the face.
+        assert!(outline.iter().all(|p| p.x <= 30.0 + 1e-9 && p.y >= 30.0));
+        let mut right = washer.clone();
+        right
+            .properties
+            .insert(OPENS_KEY.into(), "porthole-right".into());
+        let (outline, _) = Front::of(&right).unwrap().sweep(&right);
+        let max_x = outline.iter().map(|p| p.x).fold(f64::MIN, f64::max);
+        assert!((max_x - (30.0 + 29.0)).abs() < 0.5, "{max_x}");
     }
 
     /// A flap lies flat at its hinge line: a dropped one at its bottom edge

@@ -10,19 +10,22 @@ All notable changes to this project are documented here. The format follows
 
 - `layout` finds doors, drawers and appliance doors that run into something while they open
   (`opens_into`): a door whose handle meets the wall beside its hinge, a drawer pulled into the
-  handle of the corner cabinet, a fridge hinged against a wall, an oven, dishwasher or dryer door
+  handle of the corner cabinet, a fridge hinged against a wall, a washer's porthole swung into the
+  wall or the tall cabinet beside it, an oven, dishwasher or dryer door
   that drops onto a piece in front of it, a wall cabinet's lift-up flap that rises into something
   hung over it or into the ceiling. Closed, nothing touches, so no other check saw it. A door sweeps its width around
   the hinge to 90° and stands past the hinge side by its thickness and handle, a drawer comes out
-  by its slide, a flap lies flat at its hinge line (the bottom edge dropped, the top edge lifted)
+  by its slide, a washer's porthole turns about a hinge standing 4 cm off its face to 135°
+  (measured on a 60 cm machine: 45 cm out half open, 30 cm past the side fully open, clear of a
+  niche 4 cm deep), a flap lies flat at its hinge line (the bottom edge dropped, the top edge lifted)
   and reaches out by its height. Joinery fronts say how they open (an `opens` property on each
-  door and drawer front, with the handle's stand-off: `hinge-left`, `hinge-right`, `drawer 45`,
-  `flap-down` or `flap-up`), and a fridge, freezer, microwave, front-loading washer, oven,
+  door and drawer front, with the handle's stand-off: `hinge-left`, `hinge-right`, `porthole-left`,
+  `porthole-right`, `drawer 45`, `flap-down` or `flap-up`), and a fridge, freezer, microwave, front-loading washer, oven,
   dishwasher or dryer from the catalog opens the way such appliances do. A flap that lifts past
   the ceiling of its room meets the room; a piece already through the ceiling is `above_ceiling`'s.
 - `joinery` cabinets take `door: lift`: one flap across the front hinged at its top, pulled by its
   lower edge, with cup hinges and a pair of lift-up fittings in the hardware, and a note when it is
-  too tall (over 60 cm, a bi-fold fitting) or too wide (over 120 cm) for one leaf, or sits on a
+  too tall (over 80 cm, a bi-fold fitting) or too wide (over 120 cm) for one leaf, or sits on a
   plinth under a countertop. `cabinet_run` takes `p.lift` on a wall row: every door module and the
   cabinet over the fridge get a flap, a blind corner keeps its hinged door.
 

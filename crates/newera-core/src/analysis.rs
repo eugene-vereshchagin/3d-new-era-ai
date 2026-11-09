@@ -173,7 +173,8 @@ pub enum Issue {
         front: FurnitureId,
         /// What it meets.
         against: crate::ids::ElementId,
-        /// How it moves: `door`, `drawer`, `flap_down` or `flap_up`.
+        /// How it moves: `door`, `porthole`, `drawer`, `flap_down` or
+        /// `flap_up`.
         how: &'static str,
     },
 }
@@ -1096,6 +1097,7 @@ fn fronts_opening_into(home: &Home, wanted: &dyn Fn(Option<LevelId>) -> bool) ->
     fn how(motion: crate::opens::Motion) -> &'static str {
         match motion {
             crate::opens::Motion::Hinge { .. } => "door",
+            crate::opens::Motion::Porthole { .. } => "porthole",
             crate::opens::Motion::Drawer { .. } => "drawer",
             crate::opens::Motion::FlapDown => "flap_down",
             crate::opens::Motion::FlapUp => "flap_up",
@@ -1474,6 +1476,59 @@ mod tests {
         fridge.position.x -= 10.0;
         home.furniture[1] = fridge;
         assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
+    }
+
+    /// A washer's porthole swings past its hinge side: against the left
+    /// wall it meets the wall, 30 cm off it it opens clear. Beside a tall
+    /// cabinet 4 cm deeper than the machine, a niche, the hinge standing off
+    /// the face lets it open; 10 cm deeper and the door meets the cabinet.
+    #[test]
+    fn a_washer_porthole_meets_the_wall_beside_its_hinge_but_not_a_shallow_niche() {
+        let opens_into = |home: &Home| -> Vec<(FurnitureId, crate::ids::ElementId, &str)> {
+            check_layout(home)
+                .into_iter()
+                .filter_map(|i| match i {
+                    Issue::OpensInto {
+                        front,
+                        against,
+                        how,
+                        ..
+                    } => Some((front, against, how)),
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut home = room_home();
+        let left = home.walls[3].id;
+        let inside = home.walls[3].thickness / 2.0;
+        let washer = |x: f64| {
+            let mut washer = piece(20, (x + 30.0, inside + 30.0), (60.0, 60.0, 85.0));
+            washer.catalog = "washer".into();
+            washer
+        };
+        home.furniture.push(washer(inside));
+        assert_eq!(
+            opens_into(&home),
+            vec![(FurnitureId(20), left.into(), "porthole")]
+        );
+        home.furniture[0] = washer(inside + 30.0);
+        assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
+        // A tall cabinet against the washer's left side, 4 cm deeper.
+        let tall = |depth: f64| {
+            piece(
+                30,
+                (inside + 30.0, inside + depth / 2.0),
+                (60.0, depth, 200.0),
+            )
+        };
+        home.furniture[0] = washer(inside + 60.0);
+        home.furniture.push(tall(64.0));
+        assert!(opens_into(&home).is_empty(), "{:?}", opens_into(&home));
+        home.furniture[1] = tall(70.0);
+        assert_eq!(
+            opens_into(&home),
+            vec![(FurnitureId(20), FurnitureId(30).into(), "porthole")]
+        );
     }
 
     /// A flap is checked at the height it opens to: a wall cabinet's lift-up
