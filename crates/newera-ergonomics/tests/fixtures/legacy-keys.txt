@@ -432,6 +432,7 @@ web/demo.newera [Versão 1] / família
   panero-zelnik:f69:topo-aereo-prateleira-cima
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / casal
   -:f157:poltrona-para-essa-tela
+  -:f315:livres-frente-abrir-porta
   -:r14:possivel-canto-ocioso-junto
   coe-municipal:r14:codigo-obras-informado-circulo
   coe-municipal:r14:ralo-piso-codigo-sanitario
@@ -490,6 +491,7 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / casal
   nkba:r14:triangulo-geladeira-fogao-lado
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / cadeirante
   -:f157:poltrona-para-essa-tela
+  -:f315:livres-frente-abrir-porta
   -:r14:possivel-canto-ocioso-junto
   coe-municipal:r14:codigo-obras-informado-circulo
   coe-municipal:r14:ralo-piso-codigo-sanitario
@@ -570,6 +572,7 @@ docs/projects/upper-west-side-reviewed.newera [Versão 1] / cadeirante
 docs/projects/upper-west-side-reviewed.newera [Versão 1] / família
   -:casa:moradores-lugares-para-dormir
   -:f157:poltrona-para-essa-tela
+  -:f315:livres-frente-abrir-porta
   -:r14:possivel-canto-ocioso-junto
   blum-zonas:f60:bancada-para-quem-altura
   coe-municipal:r14:codigo-obras-informado-circulo
@@ -2916,6 +2919,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-abrir-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -2931,6 +2935,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-abrir-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -2947,6 +2952,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-abrir-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -3012,6 +3018,7 @@ Sala #5 / família
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
   -:f106:livre-cerca-abaixo-passa
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:menor-lado-para-area
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
@@ -3029,6 +3036,7 @@ Sala #5 / família
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
   -:f106:livre-cerca-abaixo-passa
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:menor-lado-para-area
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
@@ -3047,6 +3055,7 @@ Sala #5 / família
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
   -:f106:livre-cerca-abaixo-passa
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:menor-lado-para-area
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
@@ -3063,6 +3072,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -3077,6 +3087,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -3091,6 +3102,7 @@ Sala #5 / família
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
   -:casa:nenhum-dormitorio-identificado-nomeie
+  -:f108:livres-frente-baixar-porta
   coe-municipal:r105:ralo-piso-codigo-sanitario
   nbr16264:r105:pontos-norma-cabeamento-residencial
   nbr16264:r105:pontos-rede-norma-cabeamento
@@ -4257,9 +4269,12 @@ Apartamento #4 / família
 Apartamento #5 / casal
   -:casa:lugares-mesa-para-moradores
   -:casa:nenhum-banheiro-vaso-sanitario
+  -:f110:livres-frente-abrir-porta
+  -:f111:livres-frente-baixar-porta
   -:f130:ocupa-mesmo-lugar-wardrobe
   -:f131:ocupa-mesmo-lugar-wardrobe
   -:f134:livres-frente-acesso-berco
+  -:f144:livres-frente-abrir-porta
   -:f144:ocupa-mesmo-lugar-laundry
   coe-municipal:r106:menor-lado-para-circulacao
   coe-municipal:r107:ralo-piso-codigo-sanitario
@@ -4297,9 +4312,12 @@ Apartamento #5 / casal
 Apartamento #5 / cadeirante
   -:casa:lugares-mesa-para-moradores
   -:casa:nenhum-banheiro-vaso-sanitario
+  -:f110:livres-frente-abrir-porta
+  -:f111:livres-frente-baixar-porta
   -:f130:ocupa-mesmo-lugar-wardrobe
   -:f131:ocupa-mesmo-lugar-wardrobe
   -:f134:livres-frente-acesso-berco
+  -:f144:livres-frente-abrir-porta
   -:f144:ocupa-mesmo-lugar-laundry
   coe-municipal:r107:ralo-piso-codigo-sanitario
   coe-municipal:r127:janelas-somam-para-piso
@@ -4346,9 +4364,12 @@ Apartamento #5 / família
   -:casa:lugares-sala-para-moradores
   -:casa:moradores-lugares-para-dormir
   -:casa:nenhum-banheiro-vaso-sanitario
+  -:f110:livres-frente-abrir-porta
+  -:f111:livres-frente-baixar-porta
   -:f130:ocupa-mesmo-lugar-wardrobe
   -:f131:ocupa-mesmo-lugar-wardrobe
   -:f134:livres-frente-acesso-berco
+  -:f144:livres-frente-abrir-porta
   -:f144:ocupa-mesmo-lugar-laundry
   coe-municipal:r106:menor-lado-para-circulacao
   coe-municipal:r107:ralo-piso-codigo-sanitario

@@ -267,6 +267,7 @@ const PORTHOLE_STEPS: u32 = 12;
 /// Points along a door's sweep.
 const ARC_STEPS: u32 = 8;
 
+/// `cm` to a tenth, as the property writes it.
 fn round(cm: f64) -> f64 {
     (cm * 10.0).round() / 10.0
 }
@@ -277,6 +278,8 @@ mod tests {
 
     use super::*;
 
+    /// A door board 60 × 2 × 70 cm, 10 cm above the floor at the origin,
+    /// that opens as `opens` says.
     fn door(opens: &str) -> Furniture {
         let mut piece = Furniture {
             catalog: "box".into(),
