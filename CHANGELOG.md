@@ -46,9 +46,9 @@ All notable changes to this project are documented here. The format follows
 - "Lista de corte…" in the editor (Planta menu): the desktop app cuts its own kitchen. It lists
   the boards of the storey's joinery (the cabinets made with "Armários na parede…", and groups
   drawn by hand with board parts) by material, with the sheets each takes, the edge banding and
-  the hardware, and saves it as CSV, or as DXF or SVG with the boards laid out on sheets. The workshop's sheet size, saw
-  kerf and trim are set in the window. The storey's list is gathered by one function,
-  `newera_joinery::gather`, that the `cut_list` tool reads as well.
+  the hardware, and saves it as CSV, or as DXF or SVG with the boards laid out on sheets. The
+  workshop's sheet size, saw kerf and trim are set in the window. The storey's list is gathered
+  by one function, `newera_joinery::gather`, that the `cut_list` tool reads as well.
 - The cut list lays boards out on the workshop's own sheets: `sheets` gives `[length, width]` mm
   by the start of the board name (`{"*": [2800, 2070]}` for 2800 × 2070 mm chipboard, `{"MDF 6":
   [2440, 1220]}` for one board only, the longest match wins), `kerf` the saw blade (default 4 mm)
