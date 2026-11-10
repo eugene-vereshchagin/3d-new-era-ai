@@ -169,6 +169,42 @@ impl SheetStock {
             .or_else(|| self.sizes.iter().find(|(k, _)| k == "*"))
             .map_or([2750.0, 1830.0], |(_, size)| *size)
     }
+
+    /// Whether boards can be laid out on this stock: a kerf and a trim that
+    /// are finite and not negative, and every sheet still there once the
+    /// trim is off both sides.
+    ///
+    /// # Errors
+    ///
+    /// Says which number cannot be cut from.
+    pub fn check(&self) -> Result<(), String> {
+        if !self.kerf.is_finite() || self.kerf < 0.0 {
+            return Err(format!("kerf {} mm: give 0 or more", self.kerf));
+        }
+        if !self.trim.is_finite() || self.trim < 0.0 {
+            return Err(format!("trim {} mm: give 0 or more", self.trim));
+        }
+        for (key, [length, width]) in &self.sizes {
+            if !length.is_finite() || !width.is_finite() || length.min(*width) <= 2.0 * self.trim {
+                return Err(format!(
+                    "sheets.{key} {length}×{width} mm: nothing is left once {} mm is trimmed off each side",
+                    self.trim
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// What a layout takes from the stock.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SheetUse {
+    /// Sheets each material uses, in the order the materials first appear.
+    pub sheets: Vec<(String, u32)>,
+    /// Boards larger than their trimmed sheet, once each as `name WxH (material)`:
+    /// drawn cut to the sheet and counted on it, so they need a splice or
+    /// a bigger sheet.
+    pub oversize: Vec<String>,
 }
 
 /// A board placed on a sheet, mm from the drawing origin.
@@ -183,12 +219,13 @@ struct Placed {
 
 /// Boards laid out on the sheets of `stock` (shelf packing, the kerf between
 /// boards, inside the trimmed edges): sheet outlines, one rectangle per
-/// board, and how many sheets each material uses.
-fn pack(rows: &[CutRow], stock: &SheetStock) -> (Vec<Placed>, Vec<(String, u32)>) {
+/// board, and what the layout takes from the stock.
+fn pack(rows: &[CutRow], stock: &SheetStock) -> Result<(Vec<Placed>, SheetUse), String> {
+    stock.check()?;
     let kerf = stock.kerf;
     let trim = stock.trim;
     let mut placed = Vec::new();
-    let mut sheets_used: Vec<(String, u32)> = Vec::new();
+    let mut used = SheetUse::default();
     let mut origin_y = 0.0;
     // Each material once, in the order it first appears.
     let mut boards: Vec<&str> = Vec::new();
@@ -229,12 +266,15 @@ fn pack(rows: &[CutRow], stock: &SheetStock) -> (Vec<Placed>, Vec<(String, u32)>
                     *hole = [hole[1], hole[0], hole[3], hole[2]];
                 }
             }
-            if x + w > uw {
+            // An oversize board is laid out cut to the sheet, so it fits by
+            // that size and starts a shelf or a sheet only when one is in use.
+            let (fw, fh) = (w.min(uw), h.min(uh));
+            if x > 0.0 && x + fw > uw {
                 x = 0.0;
                 y += shelf + kerf;
                 shelf = 0.0;
             }
-            if y + h > uh {
+            if y > 0.0 && y + fh > uh {
                 sheet_index += 1;
                 sheet_x += sw + 200.0;
                 x = 0.0;
@@ -242,9 +282,14 @@ fn pack(rows: &[CutRow], stock: &SheetStock) -> (Vec<Placed>, Vec<(String, u32)>
                 shelf = 0.0;
                 placed.push(outline(sheet_x));
             }
+            let oversize = w > uw || h > uh;
+            let named = format!("{name} {w}x{h} ({board})");
+            if oversize && !used.oversize.contains(&named) {
+                used.oversize.push(named);
+            }
             placed.push(Placed {
                 layer: layer.clone(),
-                label: if w > uw || h > uh {
+                label: if oversize {
                     format!("{name} {w}x{h} MAIOR QUE A CHAPA: prever emenda")
                 } else {
                     format!("{name} {w}x{h}")
@@ -268,27 +313,33 @@ fn pack(rows: &[CutRow], stock: &SheetStock) -> (Vec<Placed>, Vec<(String, u32)>
                     })
                     .collect(),
             });
-            x += w + kerf;
-            shelf = f64::max(shelf, h);
+            x += fw + kerf;
+            shelf = f64::max(shelf, fh);
         }
-        sheets_used.push((board.to_owned(), sheet_index + 1));
+        used.sheets.push((board.to_owned(), sheet_index + 1));
         origin_y += sh + 400.0;
     }
-    (placed, sheets_used)
+    Ok((placed, used))
 }
 
-/// How many sheets of `stock` each material of `rows` takes, in the order
-/// the materials first appear.
-#[must_use]
-pub fn sheets_used(rows: &[CutRow], stock: &SheetStock) -> Vec<(String, u32)> {
-    pack(rows, stock).1
+/// How many sheets of `stock` each material of `rows` takes, and the
+/// boards no sheet holds whole.
+///
+/// # Errors
+///
+/// The stock cannot be cut from (see [`SheetStock::check`]).
+pub fn sheets_used(rows: &[CutRow], stock: &SheetStock) -> Result<SheetUse, String> {
+    Ok(pack(rows, stock)?.1)
 }
 
 /// The sheet layout as a DXF (LINE and TEXT entities, one layer per
-/// material) for a CNC or a panel saw, and the sheets each material uses.
-#[must_use]
-pub fn cut_list_dxf(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String, u32)>) {
-    let (placed, sheets) = pack(rows, stock);
+/// material) for a CNC or a panel saw, and what it takes from the stock.
+///
+/// # Errors
+///
+/// The stock cannot be cut from (see [`SheetStock::check`]).
+pub fn cut_list_dxf(rows: &[CutRow], stock: &SheetStock) -> Result<(String, SheetUse), String> {
+    let (placed, sheets) = pack(rows, stock)?;
     let mut entities = String::new();
     for p in &placed {
         let [x, y, w, h] = p.rect;
@@ -324,16 +375,19 @@ pub fn cut_list_dxf(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String
             );
         }
     }
-    (
+    Ok((
         format!("0\nSECTION\n2\nENTITIES\n{entities}0\nENDSEC\n0\nEOF\n"),
         sheets,
-    )
+    ))
 }
 
 /// The same sheet layout as an SVG (1 unit = 1 mm) to view or print.
-#[must_use]
-pub fn cut_list_svg(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String, u32)>) {
-    let (placed, sheets) = pack(rows, stock);
+///
+/// # Errors
+///
+/// The stock cannot be cut from (see [`SheetStock::check`]).
+pub fn cut_list_svg(rows: &[CutRow], stock: &SheetStock) -> Result<(String, SheetUse), String> {
+    let (placed, sheets) = pack(rows, stock)?;
     let (w, h) = placed.iter().fold((0.0_f64, 0.0_f64), |(w, h), p| {
         (w.max(p.rect[0] + p.rect[2]), h.max(p.rect[1] + p.rect[3]))
     });
@@ -370,7 +424,7 @@ pub fn cut_list_svg(rows: &[CutRow], stock: &SheetStock) -> (String, Vec<(String
         }
     }
     out.push_str("</svg>\n");
-    (out, sheets)
+    Ok((out, sheets))
 }
 
 #[cfg(test)]
@@ -404,12 +458,15 @@ mod tests {
             "{csv}"
         );
         let stock = SheetStock::default();
-        let (dxf, sheets) = cut_list_dxf(&rows, &stock);
+        let (dxf, sheets) = cut_list_dxf(&rows, &stock).unwrap();
         assert!(dxf.starts_with("0\nSECTION") && dxf.ends_with("EOF\n"));
         assert!(dxf.contains("Lateral esquerda 1900x532"));
         // Four boards near 1,9 m long don't share one 2750 × 1830 mm sheet.
-        assert_eq!(sheets.iter().find(|(b, _)| b == "MDF 18").unwrap().1, 2);
-        let (svg, same) = cut_list_svg(&rows, &stock);
+        assert_eq!(
+            sheets.sheets.iter().find(|(b, _)| b == "MDF 18").unwrap().1,
+            2
+        );
+        let (svg, same) = cut_list_svg(&rows, &stock).unwrap();
         assert!(svg.starts_with("<svg") && svg.contains("Lateral esquerda 1900x532"));
         assert_eq!(same, sheets);
         // A stone top carries its cutouts to the workshop.
@@ -429,14 +486,19 @@ mod tests {
         let stone = rows.iter().find(|r| r.board.starts_with("Pedra")).unwrap();
         assert_eq!(stone.holes, vec![[920.0, 60.0, 560.0, 480.0]]);
         assert!(cut_list_csv(&rows).contains("560x480 em 920,60"));
-        assert!(cut_list_dxf(&rows, &stock).0.contains("RECORTES"));
-        assert!(cut_list_svg(&rows, &stock).0.contains("stroke-dasharray"));
+        assert!(cut_list_dxf(&rows, &stock).unwrap().0.contains("RECORTES"));
+        assert!(
+            cut_list_svg(&rows, &stock)
+                .unwrap()
+                .0
+                .contains("stroke-dasharray")
+        );
         // Rows gathered from several builds, materials interleaved: one layout each.
         let mut mixed = cut_list(&out);
         mixed.extend(cut_list(&top));
         mixed.extend(cut_list(&out));
-        let (_, used) = cut_list_dxf(&mixed, &stock);
-        let mut names: Vec<&str> = used.iter().map(|(b, _)| b.as_str()).collect();
+        let (_, used) = cut_list_dxf(&mixed, &stock).unwrap();
+        let mut names: Vec<&str> = used.sheets.iter().map(|(b, _)| b.as_str()).collect();
         let count = names.len();
         names.dedup();
         names.sort_unstable();
@@ -458,6 +520,8 @@ mod tests {
         let rows = cut_list(&out);
         let count = |stock: &SheetStock, board: &str| {
             sheets_used(&rows, stock)
+                .unwrap()
+                .sheets
                 .into_iter()
                 .find(|(b, _)| b == board)
                 .unwrap()
@@ -483,7 +547,7 @@ mod tests {
             trim: 10.0,
             ..chipboard.clone()
         };
-        let (svg, _) = cut_list_svg(&rows, &trimmed);
+        let (svg, _) = cut_list_svg(&rows, &trimmed).unwrap();
         let first_board = svg
             .lines()
             .find(|l| l.contains("#d9c3a0"))
@@ -505,8 +569,60 @@ mod tests {
             kerf: 0.0,
             ..SheetStock::default().with_sizes([("*".to_owned(), [1000.0, 1830.0])])
         };
-        assert_eq!(sheets_used(&tight, &exact), vec![("MDF 18".to_owned(), 1)]);
+        assert_eq!(
+            sheets_used(&tight, &exact).unwrap().sheets,
+            vec![("MDF 18".to_owned(), 1)]
+        );
         let sawn = SheetStock { kerf: 4.0, ..exact };
-        assert_eq!(sheets_used(&tight, &sawn), vec![("MDF 18".to_owned(), 2)]);
+        assert_eq!(
+            sheets_used(&tight, &sawn).unwrap().sheets,
+            vec![("MDF 18".to_owned(), 2)]
+        );
+    }
+
+    /// A board no trimmed sheet holds is named with the count, and stock
+    /// that cannot be cut from is refused before any layout.
+    #[test]
+    fn oversize_boards_and_impossible_stock_are_reported() {
+        let rows = vec![CutRow {
+            name: "Tampo".into(),
+            board: "MDF 18".into(),
+            qty: 1,
+            size: [1000.0, 980.0, 18.0],
+            edge: [0, 0],
+            holes: Vec::new(),
+        }];
+        let small = SheetStock {
+            trim: 10.0,
+            ..SheetStock::default().with_sizes([("*".to_owned(), [1000.0, 1000.0])])
+        };
+        let used = sheets_used(&rows, &small).unwrap();
+        assert_eq!(used.sheets, vec![("MDF 18".to_owned(), 1)]);
+        assert_eq!(used.oversize, vec!["Tampo 1000x980 (MDF 18)".to_owned()]);
+        // Without the trim it fits, and nothing is reported.
+        let whole = SheetStock {
+            trim: 0.0,
+            ..small.clone()
+        };
+        assert!(sheets_used(&rows, &whole).unwrap().oversize.is_empty());
+        for bad in [
+            SheetStock {
+                kerf: -1.0,
+                ..SheetStock::default()
+            },
+            SheetStock {
+                trim: f64::NAN,
+                ..SheetStock::default()
+            },
+            SheetStock {
+                trim: 200.0,
+                ..SheetStock::default()
+            }, // the 300 mm slat strip
+            SheetStock::default().with_sizes([("*".to_owned(), [f64::INFINITY, 1830.0])]),
+        ] {
+            assert!(cut_list_dxf(&rows, &bad).is_err(), "{bad:?}");
+            assert!(cut_list_svg(&rows, &bad).is_err(), "{bad:?}");
+            assert!(sheets_used(&rows, &bad).is_err(), "{bad:?}");
+        }
     }
 }

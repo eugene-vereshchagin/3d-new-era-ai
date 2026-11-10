@@ -13,7 +13,9 @@ All notable changes to this project are documented here. The format follows
   [2440, 1220]}` for one board only, the longest match wins), `kerf` the saw blade (default 4 mm)
   and `trim` the factory edge cut off each side of a sheet (default 0). `cut_list` and `export
   what=cut_list` both take them, and a read already answers how many sheets each board takes.
-  Without them the layout is the one it always was: 2750 × 1830 mm panels, stone, gypsum and slats.
+  Without them the layout is the one it always was: 2750 × 1830 mm panels, 3200 × 1900 mm stone,
+  2400 × 1200 mm gypsum and 3000 × 300 mm slats; `*` leaves those three on their own sheets.
+  Boards larger than their trimmed sheet come back in `oversize`, with the count.
 
 ## [3.3.0] - 2026-11-02
 

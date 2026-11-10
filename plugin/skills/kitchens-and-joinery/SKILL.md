@@ -19,4 +19,7 @@ description: Design kitchens, wardrobes and custom joinery in 3D New Era AI — 
    triangle.
 5. **Cut list.** `cut_list` reads boards, edge banding and hardware; `export` with `what=cut_list`
    writes it as `.csv`, or `.dxf`/`.svg` sheets for the workshop. Give the workshop's own stock
-   when it is not 2750 × 1830 mm: `sheets` by board name (`{"*":[2800,2070]}`), `kerf` and `trim`.
+   where it differs: `sheets` by board name, the longest name start winning. The defaults are
+   `*` 2750 × 1830, `Pedra` 3200 × 1900, `Gesso` 2400 × 1200 and `Ripa` 3000 × 300 mm, so
+   `{"*":[2800,2070]}` leaves stone on its slab; give `Pedra` too for other slabs. Also `kerf`
+   (default 4 mm) and `trim` (default 0). Boards in `oversize` need a splice or a bigger sheet.

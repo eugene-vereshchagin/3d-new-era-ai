@@ -1,5 +1,5 @@
 {
-  "total": 124412,
+  "total": 124444,
   "tools": {
     "accept": {
       "total": 1360,
@@ -50,9 +50,9 @@
       "output": 255
     },
     "cut_list": {
-      "total": 1822,
+      "total": 1854,
       "description": 763,
-      "input": 611,
+      "input": 643,
       "output": 283
     },
     "delete": {
