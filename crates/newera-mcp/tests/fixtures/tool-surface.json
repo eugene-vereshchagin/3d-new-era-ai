@@ -1069,6 +1069,12 @@
           },
           "type": "array"
         },
+        "oversize": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "rows": {
           "type": "array"
         },
@@ -3257,6 +3263,12 @@
         },
         "ok": {
           "type": "boolean"
+        },
+        "oversize": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "rev": {
           "type": "integer"

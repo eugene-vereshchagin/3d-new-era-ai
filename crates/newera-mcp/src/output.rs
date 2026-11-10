@@ -226,6 +226,10 @@ fn cut_list_fields() -> Vec<(&'static str, Value)> {
         ("drawn", strings("Hand-drawn builds left out")),
         ("skipped", list("[id, name] left out")),
         ("sheets", list("[board, sheets] the layout takes")),
+        (
+            "oversize",
+            strings("\"<part> <W>x<H> (<board>)\" larger than its sheet"),
+        ),
     ]
 }
 
