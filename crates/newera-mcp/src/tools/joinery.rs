@@ -52,7 +52,7 @@ pub(crate) struct CutListParams {
     /// Write `.csv` (spreadsheet), `.dxf` (sheets for CNC) or `.svg` (sheets to view).
     #[schemars(skip)]
     path: Option<String>,
-    /// Sheet `[length,width]` by board name prefix (`MDF 18`, `Pedra`; `*` any other); default 2750×1830.
+    /// Sheet `[length,width]` mm by longest board name prefix; default `*` 2750×1830, Pedra 3200×1900, Gesso 2400×1200, Ripa 3000×300.
     sheets: Option<std::collections::BTreeMap<String, [f64; 2]>>,
     /// Saw kerf between boards (default 4).
     kerf: Option<f64>,
@@ -67,7 +67,7 @@ pub(crate) struct CutListExportParams {
     ids: Option<Vec<String>>,
     /// `.csv` (spreadsheet), `.dxf` (sheets for CNC) or `.svg` (sheets to view).
     path: String,
-    /// Sheet `[length,width]` mm by board name prefix; `*` any other.
+    /// Sheet `[length,width]` mm by longest board name prefix; default `*` 2750×1830, Pedra 3200×1900, Gesso 2400×1200, Ripa 3000×300.
     sheets: Option<std::collections::BTreeMap<String, [f64; 2]>>,
     /// Saw kerf between boards, mm (default 4).
     kerf: Option<f64>,
@@ -106,15 +106,11 @@ fn sheet_stock(
                     "sheets.{board} {length}×{width} mm: give [length, width] in mm, each 100 to 6000 (e.g. [2800, 2070])"
                 )));
             }
-            if length.min(*width) <= 2.0 * stock.trim {
-                return Err(invalid(format!(
-                    "sheets.{board} {length}×{width} mm: nothing is left once {} mm is trimmed off each side",
-                    stock.trim
-                )));
-            }
         }
         stock = stock.with_sizes(sheets.iter().map(|(k, v)| (k.clone(), *v)));
     }
+    // Every sheet, the defaults too, must outlast the trim.
+    stock.check().map_err(invalid)?;
     Ok(stock)
 }
 
@@ -396,15 +392,15 @@ impl NewEraMcp {
         // standards oblige here and inform elsewhere, like every other source.
         let place = doc.home().compass.place();
         drop(doc);
-        let mut sheets = newera_joinery::sheets_used(&rows, &stock);
+        let mut sheets = newera_joinery::sheets_used(&rows, &stock).map_err(invalid)?;
         if let Some(path) = &p.path {
             let ext = std::path::Path::new(path)
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(str::to_ascii_lowercase);
             let layout = match ext.as_deref() {
-                Some("dxf") => Some(newera_joinery::cut_list_dxf(&rows, &stock)),
-                Some("svg") => Some(newera_joinery::cut_list_svg(&rows, &stock)),
+                Some("dxf") => Some(newera_joinery::cut_list_dxf(&rows, &stock).map_err(invalid)?),
+                Some("svg") => Some(newera_joinery::cut_list_svg(&rows, &stock).map_err(invalid)?),
                 Some("csv") => None,
                 _ => return Err(invalid("path must end in .csv, .dxf or .svg")),
             };
@@ -443,8 +439,12 @@ impl NewEraMcp {
             "hardware": hardware,
             "sources": super::sources(&["nbr14810", "nbr15316"], &place),
         });
-        if !sheets.is_empty() {
-            reply["sheets"] = serde_json::json!(sheets);
+        if !sheets.sheets.is_empty() {
+            reply["sheets"] = serde_json::json!(sheets.sheets);
+        }
+        // Boards no sheet holds whole: counted, but they need a splice.
+        if !sheets.oversize.is_empty() {
+            reply["oversize"] = serde_json::json!(sheets.oversize);
         }
         if !drawn.is_empty() {
             reply["drawn"] = serde_json::json!(drawn);
@@ -794,6 +794,24 @@ mod tests {
         assert!(
             sheets_of(&chipboard, "MDF 18") <= sheets_of(&stock, "MDF 18"),
             "{stock} {chipboard}"
+        );
+        // Cove strips longer than a gypsum board are named once each; the
+        // cabinet's boards fit their sheets.
+        let oversize: Vec<&str> = stock["oversize"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|b| b.as_str())
+            .collect();
+        assert!(oversize.iter().all(|b| b.contains("Gesso")), "{stock}");
+        assert!(oversize.windows(2).all(|w| w[0] != w[1]), "{oversize:?}");
+        // A side longer than a 1 m sheet is still counted, and named.
+        let small = read(r#"{"sheets":{"*":[1000,1000]}}"#).unwrap();
+        assert!(
+            small["oversize"].as_array().is_some_and(|o| o
+                .iter()
+                .any(|b| b.as_str().is_some_and(|b| b.contains("(MDF 18)")))),
+            "{small}"
         );
         // Numbers nobody can cut from are refused, saying what to give.
         let blade = read(r#"{"kerf":20}"#).unwrap_err();

@@ -1044,7 +1044,7 @@
             "minItems": 2,
             "type": "array"
           },
-          "description": "Sheet `[length,width]` by board name prefix (`MDF 18`, `Pedra`; `*` any other); default 2750×1830",
+          "description": "Sheet `[length,width]` mm by longest board name prefix; default `*` 2750×1830, Pedra 3200×1900, Gesso 2400×1200, Ripa 3000×300",
           "type": "object"
         },
         "trim": {
@@ -1064,6 +1064,12 @@
           "type": "array"
         },
         "hardware": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "oversize": {
           "items": {
             "type": "string"
           },
@@ -3257,6 +3263,12 @@
         },
         "ok": {
           "type": "boolean"
+        },
+        "oversize": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "rev": {
           "type": "integer"
