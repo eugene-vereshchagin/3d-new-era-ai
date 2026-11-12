@@ -192,6 +192,21 @@ pub(crate) fn fill(pt: &'static str, parts: &[&dyn std::fmt::Display]) -> String
     fill_in(pt, lang(), parts)
 }
 
+/// A count with its noun, `one|many` in the key: `count("{} peça|{} peças", 1)`
+/// says "1 peça". French counts 0 and 1 as one, the others 1 alone.
+pub(crate) fn count(pt: &'static str, n: u64) -> String {
+    count_in(pt, lang(), n)
+}
+
+/// [`count`] in one named language. See [`say`].
+fn count_in(pt: &'static str, lang: Lang, n: u64) -> String {
+    let forms = say(pt, lang);
+    let (one, many) = forms.split_once('|').unwrap_or((forms, forms));
+    let single = if lang == Lang::Fr { n < 2 } else { n == 1 };
+    let form = if single { one } else { many };
+    form.replacen("{}", &n.to_string(), 1)
+}
+
 /// [`fill`] in one named language. See [`say`].
 fn fill_in(pt: &'static str, lang: Lang, parts: &[&dyn std::fmt::Display]) -> String {
     let mut text = String::new();
@@ -316,11 +331,17 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
                 "Aucune menuiserie à ce niveau : créez des meubles (Plan → Meubles sur le mur…) ou dessinez un groupe de panneaux.",
             ]
         }
-        "{} peças de marcenaria e {} grupos desenhados." => [
-            "{} joinery builds and {} drawn groups.",
-            "{} piezas de carpintería y {} grupos dibujados.",
-            "{} ouvrages de menuiserie et {} groupes dessinés.",
+        "{} peça de marcenaria|{} peças de marcenaria" => [
+            "{} joinery build|{} joinery builds",
+            "{} pieza de carpintería|{} piezas de carpintería",
+            "{} ouvrage de menuiserie|{} ouvrages de menuiserie",
         ],
+        "{} grupo desenhado|{} grupos desenhados" => [
+            "{} drawn group|{} drawn groups",
+            "{} grupo dibujado|{} grupos dibujados",
+            "{} groupe dessiné|{} groupes dessinés",
+        ],
+        "{} e {}." => ["{} and {}.", "{} y {}.", "{} et {}."],
         "Salvar como" => ["Save as", "Guardar como", "Enregistrer en"],
         "CSV: a tabela para a planilha ou o serviço de corte. DXF e SVG: as peças dispostas nas chapas, para a seccionadora ou o CNC." => {
             [
@@ -336,12 +357,22 @@ fn translations(pt: &str) -> Option<[&'static str; 3]> {
         ],
         "Serra" => ["Saw kerf", "Corte de sierra", "Trait de scie"],
         "Refilo por lado" => ["Trim per side", "Recorte por lado", "Délignage par côté"],
-        "{}: {} peças, {} chapas" => [
-            "{}: {} pieces, {} sheets",
-            "{}: {} piezas, {} tableros",
-            "{} : {} pièces, {} panneaux",
+        "{}: {}" => ["{}: {}", "{}: {}", "{} : {}"],
+        "{} peça|{} peças" => [
+            "{} piece|{} pieces",
+            "{} pieza|{} piezas",
+            "{} pièce|{} pièces",
         ],
-        "{}: {} peças" => ["{}: {} pieces", "{}: {} piezas", "{} : {} pièces"],
+        "{} chapa|{} chapas" => [
+            "{} sheet|{} sheets",
+            "{} tablero|{} tableros",
+            "{} panneau|{} panneaux",
+        ],
+        "Maior que a chapa, prever emenda ou chapa maior: {}" => [
+            "Larger than the sheet, plan a splice or a bigger sheet: {}",
+            "Más grande que el tablero, prever un empalme o un tablero mayor: {}",
+            "Plus grand que le panneau, prévoir une jonction ou un panneau plus grand : {}",
+        ],
         "Nome da peça" => ["Part", "Pieza", "Pièce"],
         "Qtd" => ["Qty", "Cant.", "Qté"],
         "Comprimento × largura" => ["Length × width", "Largo × ancho", "Longueur × largeur"],
@@ -2294,7 +2325,7 @@ mod tests {
         sources(std::path::Path::new("src"), &mut code);
         // A literal handed to tr, whatever the wrapping and the trailing comma.
         let mut missing: Vec<String> = Vec::new();
-        for needle in ["tr(", "fill("] {
+        for needle in ["tr(", "fill(", "count("] {
             missing.extend(untranslated(&code, needle));
         }
         assert!(missing.is_empty(), "not translated: {missing:#?}");
@@ -2421,6 +2452,18 @@ mod tests {
         assert_eq!(Lang::from_locale("de_DE.UTF-8"), None);
         assert_eq!(Lang::from_locale("C"), None);
         assert_eq!(Lang::from_locale(""), None);
+    }
+
+    /// One of a thing is said in the singular, and French says 0 that way too.
+    #[test]
+    fn counts_say_one_thing_in_the_singular() {
+        let key = "{} peça|{} peças";
+        assert_eq!(count_in(key, Lang::Pt, 1), "1 peça");
+        assert_eq!(count_in(key, Lang::Pt, 0), "0 peças");
+        assert_eq!(count_in(key, Lang::Pt, 12), "12 peças");
+        assert_eq!(count_in(key, Lang::En, 1), "1 piece");
+        assert_eq!(count_in(key, Lang::Fr, 0), "0 pièce");
+        assert_eq!(count_in(key, Lang::Es, 2), "2 piezas");
     }
 
     #[test]

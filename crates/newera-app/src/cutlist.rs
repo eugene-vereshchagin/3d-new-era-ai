@@ -8,7 +8,7 @@
 use crate::icon;
 use eframe::egui::{self, RichText};
 use newera_core::LevelId;
-use newera_joinery::{Gathered, SheetStock};
+use newera_joinery::{Gathered, SheetStock, SheetUse};
 
 use crate::app::NewEraApp;
 
@@ -45,7 +45,9 @@ struct Cached {
 #[derive(Debug, Clone)]
 pub(crate) struct Read {
     pub(crate) found: Gathered,
-    pub(crate) sheets: Vec<(String, u32)>,
+    /// The sheets each material takes and the boards no sheet holds whole,
+    /// or why the stock cannot be cut from.
+    pub(crate) used: Result<SheetUse, String>,
 }
 
 impl Default for CutListWindow {
@@ -92,8 +94,8 @@ impl CutListWindow {
         }
         let view = doc.home().level_view(level);
         let read = newera_joinery::gather(&view.furniture, None).map(|found| {
-            let sheets = newera_joinery::sheets_used(&found.rows, &stock);
-            Read { found, sheets }
+            let used = newera_joinery::sheets_used(&found.rows, &stock);
+            Read { found, used }
         });
         self.read = Some(Cached {
             revision,
@@ -124,13 +126,17 @@ impl Format {
     }
 
     /// The file's bytes: the table, or the boards laid out on sheets.
-    fn bytes(self, read: &Read, stock: &SheetStock) -> Vec<u8> {
-        match self {
+    ///
+    /// # Errors
+    ///
+    /// A layout on a stock that cannot be cut from.
+    fn bytes(self, read: &Read, stock: &SheetStock) -> Result<Vec<u8>, String> {
+        let text = match self {
             Self::Csv => newera_joinery::cut_list_csv(&read.found.rows),
-            Self::Dxf => newera_joinery::cut_list_dxf(&read.found.rows, stock).0,
-            Self::Svg => newera_joinery::cut_list_svg(&read.found.rows, stock).0,
-        }
-        .into_bytes()
+            Self::Dxf => newera_joinery::cut_list_dxf(&read.found.rows, stock)?.0,
+            Self::Svg => newera_joinery::cut_list_svg(&read.found.rows, stock)?.0,
+        };
+        Ok(text.into_bytes())
     }
 }
 
@@ -147,6 +153,20 @@ fn mm(v: f64) -> String {
     } else {
         text
     }
+}
+
+/// A field of millimetres written as [`mm`] writes them, read back with
+/// either a comma or a dot for the decimals.
+pub(crate) fn mm_field(value: &mut f64) -> egui::DragValue<'_> {
+    egui::DragValue::new(value)
+        .suffix(" mm")
+        .custom_formatter(|v, _| mm(v))
+        .custom_parser(parse_mm)
+}
+
+/// Millimetres typed in a field, with a comma or a dot for the decimals.
+fn parse_mm(text: &str) -> Option<f64> {
+    text.trim().replace(',', ".").parse().ok()
 }
 
 /// Draws the window while it is open, and writes the file a button asked for.
@@ -186,12 +206,22 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
             }
             Ok(read) => {
                 ui.label(crate::i18n::fill(
-                    "{} peças de marcenaria e {} grupos desenhados.",
-                    &[&read.found.builds, &read.found.drawn.len()],
+                    "{} e {}.",
+                    &[
+                        &crate::i18n::count(
+                            "{} peça de marcenaria|{} peças de marcenaria",
+                            read.found.builds as u64,
+                        ),
+                        &crate::i18n::count(
+                            "{} grupo desenhado|{} grupos desenhados",
+                            read.found.drawn.len() as u64,
+                        ),
+                    ],
                 ));
                 egui::ScrollArea::vertical()
                     .max_height(420.0)
                     .show(ui, |ui| boards(ui, read, &names));
+                sheet_warnings(ui, &read.used);
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(crate::i18n::tr("Salvar como"));
@@ -215,7 +245,10 @@ pub(crate) fn show(app: &mut NewEraApp, ctx: &egui::Context) {
         }
     });
     if let (Some(format), Ok(read)) = (export, &read) {
-        save(app, format, format.bytes(read, &window.stock()));
+        match format.bytes(read, &window.stock()) {
+            Ok(bytes) => save(app, format, bytes),
+            Err(err) => app.set_status(crate::i18n::fill("⚠ Não foi possível salvar: {}", &[&err])),
+        }
     }
     if open {
         app.cut_list = Some(window);
@@ -258,20 +291,10 @@ fn stock_choices(ui: &mut egui::Ui, window: &mut CutListWindow) {
     });
     ui.horizontal(|ui| {
         ui.label(crate::i18n::tr("Serra"));
-        ui.add(
-            egui::DragValue::new(&mut window.kerf)
-                .range(0.0..=10.0)
-                .speed(0.1)
-                .suffix(" mm"),
-        );
+        ui.add(mm_field(&mut window.kerf).range(0.0..=10.0).speed(0.1));
         ui.label(crate::i18n::tr("Refilo por lado"));
         // A sheet keeps at least 20 mm once trimmed on both sides.
-        ui.add(
-            egui::DragValue::new(&mut window.trim)
-                .range(0.0..=40.0)
-                .speed(0.5)
-                .suffix(" mm"),
-        );
+        ui.add(mm_field(&mut window.trim).range(0.0..=40.0).speed(0.5));
     });
 }
 
@@ -289,11 +312,12 @@ fn boards(
         }
     }
     for material in materials {
-        let sheets = read
-            .sheets
-            .iter()
-            .find(|(board, _)| board == material)
-            .map_or(0, |(_, n)| *n);
+        let sheets = read.used.as_ref().map_or(0, |used| {
+            used.sheets
+                .iter()
+                .find(|(board, _)| board == material)
+                .map_or(0, |(_, n)| *n)
+        });
         let pieces: u32 = read
             .found
             .rows
@@ -301,11 +325,14 @@ fn boards(
             .filter(|r| r.board == material)
             .map(|r| r.qty)
             .sum();
-        let title = if sheets > 0 {
-            crate::i18n::fill("{}: {} peças, {} chapas", &[&material, &pieces, &sheets])
-        } else {
-            crate::i18n::fill("{}: {} peças", &[&material, &pieces])
-        };
+        let mut count = crate::i18n::count("{} peça|{} peças", u64::from(pieces));
+        if sheets > 0 {
+            count = format!(
+                "{count}, {}",
+                crate::i18n::count("{} chapa|{} chapas", u64::from(sheets))
+            );
+        }
+        let title = crate::i18n::fill("{}: {}", &[&material, &count]);
         egui::CollapsingHeader::new(RichText::new(title).strong())
             .id_salt(("cut-list", material))
             .default_open(true)
@@ -347,6 +374,30 @@ fn boards(
             ))
             .weak(),
         );
+    }
+}
+
+/// The boards no sheet holds whole, or why the stock cannot be cut from:
+/// both shown before a file is written, not found in it at the saw.
+fn sheet_warnings(ui: &mut egui::Ui, used: &Result<SheetUse, String>) {
+    let warn = egui::Color32::from_rgb(200, 60, 50);
+    match used {
+        Err(err) => {
+            ui.colored_label(warn, format!("⚠ {err}"));
+        }
+        Ok(used) if !used.oversize.is_empty() => {
+            ui.colored_label(
+                warn,
+                format!(
+                    "⚠ {}",
+                    crate::i18n::fill(
+                        "Maior que a chapa, prever emenda ou chapa maior: {}",
+                        &[&used.oversize.join("; ")],
+                    )
+                ),
+            );
+        }
+        Ok(_) => {}
     }
 }
 
@@ -432,23 +483,42 @@ mod tests {
             read
         };
         assert!(before.found.builds > 0);
+        let used = |r: &Read| r.used.clone().unwrap();
         assert!(
-            before.sheets.iter().any(|(_, n)| *n > 0),
+            used(&before).sheets.iter().any(|(_, n)| *n > 0),
             "{:?}",
-            before.sheets
+            before.used
         );
+        assert!(used(&before).oversize.is_empty(), "{:?}", before.used);
         // A sheet four times smaller takes more of them.
         h.state_mut().cut_list.as_mut().unwrap().sheet = Some([1375.0, 915.0]);
         let mut window = h.state_mut().cut_list.take().unwrap();
         let after = window.read(h.state()).unwrap();
-        let total = |r: &Read| r.sheets.iter().map(|(_, n)| n).sum::<u32>();
+        let total = |r: &Read| used(r).sheets.iter().map(|(_, n)| n).sum::<u32>();
         assert!(
             total(&after) > total(&before),
             "{:?} {:?}",
-            before.sheets,
-            after.sheets
+            before.used,
+            after.used
         );
-        let csv = String::from_utf8(Format::Csv.bytes(&after, &window.stock())).unwrap();
+        let csv = String::from_utf8(Format::Csv.bytes(&after, &window.stock()).unwrap()).unwrap();
         assert!(csv.contains("MDF 18"), "{csv}");
+        // A sheet smaller than a cabinet's side says so on screen, before the
+        // file reaches the saw.
+        window.sheet = Some([500.0, 500.0]);
+        h.state_mut().cut_list = Some(window);
+        h.run_steps(3);
+        h.get_by_label_contains("Maior que a chapa");
+    }
+
+    /// Millimetres read the way the window writes them: no ".0" on a whole
+    /// number, and a comma typed for the decimals is understood.
+    #[test]
+    fn millimetres_drop_the_needless_decimal() {
+        assert_eq!(mm(4.0), "4");
+        assert_eq!(mm(18.0), "18");
+        assert_eq!(parse_mm("3,2"), Some(3.2));
+        assert_eq!(parse_mm(" 3.2 "), Some(3.2));
+        assert_eq!(parse_mm("três"), None);
     }
 }

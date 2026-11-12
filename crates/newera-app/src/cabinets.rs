@@ -313,10 +313,9 @@ fn board_choices(ui: &mut egui::Ui, boards: &mut Boards) {
                 }
             });
         ui.add(
-            egui::DragValue::new(&mut boards.front_t)
+            crate::cutlist::mm_field(&mut boards.front_t)
                 .range(12.0..=25.0)
-                .speed(0.5)
-                .suffix(" mm"),
+                .speed(0.5),
         );
     });
 }
