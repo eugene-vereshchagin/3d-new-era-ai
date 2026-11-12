@@ -19,7 +19,9 @@ All notable changes to this project are documented here. The format follows
   135° (measured on a 60 cm machine: 45 cm out half open, 30 cm past the side fully open, clear
   of a niche 4 cm deep), a flap lies flat at its hinge line (the bottom edge dropped, the top
   edge lifted) and reaches out by its height (an appliance's door, about 82% of the machine: a
-  dryer 85 cm tall drops about 70 cm). Joinery fronts say how they open (an `opens` property on
+  dryer 85 cm tall drops about 70 cm), meeting what stands in the quarter turn on the way. A
+  doorway in the wall beside a door is room to swing into; the wall under a window is not.
+  Joinery fronts say how they open (an `opens` property on
   each door and drawer front, with the handle's stand-off: `hinge-left`, `hinge-right`,
   `porthole-left`, `porthole-right`, `drawer 45`, `flap-down` or `flap-up`), and a fridge,
   freezer, microwave, front-loading washer, oven, dishwasher or dryer from the catalog opens the
