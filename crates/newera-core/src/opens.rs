@@ -122,9 +122,11 @@ impl Front {
         Some(Self { motion, handle })
     }
 
-    /// What `piece` takes while this front opens: a plan outline and the
-    /// heights it spans, cm above the floor. Only the room in front of its
-    /// face counts — behind it is the piece's own body.
+    /// What `piece` takes while this front opens: plan outlines, each with
+    /// the heights it spans, cm above the floor — the front open first, then
+    /// the room it passes through on the way when that is not the same
+    /// prism. Only the room in front of its face counts — behind it is the
+    /// piece's own body.
     ///
     /// A door sweeps a quarter disc of its own width around the hinge and,
     /// at 90°, stands beside it with its thickness and its handle: the part
@@ -136,13 +138,34 @@ impl Front {
     /// appliance's door, not its body: its plinth and panel stay), each with
     /// the handle in front. Lying flat, a dropped door spans its hinge line at
     /// the bottom with the handle hanging under it, a lifted one its hinge
-    /// line at the top with the handle standing over it.
-    pub fn sweep(&self, piece: &Furniture) -> (Vec<Point2>, (f64, f64)) {
+    /// line at the top with the handle standing over it. On the way a flap
+    /// turns through a quarter disc standing on its hinge line, taken as a
+    /// stack of bands: at `s` cm from the hinge line the leaf comes out no
+    /// further than `√(leaf² − s²)` and its handle, and no band passes the
+    /// leaf's own edge, so what stands just under a lifted flap's cabinet
+    /// (a hood) or just over a dropped door's bottom is met only when the
+    /// door really passes there.
+    pub fn sweep(&self, piece: &Furniture) -> Vec<Slab> {
         let (w, depth) = (piece.width, piece.depth);
         let face = depth / 2.0;
         // A door board, or the door of an appliance whose box is the piece.
         let d = depth.min(MAX_DOOR);
         let (bottom, top) = piece.height_range();
+        // A door board is the piece; an appliance's door leaves its plinth
+        // and its control panel behind.
+        let flap = if depth > MAX_DOOR {
+            (top - bottom) * APPLIANCE_FLAP
+        } else {
+            top - bottom
+        };
+        let out_to = |reach: f64| {
+            vec![
+                (-w / 2.0, face),
+                (w / 2.0, face),
+                (w / 2.0, reach),
+                (-w / 2.0, reach),
+            ]
+        };
         let local: Vec<(f64, f64)> = match self.motion {
             Motion::Hinge { left } => {
                 // Worked out for a left hinge; a right one is its mirror.
@@ -179,31 +202,8 @@ impl Front {
                 }
                 out
             }
-            Motion::Drawer { travel } => {
-                let reach = face + travel + self.handle;
-                vec![
-                    (-w / 2.0, face),
-                    (w / 2.0, face),
-                    (w / 2.0, reach),
-                    (-w / 2.0, reach),
-                ]
-            }
-            Motion::FlapDown | Motion::FlapUp => {
-                // A door board is the piece; an appliance's door leaves its
-                // plinth and its control panel behind.
-                let leaf = if depth > MAX_DOOR {
-                    (top - bottom) * APPLIANCE_FLAP
-                } else {
-                    top - bottom
-                };
-                let reach = face + leaf + self.handle;
-                vec![
-                    (-w / 2.0, face),
-                    (w / 2.0, face),
-                    (w / 2.0, reach),
-                    (-w / 2.0, reach),
-                ]
-            }
+            Motion::Drawer { travel } => out_to(face + travel + self.handle),
+            Motion::FlapDown | Motion::FlapUp => out_to(face + flap + self.handle),
         };
         let heights = match self.motion {
             // Lying flat at its hinge line, the door is as tall as it is
@@ -213,10 +213,22 @@ impl Front {
             Motion::FlapUp => (top - d, top + d + self.handle),
             _ => (bottom, top),
         };
-        (
-            local.into_iter().map(|p| piece.to_plan(p)).collect(),
-            heights,
-        )
+        let plan = |local: Vec<(f64, f64)>| local.into_iter().map(|p| piece.to_plan(p)).collect();
+        let mut slabs = vec![(plan(local), heights)];
+        if matches!(self.motion, Motion::FlapDown | Motion::FlapUp) {
+            for band in 0..FLAP_BANDS {
+                let near = flap * f64::from(band) / f64::from(FLAP_BANDS);
+                let far = flap * f64::from(band + 1) / f64::from(FLAP_BANDS);
+                let reach = face + (flap * flap - near * near).sqrt() + self.handle;
+                let z = if self.motion == Motion::FlapDown {
+                    (bottom + near, bottom + far)
+                } else {
+                    (top - far, top - near)
+                };
+                slabs.push((plan(out_to(reach)), z));
+            }
+        }
+        slabs
     }
 }
 
@@ -227,13 +239,20 @@ impl Front {
     /// handle — the room somebody using it
     /// stands behind.
     pub fn reach(&self, piece: &Furniture) -> f64 {
-        let (outline, _) = self.sweep(piece);
-        outline
+        self.sweep(piece)
             .into_iter()
+            .flat_map(|(outline, _)| outline)
             .map(|p| piece.to_local(p).1 - piece.depth / 2.0)
             .fold(0.0, f64::max)
     }
 }
+
+/// A plan outline and the heights it spans, cm above the floor.
+pub type Slab = (Vec<Point2>, (f64, f64));
+
+/// Bands a flap's quarter turn is taken as: each 1/6 of the door's height,
+/// about 12 cm on a 70 cm door.
+const FLAP_BANDS: u32 = 6;
 
 /// Thickest a door is taken to be, cm: a piece deeper than this is a body
 /// with a door on its face (a fridge, an oven), not the door itself.
@@ -362,7 +381,7 @@ mod tests {
     #[test]
     fn a_door_sweeps_in_front_and_stands_past_its_hinge_side() {
         let piece = door("hinge-left handle 3");
-        let (outline, z) = Front::of(&piece).unwrap().sweep(&piece);
+        let (outline, z) = Front::of(&piece).unwrap().sweep(&piece).swap_remove(0);
         assert_eq!(z, (10.0, 80.0));
         let xs: Vec<f64> = outline.iter().map(|p| p.x).collect();
         let ys: Vec<f64> = outline.iter().map(|p| p.y).collect();
@@ -374,7 +393,7 @@ mod tests {
         assert!((ys.iter().copied().fold(f64::MIN, f64::max) - 61.0).abs() < 1e-9);
         // A right hinge is the mirror image.
         let right = door("hinge-right handle 3");
-        let (outline, _) = Front::of(&right).unwrap().sweep(&right);
+        let (outline, _) = Front::of(&right).unwrap().sweep(&right).swap_remove(0);
         assert_eq!(outline.iter().map(|p| p.x).fold(f64::MIN, f64::max), 35.0);
     }
 
@@ -392,7 +411,7 @@ mod tests {
             height: 85.0,
             ..Furniture::default()
         };
-        let (outline, z) = Front::of(&washer).unwrap().sweep(&washer);
+        let (outline, z) = Front::of(&washer).unwrap().sweep(&washer).swap_remove(0);
         assert_eq!(z, (0.0, 85.0));
         let max_y = outline.iter().map(|p| p.y).fold(f64::MIN, f64::max);
         assert!((max_y - (30.0 + 45.0)).abs() < 0.5, "{max_y}");
@@ -414,7 +433,7 @@ mod tests {
         right
             .properties
             .insert(OPENS_KEY.into(), "porthole-right".into());
-        let (outline, _) = Front::of(&right).unwrap().sweep(&right);
+        let (outline, _) = Front::of(&right).unwrap().sweep(&right).swap_remove(0);
         let max_x = outline.iter().map(|p| p.x).fold(f64::MIN, f64::max);
         assert!((max_x - (30.0 + 29.0)).abs() < 0.5, "{max_x}");
     }
@@ -459,11 +478,11 @@ mod tests {
     fn a_flap_lies_flat_at_its_hinge_line_with_the_handle_outward() {
         // The door is 70 cm tall, 10 to 80 cm above the floor, 2 cm thick.
         let down = door("flap-down handle 3");
-        let (outline, z) = Front::of(&down).unwrap().sweep(&down);
+        let (outline, z) = Front::of(&down).unwrap().sweep(&down).swap_remove(0);
         assert_eq!(z, (5.0, 12.0));
         assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 74.0);
         let up = door("flap-up handle 3");
-        let (outline, z) = Front::of(&up).unwrap().sweep(&up);
+        let (outline, z) = Front::of(&up).unwrap().sweep(&up).swap_remove(0);
         assert_eq!(z, (78.0, 85.0));
         assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 74.0);
         // Nothing behind the face, nothing past its sides.
@@ -477,11 +496,11 @@ mod tests {
     #[test]
     fn a_drawer_and_a_dropped_door_come_straight_out() {
         let piece = door("drawer 45 handle 3");
-        let (outline, z) = Front::of(&piece).unwrap().sweep(&piece);
+        let (outline, z) = Front::of(&piece).unwrap().sweep(&piece).swap_remove(0);
         assert_eq!(z, (10.0, 80.0));
         assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 49.0);
         let oven = door("flap-down");
-        let (outline, z) = Front::of(&oven).unwrap().sweep(&oven);
+        let (outline, z) = Front::of(&oven).unwrap().sweep(&oven).swap_remove(0);
         assert_eq!(outline.iter().map(|p| p.y).fold(f64::MIN, f64::max), 71.0);
         assert_eq!(z, (8.0, 12.0));
     }
